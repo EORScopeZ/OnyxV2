@@ -4798,6 +4798,268 @@ UnloadScriptButton.MouseButton1Click:Connect(function()
 end)
 
 -- Success notification
+
+-- =====================================================
+-- NAMETAG SYSTEM
+-- Everyone running Onyx sees nametags above each other.
+-- Polls /nametags every 10s for live updates from the bot.
+-- Glitch effect runs on all tags constantly.
+-- =====================================================
+
+local NAMETAG_SERVER    = "https://onyx-bot-production.up.railway.app"
+local ONYX_LOGO_URL     = "rbxassetid://6031075938" -- Onyx default image (white star/logo)
+local POLL_INTERVAL     = 10   -- seconds between server polls
+local GLITCH_INTERVAL   = 0.08 -- seconds between glitch frames
+
+-- Default nametag config (used for any player with no custom entry)
+local DEFAULT_CONFIG = {
+    tag_text      = "ONYX",
+    name_color    = "#8b7fff",
+    tag_color     = "#1a1a2e",
+    glow_color    = "#6d5ae0",
+    outline_color = "#000000",
+    image_url     = nil  -- nil = use ONYX_LOGO_URL
+}
+
+-- Hex color string → Color3
+local function hexToColor3(hex)
+    if not hex or hex == "" then return Color3.fromRGB(255,255,255) end
+    hex = hex:gsub("^#", "")
+    if #hex ~= 6 then return Color3.fromRGB(255,255,255) end
+    local r = tonumber(hex:sub(1,2), 16) or 255
+    local g = tonumber(hex:sub(3,4), 16) or 255
+    local b = tonumber(hex:sub(5,6), 16) or 255
+    return Color3.fromRGB(r, g, b)
+end
+
+-- Glitch character table
+local GLITCH_CHARS = {"!", "@", "#", "$", "%", "^", "&", "*", "~", "?", "/", "|", "Ξ", "Ω", "█", "▓", "▒"}
+
+local function glitchText(original, intensity)
+    -- intensity 0-1: how many chars get replaced
+    local chars = {}
+    for i = 1, #original do
+        if math.random() < intensity then
+            chars[i] = GLITCH_CHARS[math.random(#GLITCH_CHARS)]
+        else
+            chars[i] = original:sub(i, i)
+        end
+    end
+    return table.concat(chars)
+end
+
+-- Shared nametag config table (roblox_user lowercase → config)
+local nametagConfigs = {}
+
+-- Active nametag GUIs (Player → {billboard, nameLabel, tagLabel, imageLabel})
+local nametagGuis = {}
+
+-- Fetch config from server
+local function fetchNametagConfigs()
+    local ok, result = pcall(function()
+        return httpRequest({
+            Url    = NAMETAG_SERVER .. "/nametags",
+            Method = "GET",
+            Headers = { ["Content-Type"] = "application/json" }
+        })
+    end)
+    if not ok or not result then return end
+    local ok2, data = pcall(HttpService.JSONDecode, HttpService, result.Body)
+    if not ok2 or not data or not data.nametags then return end
+
+    -- Rebuild config table
+    local newConfigs = {}
+    for _, entry in ipairs(data.nametags) do
+        newConfigs[entry.roblox_user:lower()] = entry
+    end
+    nametagConfigs = newConfigs
+end
+
+-- Get the effective config for a player (custom or default)
+local function getConfig(player)
+    local custom = nametagConfigs[player.Name:lower()]
+    if custom then return custom end
+    return DEFAULT_CONFIG
+end
+
+-- Create or update a BillboardGui nametag above a player
+local function buildNametag(player)
+    local char = player.Character
+    if not char then return end
+    local head = char:FindFirstChild("Head")
+    if not head then return end
+
+    -- Remove old one if exists
+    local existing = nametagGuis[player]
+    if existing and existing.billboard and existing.billboard.Parent then
+        existing.billboard:Destroy()
+    end
+
+    local cfg = getConfig(player)
+
+    -- BillboardGui
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name          = "OnyxNametag"
+    billboard.Adornee       = head
+    billboard.Parent        = head
+    billboard.Size          = UDim2.new(0, 220, 0, 70)
+    billboard.StudsOffset   = Vector3.new(0, 3, 0)
+    billboard.AlwaysOnTop   = false
+    billboard.MaxDistance   = 80
+    billboard.ResetOnSpawn  = false
+
+    -- Background frame
+    local bg = Instance.new("Frame", billboard)
+    bg.Size                   = UDim2.new(1, 0, 1, 0)
+    bg.BackgroundColor3       = hexToColor3(cfg.tag_color)
+    bg.BackgroundTransparency = 0.15
+    bg.BorderSizePixel        = 0
+    Instance.new("UICorner", bg).CornerRadius = UDim.new(0, 10)
+
+    -- Glow stroke
+    local stroke = Instance.new("UIStroke", bg)
+    stroke.Color       = hexToColor3(cfg.glow_color)
+    stroke.Thickness   = 1.5
+    stroke.Transparency = 0.3
+
+    -- Image (left side)
+    local imageLabel = Instance.new("ImageLabel", bg)
+    imageLabel.Name                   = "OnyxImage"
+    imageLabel.Size                   = UDim2.new(0, 44, 0, 44)
+    imageLabel.Position               = UDim2.new(0, 6, 0.5, -22)
+    imageLabel.BackgroundTransparency = 1
+    imageLabel.Image                  = (cfg.image_url and cfg.image_url ~= "") and cfg.image_url or ONYX_LOGO_URL
+    imageLabel.ScaleType              = Enum.ScaleType.Fit
+    Instance.new("UICorner", imageLabel).CornerRadius = UDim.new(0, 6)
+
+    -- Player name label
+    local nameLabel = Instance.new("TextLabel", bg)
+    nameLabel.Name                = "OnyxName"
+    nameLabel.Size                = UDim2.new(1, -60, 0, 28)
+    nameLabel.Position            = UDim2.new(0, 56, 0, 6)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Font                = Enum.Font.GothamBlack
+    nameLabel.Text                = player.DisplayName
+    nameLabel.TextColor3          = hexToColor3(cfg.name_color)
+    nameLabel.TextSize            = 14
+    nameLabel.TextXAlignment      = Enum.TextXAlignment.Left
+    nameLabel.TextStrokeTransparency = 0.6
+    nameLabel.TextStrokeColor3    = hexToColor3(cfg.outline_color)
+    nameLabel.ClipsDescendants    = true
+
+    -- Tag badge label
+    local tagLabel = Instance.new("TextLabel", bg)
+    tagLabel.Name                 = "OnyxTag"
+    tagLabel.Size                 = UDim2.new(1, -60, 0, 22)
+    tagLabel.Position             = UDim2.new(0, 56, 0, 36)
+    tagLabel.BackgroundTransparency = 1
+    tagLabel.Font                 = Enum.Font.GothamBold
+    tagLabel.Text                 = cfg.tag_text or "ONYX"
+    tagLabel.TextColor3           = hexToColor3(cfg.glow_color)
+    tagLabel.TextSize             = 11
+    tagLabel.TextXAlignment       = Enum.TextXAlignment.Left
+    tagLabel.TextStrokeTransparency = 0.7
+    tagLabel.TextStrokeColor3     = hexToColor3(cfg.outline_color)
+    tagLabel.ClipsDescendants     = true
+
+    nametagGuis[player] = {
+        billboard  = billboard,
+        nameLabel  = nameLabel,
+        tagLabel   = tagLabel,
+        imageLabel = imageLabel,
+        cfg        = cfg,
+        glitchBase = player.DisplayName,
+        tagBase    = cfg.tag_text or "ONYX"
+    }
+end
+
+-- Rebuild all nametags (called after config refresh)
+local function rebuildAllNametags()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= plr then  -- don't tag yourself
+            buildNametag(player)
+        end
+    end
+end
+
+-- Initial build for existing players
+for _, player in ipairs(Players:GetPlayers()) do
+    if player ~= plr then
+        player.CharacterAdded:Connect(function()
+            task.wait(1)
+            buildNametag(player)
+        end)
+        if player.Character then
+            buildNametag(player)
+        end
+    end
+end
+
+-- New players joining
+Players.PlayerAdded:Connect(function(player)
+    if player == plr then return end
+    player.CharacterAdded:Connect(function()
+        task.wait(1)
+        buildNametag(player)
+    end)
+end)
+
+-- Cleanup when players leave
+Players.PlayerRemoving:Connect(function(player)
+    local data = nametagGuis[player]
+    if data and data.billboard and data.billboard.Parent then
+        data.billboard:Destroy()
+    end
+    nametagGuis[player] = nil
+end)
+
+-- Poll server for config updates every POLL_INTERVAL seconds
+task.spawn(function()
+    while true do
+        fetchNametagConfigs()
+        rebuildAllNametags()
+        task.wait(POLL_INTERVAL)
+    end
+end)
+
+-- Glitch effect loop — runs on all active nametags
+task.spawn(function()
+    local t = 0
+    while true do
+        t = t + GLITCH_INTERVAL
+        for player, data in pairs(nametagGuis) do
+            if not data.billboard or not data.billboard.Parent then
+                nametagGuis[player] = nil
+            else
+                -- Pulse: sine wave drives glitch intensity (0 to 0.25, peaks every ~2s)
+                local intensity = math.max(0, math.sin(t * math.pi) * 0.22)
+                -- Random occasional hard glitch spike
+                if math.random() < 0.04 then intensity = math.random() * 0.6 end
+
+                if data.nameLabel and data.nameLabel.Parent then
+                    data.nameLabel.Text = glitchText(data.glitchBase, intensity)
+                end
+                if data.tagLabel and data.tagLabel.Parent then
+                    data.tagLabel.Text = glitchText(data.tagBase, intensity * 0.5)
+                end
+
+                -- Glow pulse on the stroke
+                local gInfo = nametagGuis[player]
+                if gInfo and gInfo.billboard and gInfo.billboard.Parent then
+                    local bg2 = gInfo.billboard:FindFirstChildOfClass("Frame")
+                    if bg2 then
+                        local st = bg2:FindFirstChildOfClass("UIStroke")
+                        if st then
+                            st.Transparency = 0.3 + math.sin(t * 3) * 0.25
+                        end
+                    end
+                end
+            end
+        end
+        task.wait(GLITCH_INTERVAL)
+    end
+end)
+
 SendNotify("Onyx", "Press B to toggle | Loaded Successfully", 4)
 task.wait(0.5)
 if canUsePhysicsRep then
