@@ -4894,3 +4894,398 @@ if canUsePhysicsRep then
 else
     SendNotify("Onyx", "Fallback mode active (CFrame tracking - PhysicsRepRootPart unsupported)", 4)
 end
+
+-- =====================================================
+-- ONYX NAMETAG SYSTEM
+-- =====================================================
+
+-- Mark this executor as active
+plr:SetAttribute("OnyxExecuted", true)
+
+-- Runtime state
+local nametagObjects = {}   -- [userId] = BillboardGui instance
+local nametagConfigs = {}   -- [username] = config or "default" or "loading"
+local WORKER_BASE = "https://onyx-worker.onyxv2.workers.dev" -- Change to your actual worker URL
+local NAMETAG_FONT_MAP = {
+    ["GothamBlack"]  = Enum.Font.GothamBlack,
+    ["Arcade"]       = Enum.Font.Arcade,
+    ["Oswald"]       = Enum.Font.Oswald,
+    ["Jura"]         = Enum.Font.Jura,
+    ["Creepster"]    = Enum.Font.Creepster,
+}
+
+-- Default nametag config used when player has no custom config
+local function getDefaultConfig()
+    return {
+        displayName     = "Onyx User",
+        font            = "GothamBlack",
+        textColor       = Color3.fromRGB(255, 255, 255),
+        outlineColor    = Color3.fromRGB(255, 255, 255),
+        backgroundColor = Color3.fromRGB(10, 10, 10),
+        backgroundTransparency = 0.25,
+        backgroundImage = nil,
+        iconImage       = nil,
+        glitchAnim      = false,
+        width           = 5,
+        topTextSize     = 18,
+        botTextSize     = 13,
+    }
+end
+
+-- Parse hex color string (#RRGGBB) → Color3
+local function hexToColor3(hex)
+    if not hex then return nil end
+    hex = hex:gsub("#", "")
+    if #hex == 3 then
+        hex = hex:sub(1,1):rep(2) .. hex:sub(2,2):rep(2) .. hex:sub(3,3):rep(2)
+    end
+    if #hex ~= 6 then return nil end
+    local r = tonumber(hex:sub(1,2), 16)
+    local g = tonumber(hex:sub(3,4), 16)
+    local b = tonumber(hex:sub(5,6), 16)
+    if r and g and b then
+        return Color3.fromRGB(r, g, b)
+    end
+    return nil
+end
+
+-- Fetch nametag config from Cloudflare, non-blocking
+local function fetchNametagConfig(username, callback)
+    -- Already have it?
+    if nametagConfigs[username] then
+        callback(nametagConfigs[username])
+        return
+    end
+
+    nametagConfigs[username] = "loading"
+
+    task.spawn(function()
+        local ok, result = pcall(function()
+            return httpRequest({
+                Url    = WORKER_BASE .. "/get-nametag/" .. username,
+                Method = "GET",
+            })
+        end)
+
+        if ok and result and result.StatusCode == 200 then
+            local parsed = ok and game:GetService("HttpService"):JSONDecode(result.Body)
+            if parsed and parsed.config then
+                local cfg = parsed.config
+                local resolved = {
+                    displayName            = cfg.displayName or "Onyx User",
+                    font                   = cfg.font or "GothamBlack",
+                    textColor              = hexToColor3(cfg.textColor)       or Color3.fromRGB(255,255,255),
+                    outlineColor           = hexToColor3(cfg.outlineColor)    or Color3.fromRGB(255,255,255),
+                    backgroundColor        = Color3.fromRGB(10,10,10),
+                    backgroundTransparency = 0.25,
+                    backgroundImage        = cfg.backgroundImage or nil,
+                    iconImage              = cfg.iconImage or nil,
+                    glitchAnim             = cfg.glitchAnim == true,
+                    width                  = (cfg.sizePreset == "large" and 7) or (cfg.sizePreset == "small" and 3.5) or 5,
+                    topTextSize            = (cfg.sizePreset == "large" and 22) or (cfg.sizePreset == "small" and 15) or 18,
+                    botTextSize            = (cfg.sizePreset == "large" and 16) or (cfg.sizePreset == "small" and 11) or 13,
+                }
+                nametagConfigs[username] = resolved
+                callback(resolved)
+            else
+                nametagConfigs[username] = "default"
+                callback(getDefaultConfig())
+            end
+        else
+            nametagConfigs[username] = "default"
+            callback(getDefaultConfig())
+        end
+    end)
+end
+
+-- Build and return a BillboardGui nametag attached to a part
+local function buildNametag(targetPlayer, cfg)
+    local character = targetPlayer.Character
+    if not character then return nil end
+
+    local attachTo = character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
+    if not attachTo then return nil end
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name            = "OnyxNametag"
+    billboard.Adornee         = attachTo
+    billboard.Size            = UDim2.new(cfg.width, 0, 1.5, 0)
+    billboard.StudsOffset     = Vector3.new(0, 2.8, 0)
+    billboard.AlwaysOnTop     = false
+    billboard.MaxDistance     = 80
+    billboard.ResetOnSpawn    = false
+    billboard.ClipsDescendants = false
+    -- Parent inside CoreGui for local only visibility (other clients won't see it)
+    local ok, coreGui = pcall(function() return game:GetService("CoreGui") end)
+    billboard.Parent = ok and coreGui or plr.PlayerGui
+
+    -- Background frame
+    local bg = Instance.new("Frame")
+    bg.Name                  = "Background"
+    bg.Size                  = UDim2.new(1, 0, 1, 0)
+    bg.BackgroundColor3      = cfg.backgroundColor
+    bg.BackgroundTransparency = cfg.backgroundTransparency
+    bg.BorderSizePixel       = 0
+    bg.Parent                = billboard
+
+    -- Optional background image
+    if cfg.backgroundImage and cfg.backgroundImage ~= "" then
+        local bgImg = Instance.new("ImageLabel")
+        bgImg.Name                  = "BgImage"
+        bgImg.Size                  = UDim2.new(1, 0, 1, 0)
+        bgImg.BackgroundTransparency = 1
+        bgImg.Image                 = cfg.backgroundImage
+        bgImg.ScaleType             = Enum.ScaleType.Crop
+        bgImg.Parent                = bg
+    end
+
+    -- Rounded corners
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = bg
+
+    -- Outer white stroke
+    local stroke = Instance.new("UIStroke")
+    stroke.Color     = cfg.outlineColor
+    stroke.Thickness = 1.5
+    stroke.Parent    = bg
+
+    -- Layout
+    local layout = Instance.new("UIListLayout")
+    layout.FillDirection       = Enum.FillDirection.Vertical
+    layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    layout.VerticalAlignment   = Enum.VerticalAlignment.Center
+    layout.SortOrder           = Enum.SortOrder.LayoutOrder
+    layout.Padding             = UDim.new(0, 2)
+    layout.Parent              = bg
+
+    -- Optional icon
+    if cfg.iconImage and cfg.iconImage ~= "" then
+        local icon = Instance.new("ImageLabel")
+        icon.Name                   = "Icon"
+        icon.Size                   = UDim2.new(0, 28, 0, 28)
+        icon.BackgroundTransparency = 1
+        icon.Image                  = cfg.iconImage
+        icon.LayoutOrder            = 0
+        icon.Parent                 = bg
+    end
+
+    -- Display name (top text)
+    local topLabel = Instance.new("TextLabel")
+    topLabel.Name                 = "DisplayName"
+    topLabel.Size                 = UDim2.new(1, -8, 0, cfg.topTextSize + 4)
+    topLabel.BackgroundTransparency = 1
+    topLabel.Text                 = cfg.displayName
+    topLabel.Font                 = NAMETAG_FONT_MAP[cfg.font] or Enum.Font.GothamBlack
+    topLabel.TextSize             = cfg.topTextSize
+    topLabel.TextColor3           = cfg.textColor
+    topLabel.TextStrokeColor3     = cfg.outlineColor
+    topLabel.TextStrokeTransparency = 0.6
+    topLabel.TextXAlignment       = Enum.TextXAlignment.Center
+    topLabel.LayoutOrder          = 1
+    topLabel.Parent               = bg
+
+    -- Roblox username (bottom text, always shown)
+    local botLabel = Instance.new("TextLabel")
+    botLabel.Name                 = "Username"
+    botLabel.Size                 = UDim2.new(1, -8, 0, cfg.botTextSize + 4)
+    botLabel.BackgroundTransparency = 1
+    botLabel.Text                 = "@" .. targetPlayer.Name
+    botLabel.Font                 = Enum.Font.Gotham
+    botLabel.TextSize             = cfg.botTextSize
+    botLabel.TextColor3           = Color3.fromRGB(190, 190, 190)
+    botLabel.TextStrokeTransparency = 1
+    botLabel.TextXAlignment       = Enum.TextXAlignment.Center
+    botLabel.LayoutOrder          = 2
+    botLabel.Parent               = bg
+
+    return billboard
+end
+
+-- Glitch animation loop (lightweight coroutine per nametag)
+local function startGlitchAnimation(billboard)
+    task.spawn(function()
+        local bg        = billboard:FindFirstChild("Background")
+        local topLabel  = bg and bg:FindFirstChild("DisplayName")
+        local botLabel  = bg and bg:FindFirstChild("Username")
+        if not bg or not topLabel then return end
+
+        local rng = Random.new()
+
+        while billboard and billboard.Parent do
+            task.wait(rng:NextNumber(1.5, 4.0))
+            if not billboard or not billboard.Parent then break end
+
+            -- Brief glitch burst
+            for _ = 1, rng:NextInteger(2, 5) do
+                if not billboard or not billboard.Parent then break end
+
+                -- Shift top text slightly
+                local offsetX = rng:NextInteger(-3, 3)
+                local offsetY = rng:NextInteger(-2, 2)
+                topLabel.Position = UDim2.new(0, offsetX, 0, offsetY)
+
+                -- Flicker transparency
+                local flicker = rng:NextNumber(0.0, 0.5)
+                topLabel.TextTransparency = flicker
+                if botLabel then botLabel.TextTransparency = flicker * 0.5 end
+
+                -- Briefly change stroke to a "glitch color"
+                local glitchColor = Color3.fromRGB(
+                    rng:NextInteger(100, 255),
+                    rng:NextInteger(0, 80),
+                    rng:NextInteger(100, 255)
+                )
+                topLabel.TextStrokeColor3 = glitchColor
+
+                task.wait(0.04)
+            end
+
+            -- Restore to normal
+            if billboard and billboard.Parent then
+                topLabel.Position         = UDim2.new(0, 0, 0, 0)
+                topLabel.TextTransparency = 0
+                if botLabel then botLabel.TextTransparency = 0 end
+                topLabel.TextStrokeColor3 = Color3.fromRGB(255, 255, 255)
+            end
+        end
+    end)
+end
+
+-- Remove nametag for a given player (safe)
+local function removeNametag(userId)
+    local existing = nametagObjects[userId]
+    if existing then
+        pcall(function() existing:Destroy() end)
+        nametagObjects[userId] = nil
+    end
+end
+
+-- Create (or recreate) the nametag for a target player
+local function applyNametag(targetPlayer)
+    -- Visibility check: both must have OnyxExecuted = true
+    if not plr:GetAttribute("OnyxExecuted") then return end
+    if not targetPlayer:GetAttribute("OnyxExecuted") then return end
+    if targetPlayer == plr then return end
+
+    local userId = targetPlayer.UserId
+    removeNametag(userId)  -- clean up old one before creating new
+
+    fetchNametagConfig(targetPlayer.Name, function(cfg)
+        -- Re-check after async fetch in case player left
+        if not targetPlayer or not targetPlayer.Parent then return end
+        if not targetPlayer.Character then return end
+
+        local billboard = buildNametag(targetPlayer, cfg)
+        if not billboard then return end
+
+        nametagObjects[userId] = billboard
+
+        if cfg.glitchAnim then
+            startGlitchAnimation(billboard)
+        end
+    end)
+end
+
+-- Serial fetch queue: ensures only one HTTP request fires at a time
+local fetchQueue = {}
+local fetchQueueRunning = false
+
+local function enqueueFetch(username, callback)
+    -- Already cached (or loading) — bypass the queue
+    if nametagConfigs[username] and nametagConfigs[username] ~= "loading" then
+        callback(nametagConfigs[username] == "default" and getDefaultConfig() or nametagConfigs[username])
+        return
+    end
+
+    table.insert(fetchQueue, { username = username, callback = callback })
+
+    if fetchQueueRunning then return end
+    fetchQueueRunning = true
+
+    task.spawn(function()
+        while #fetchQueue > 0 do
+            local item = table.remove(fetchQueue, 1)
+            -- Only fetch if not already populated
+            if nametagConfigs[item.username] and nametagConfigs[item.username] ~= "loading" then
+                local c = nametagConfigs[item.username]
+                item.callback(c == "default" and getDefaultConfig() or c)
+            else
+                fetchNametagConfig(item.username, item.callback)
+                task.wait(0.3) -- throttle: 300ms between fetches
+            end
+        end
+        fetchQueueRunning = false
+    end)
+end
+
+-- Watch a single player for character spawns
+local function watchPlayer(targetPlayer)
+    -- Only attempt nametag once character is fully loaded
+    local function safeApply()
+        -- Wait until character exists and has a Head
+        local char = targetPlayer.Character
+        if not char then return end
+        if not char:FindFirstChild("Head") then
+            char.ChildAdded:Wait() -- yields only briefly until head appears
+            task.wait(0.1)
+        end
+        applyNametag(targetPlayer)
+    end
+
+    -- Try immediately (character might already exist)
+    if targetPlayer.Character then
+        task.spawn(safeApply)
+    end
+
+    -- Re-apply on every respawn
+    targetPlayer.CharacterAdded:Connect(function()
+        task.wait(0.8) -- give character time to fully replicate
+        safeApply()
+    end)
+
+    -- Watch for when they execute the script later
+    targetPlayer.AttributeChanged:Connect(function(attr)
+        if attr == "OnyxExecuted" and targetPlayer:GetAttribute("OnyxExecuted") then
+            task.spawn(safeApply)
+        end
+    end)
+end
+
+-- ── Bootstrap existing players (staggered to avoid overwhelming the executor)
+task.spawn(function()
+    for _, existingPlayer in ipairs(Players:GetPlayers()) do
+        if existingPlayer ~= plr then
+            watchPlayer(existingPlayer)
+            task.wait(0.3) -- stagger: 300ms between each player bootstrap
+        end
+    end
+end)
+
+-- ── Watch new players that join ────────────────────────────────────────────────
+Players.PlayerAdded:Connect(function(newPlayer)
+    watchPlayer(newPlayer)
+end)
+
+-- ── Clean up nametags when players leave ───────────────────────────────────────
+Players.PlayerRemoving:Connect(function(leavingPlayer)
+    removeNametag(leavingPlayer.UserId)
+    nametagConfigs[leavingPlayer.Name] = nil  -- clear cache so fresh data on rejoin
+end)
+
+-- ── Re-apply our own nametag to others when WE respawn ─────────────────────────
+plr.CharacterAdded:Connect(function()
+    task.wait(0.8)
+    plr:SetAttribute("OnyxExecuted", true)
+    -- Re-apply staggered so we don't spike on respawn
+    task.spawn(function()
+        for _, otherPlayer in ipairs(Players:GetPlayers()) do
+            if otherPlayer ~= plr and otherPlayer:GetAttribute("OnyxExecuted") then
+                applyNametag(otherPlayer)
+                task.wait(0.2)
+            end
+        end
+    end)
+end)
+
+SendNotify("Onyx", "Nametag system active", 3)
