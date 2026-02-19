@@ -4904,14 +4904,12 @@ local function registerSelf()
     end)
 end
 
--- Register immediately and keep the heartbeat alive every 8s (server expires after 10s)
+-- Register immediately and keep the heartbeat alive every 8s (server expires after 15s)
 task.spawn(function()
     registerSelf()
     while true do
         task.wait(8)
-        if UserInputService.WindowFocused then
-            registerSelf()
-        end
+        registerSelf()
     end
 end)
 
@@ -4940,7 +4938,17 @@ end
 -- LOCAL player: always returns a config (DEFAULT if not yet confirmed by server).
 -- OTHER players: returns nil if not a registered Onyx user.
 local function getConfig(player)
+    -- nametagConfigs is keyed lowercase; player.Name is case-sensitive so always lowercase it
     local entry = nametagConfigs[player.Name:lower()]
+    if not entry then
+        -- fallback: scan all keys in case server returned mixed case
+        for k, v in pairs(nametagConfigs) do
+            if k == player.Name:lower() then
+                entry = v
+                break
+            end
+        end
+    end
     if entry then
         return {
             name_text     = entry.name_text     or DEFAULT_CONFIG.name_text,
@@ -5163,8 +5171,19 @@ local function rebuildAllNametags()
     for _, player in ipairs(Players:GetPlayers()) do
         local cfg = getConfig(player)
         if cfg then
-            -- Only build if they're an Onyx user; remove if they're no longer listed
-            buildNametag(player)
+            if player.Character and player.Character:FindFirstChild("Head") then
+                buildNametag(player)
+            else
+                -- Character not ready yet — wait for it in background
+                task.spawn(function()
+                    local char = player.Character or player.CharacterAdded:Wait()
+                    char:WaitForChild("Head", 10)
+                    task.wait(0.5)
+                    if getConfig(player) then
+                        buildNametag(player)
+                    end
+                end)
+            end
         else
             removeNametag(player)
         end
@@ -5199,10 +5218,8 @@ end)
 -- ── Poll server for Onyx user list + config updates every POLL_INTERVAL secs ─
 task.spawn(function()
     while true do
-        if UserInputService.WindowFocused then
-            pcall(fetchNametagConfigs)
-            pcall(rebuildAllNametags)
-        end
+        pcall(fetchNametagConfigs)
+        pcall(rebuildAllNametags)
         task.wait(POLL_INTERVAL)
     end
 end)
