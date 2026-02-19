@@ -4801,15 +4801,17 @@ end)
 
 -- =====================================================
 -- NAMETAG SYSTEM
--- Everyone running Onyx sees nametags above each other.
--- Polls /nametags every 10s for live updates from the bot.
--- Glitch effect runs on all tags constantly.
+-- ONLY players who have executed Onyx see each other's nametags.
+-- On load: registers self with server so others can see you.
+-- Polls /nametags every 10s — only registered Onyx users appear.
+-- Your own nametag is shown via PlayerGui so you can see it too.
+-- Glitch effect runs on all active tags constantly.
 -- =====================================================
 
-local NAMETAG_SERVER    = "https://onyx-bot-production.up.railway.app"
-local ONYX_LOGO_URL     = "rbxassetid://6031075938" -- Onyx default image (white star/logo)
-local POLL_INTERVAL     = 10   -- seconds between server polls
-local GLITCH_INTERVAL   = 0.08 -- seconds between glitch frames
+local NAMETAG_SERVER  = "https://onyx-bot-production.up.railway.app"
+local ONYX_LOGO_URL   = "rbxassetid://6031075938" -- Onyx default image (white star/logo)
+local POLL_INTERVAL   = 10   -- seconds between server polls
+local GLITCH_INTERVAL = 0.08 -- seconds between glitch frames
 
 -- Default nametag config (used for any player with no custom entry)
 local DEFAULT_CONFIG = {
@@ -4836,7 +4838,6 @@ end
 local GLITCH_CHARS = {"!", "@", "#", "$", "%", "^", "&", "*", "~", "?", "/", "|", "Ξ", "Ω", "█", "▓", "▒"}
 
 local function glitchText(original, intensity)
-    -- intensity 0-1: how many chars get replaced
     local chars = {}
     for i = 1, #original do
         if math.random() < intensity then
@@ -4848,13 +4849,35 @@ local function glitchText(original, intensity)
     return table.concat(chars)
 end
 
--- Shared nametag config table (roblox_user lowercase → config)
+-- Active Onyx user set (roblox_user lowercase → config or true)
+-- Only players listed here will have nametags built.
 local nametagConfigs = {}
 
 -- Active nametag GUIs (Player → {billboard, nameLabel, tagLabel, imageLabel})
 local nametagGuis = {}
 
--- Fetch config from server
+-- ── Step 1: Register ourselves so other Onyx users see us ────────────────────
+local function registerSelf()
+    pcall(function()
+        httpRequest({
+            Url     = NAMETAG_SERVER .. "/register-onyx-user",
+            Method  = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body    = HttpService:JSONEncode({ roblox_user = plr.Name })
+        })
+    end)
+end
+
+-- Register immediately and keep the heartbeat alive every 8s (server expires after 10s)
+task.spawn(function()
+    registerSelf()
+    while true do
+        task.wait(8)
+        registerSelf()
+    end
+end)
+
+-- ── Step 2: Fetch active Onyx users + any custom configs from server ──────────
 local function fetchNametagConfigs()
     local ok, result = pcall(function()
         return httpRequest({
@@ -4867,7 +4890,7 @@ local function fetchNametagConfigs()
     local ok2, data = pcall(HttpService.JSONDecode, HttpService, result.Body)
     if not ok2 or not data or not data.nametags then return end
 
-    -- Rebuild config table
+    -- Rebuild config table — only Onyx users the server knows about
     local newConfigs = {}
     for _, entry in ipairs(data.nametags) do
         newConfigs[entry.roblox_user:lower()] = entry
@@ -4876,37 +4899,56 @@ local function fetchNametagConfigs()
 end
 
 -- Get the effective config for a player (custom or default)
+-- Returns nil if the player is NOT a registered Onyx user.
 local function getConfig(player)
-    local custom = nametagConfigs[player.Name:lower()]
-    if custom then return custom end
-    return DEFAULT_CONFIG
+    local entry = nametagConfigs[player.Name:lower()]
+    if not entry then return nil end  -- not an Onyx user → no tag
+    -- entry may just be {roblox_user=...} if no custom config; merge with DEFAULT
+    return {
+        tag_text      = entry.tag_text      or DEFAULT_CONFIG.tag_text,
+        name_color    = entry.name_color    or DEFAULT_CONFIG.name_color,
+        tag_color     = entry.tag_color     or DEFAULT_CONFIG.tag_color,
+        glow_color    = entry.glow_color    or DEFAULT_CONFIG.glow_color,
+        outline_color = entry.outline_color or DEFAULT_CONFIG.outline_color,
+        image_url     = entry.image_url     or DEFAULT_CONFIG.image_url,
+    }
 end
 
--- Create or update a BillboardGui nametag above a player
+-- ── Step 3: Build a nametag ───────────────────────────────────────────────────
+-- Only builds if the player is a registered Onyx user.
+-- For the local player, parents to PlayerGui so they can see their own tag.
 local function buildNametag(player)
+    -- Guard: only build for Onyx users
+    local cfg = getConfig(player)
+    if not cfg then return end  -- not registered → skip
+
     local char = player.Character
     if not char then return end
     local head = char:FindFirstChild("Head")
     if not head then return end
 
-    -- Remove old one if exists
+    -- Remove old tag if exists
     local existing = nametagGuis[player]
     if existing and existing.billboard and existing.billboard.Parent then
         existing.billboard:Destroy()
     end
 
-    local cfg = getConfig(player)
-
-    -- BillboardGui
+    -- BillboardGui — smaller size
     local billboard = Instance.new("BillboardGui")
-    billboard.Name          = "OnyxNametag"
-    billboard.Adornee       = head
-    billboard.Parent        = head
-    billboard.Size          = UDim2.new(0, 220, 0, 70)
-    billboard.StudsOffset   = Vector3.new(0, 3, 0)
-    billboard.AlwaysOnTop   = false
-    billboard.MaxDistance   = 80
-    billboard.ResetOnSpawn  = false
+    billboard.Name         = "OnyxNametag"
+    billboard.Adornee      = head
+    billboard.Size         = UDim2.new(0, 160, 0, 52)   -- smaller than before (was 220x70)
+    billboard.StudsOffset  = Vector3.new(0, 2.2, 0)     -- slightly lower offset
+    billboard.AlwaysOnTop  = false
+    billboard.MaxDistance  = 80
+    billboard.ResetOnSpawn = false
+
+    -- For local player: parent to PlayerGui so the camera doesn't clip it
+    if player == plr then
+        billboard.Parent = plr.PlayerGui
+    else
+        billboard.Parent = head
+    end
 
     -- Background frame
     local bg = Instance.new("Frame", billboard)
@@ -4914,53 +4956,53 @@ local function buildNametag(player)
     bg.BackgroundColor3       = hexToColor3(cfg.tag_color)
     bg.BackgroundTransparency = 0.15
     bg.BorderSizePixel        = 0
-    Instance.new("UICorner", bg).CornerRadius = UDim.new(0, 10)
+    Instance.new("UICorner", bg).CornerRadius = UDim.new(0, 8)
 
     -- Glow stroke
     local stroke = Instance.new("UIStroke", bg)
-    stroke.Color       = hexToColor3(cfg.glow_color)
-    stroke.Thickness   = 1.5
+    stroke.Color        = hexToColor3(cfg.glow_color)
+    stroke.Thickness    = 1.5
     stroke.Transparency = 0.3
 
-    -- Image (left side)
+    -- Image (left side) — smaller
     local imageLabel = Instance.new("ImageLabel", bg)
     imageLabel.Name                   = "OnyxImage"
-    imageLabel.Size                   = UDim2.new(0, 44, 0, 44)
-    imageLabel.Position               = UDim2.new(0, 6, 0.5, -22)
+    imageLabel.Size                   = UDim2.new(0, 32, 0, 32)   -- was 44x44
+    imageLabel.Position               = UDim2.new(0, 6, 0.5, -16)
     imageLabel.BackgroundTransparency = 1
     imageLabel.Image                  = (cfg.image_url and cfg.image_url ~= "") and cfg.image_url or ONYX_LOGO_URL
     imageLabel.ScaleType              = Enum.ScaleType.Fit
-    Instance.new("UICorner", imageLabel).CornerRadius = UDim.new(0, 6)
+    Instance.new("UICorner", imageLabel).CornerRadius = UDim.new(0, 5)
 
-    -- Player name label
+    -- Player name label — smaller text
     local nameLabel = Instance.new("TextLabel", bg)
-    nameLabel.Name                = "OnyxName"
-    nameLabel.Size                = UDim2.new(1, -60, 0, 28)
-    nameLabel.Position            = UDim2.new(0, 56, 0, 6)
+    nameLabel.Name                   = "OnyxName"
+    nameLabel.Size                   = UDim2.new(1, -50, 0, 22)
+    nameLabel.Position               = UDim2.new(0, 44, 0, 4)
     nameLabel.BackgroundTransparency = 1
-    nameLabel.Font                = Enum.Font.GothamBlack
-    nameLabel.Text                = player.DisplayName
-    nameLabel.TextColor3          = hexToColor3(cfg.name_color)
-    nameLabel.TextSize            = 14
-    nameLabel.TextXAlignment      = Enum.TextXAlignment.Left
+    nameLabel.Font                   = Enum.Font.GothamBlack
+    nameLabel.Text                   = player.DisplayName
+    nameLabel.TextColor3             = hexToColor3(cfg.name_color)
+    nameLabel.TextSize               = 11   -- was 14
+    nameLabel.TextXAlignment         = Enum.TextXAlignment.Left
     nameLabel.TextStrokeTransparency = 0.6
-    nameLabel.TextStrokeColor3    = hexToColor3(cfg.outline_color)
-    nameLabel.ClipsDescendants    = true
+    nameLabel.TextStrokeColor3       = hexToColor3(cfg.outline_color)
+    nameLabel.ClipsDescendants       = true
 
-    -- Tag badge label
+    -- Tag badge label — smaller text
     local tagLabel = Instance.new("TextLabel", bg)
-    tagLabel.Name                 = "OnyxTag"
-    tagLabel.Size                 = UDim2.new(1, -60, 0, 22)
-    tagLabel.Position             = UDim2.new(0, 56, 0, 36)
+    tagLabel.Name                   = "OnyxTag"
+    tagLabel.Size                   = UDim2.new(1, -50, 0, 18)
+    tagLabel.Position               = UDim2.new(0, 44, 0, 28)
     tagLabel.BackgroundTransparency = 1
-    tagLabel.Font                 = Enum.Font.GothamBold
-    tagLabel.Text                 = cfg.tag_text or "ONYX"
-    tagLabel.TextColor3           = hexToColor3(cfg.glow_color)
-    tagLabel.TextSize             = 11
-    tagLabel.TextXAlignment       = Enum.TextXAlignment.Left
+    tagLabel.Font                   = Enum.Font.GothamBold
+    tagLabel.Text                   = cfg.tag_text or "ONYX"
+    tagLabel.TextColor3             = hexToColor3(cfg.glow_color)
+    tagLabel.TextSize               = 9    -- was 11
+    tagLabel.TextXAlignment         = Enum.TextXAlignment.Left
     tagLabel.TextStrokeTransparency = 0.7
-    tagLabel.TextStrokeColor3     = hexToColor3(cfg.outline_color)
-    tagLabel.ClipsDescendants     = true
+    tagLabel.TextStrokeColor3       = hexToColor3(cfg.outline_color)
+    tagLabel.ClipsDescendants       = true
 
     nametagGuis[player] = {
         billboard  = billboard,
@@ -4973,31 +5015,42 @@ local function buildNametag(player)
     }
 end
 
--- Rebuild all nametags (called after config refresh)
+-- Remove a player's nametag
+local function removeNametag(player)
+    local data = nametagGuis[player]
+    if data and data.billboard and data.billboard.Parent then
+        data.billboard:Destroy()
+    end
+    nametagGuis[player] = nil
+end
+
+-- Rebuild all nametags after a config poll (includes local player)
 local function rebuildAllNametags()
     for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= plr then  -- don't tag yourself
+        local cfg = getConfig(player)
+        if cfg then
+            -- Only build if they're an Onyx user; remove if they're no longer listed
             buildNametag(player)
+        else
+            removeNametag(player)
         end
     end
 end
 
--- Initial build for existing players
+-- ── Hook up character respawns ────────────────────────────────────────────────
+-- For existing players already in the server
 for _, player in ipairs(Players:GetPlayers()) do
-    if player ~= plr then
-        player.CharacterAdded:Connect(function()
-            task.wait(1)
-            buildNametag(player)
-        end)
-        if player.Character then
-            buildNametag(player)
-        end
-    end
+    player.CharacterAdded:Connect(function()
+        task.wait(1)
+        buildNametag(player)
+    end)
+    -- Don't build immediately — wait for first fetchNametagConfigs so we only
+    -- build tags for actual Onyx users, not everyone in the server.
 end
 
--- New players joining
+-- New players joining — hook respawn; the poll loop will build their tag
+-- only if the server later reports them as an Onyx user.
 Players.PlayerAdded:Connect(function(player)
-    if player == plr then return end
     player.CharacterAdded:Connect(function()
         task.wait(1)
         buildNametag(player)
@@ -5006,14 +5059,10 @@ end)
 
 -- Cleanup when players leave
 Players.PlayerRemoving:Connect(function(player)
-    local data = nametagGuis[player]
-    if data and data.billboard and data.billboard.Parent then
-        data.billboard:Destroy()
-    end
-    nametagGuis[player] = nil
+    removeNametag(player)
 end)
 
--- Poll server for config updates every POLL_INTERVAL seconds
+-- ── Poll server for Onyx user list + config updates every POLL_INTERVAL secs ─
 task.spawn(function()
     while true do
         fetchNametagConfigs()
@@ -5022,7 +5071,7 @@ task.spawn(function()
     end
 end)
 
--- Glitch effect loop — runs on all active nametags
+-- ── Glitch effect loop — runs on all active nametags ─────────────────────────
 task.spawn(function()
     local t = 0
     while true do
@@ -5031,7 +5080,7 @@ task.spawn(function()
             if not data.billboard or not data.billboard.Parent then
                 nametagGuis[player] = nil
             else
-                -- Pulse: sine wave drives glitch intensity (0 to 0.25, peaks every ~2s)
+                -- Pulse: sine wave drives glitch intensity (peaks every ~2s)
                 local intensity = math.max(0, math.sin(t * math.pi) * 0.22)
                 -- Random occasional hard glitch spike
                 if math.random() < 0.04 then intensity = math.random() * 0.6 end
