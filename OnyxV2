@@ -15,20 +15,29 @@ local mouse = plr:GetMouse()
 -- ── HTTP request compatibility shim (Xeno, Synapse, Fluxus, etc.) ─────────────
 -- Defined here so the nametag system and any other code in this file can use it
 -- regardless of whether this script was loadstring'd from a loader or run directly.
+-- Each candidate is wrapped in pcall so accessing undefined globals (e.g. syn, fluxus)
+-- doesn't crash on Xeno, which throws errors on undefined global access.
 local httpRequest
-if request then
-    httpRequest = request
-elseif http and http.request then
-    httpRequest = http.request
-elseif http_request then
-    httpRequest = http_request
-elseif syn and syn.request then
-    httpRequest = syn.request
-elseif fluxus and fluxus.request then
-    httpRequest = fluxus.request
-else
-    httpRequest = function(opts)
-        return HttpService:RequestAsync(opts)
+do
+    local candidates = {
+        function() return request end,
+        function() return http and http.request end,
+        function() return http_request end,
+        function() return syn and syn.request end,
+        function() return fluxus and fluxus.request end,
+    }
+    for _, getter in ipairs(candidates) do
+        local ok, fn = pcall(getter)
+        if ok and type(fn) == "function" then
+            httpRequest = fn
+            break
+        end
+    end
+    if not httpRequest then
+        -- Safe no-op fallback — HttpService:RequestAsync is server-side only and crashes the client
+        httpRequest = function(opts)
+            return { Success = false, StatusCode = 0, Body = "" }
+        end
     end
 end
 
@@ -41,8 +50,8 @@ local function GetService(sn)
     end
 end
 
-local VoiceChatService = GetService('VoiceChatService')
-local VoiceChatInternal = GetService('VoiceChatInternal')
+local VoiceChatService = (function() local ok, s = pcall(GetService, 'VoiceChatService') return ok and s or nil end)()
+local VoiceChatInternal = (function() local ok, s = pcall(GetService, 'VoiceChatInternal') return ok and s or nil end)()
 	
 -- Executor capability detection
 -- Test if sethiddenproperty exists AND can actually set PhysicsRepRootPart
@@ -54,7 +63,6 @@ do
             if char then
                 local hrp = char:FindFirstChild("HumanoidRootPart")
                 if hrp then
-                    sethiddenproperty(hrp, "PhysicsRepRootPart", hrp)
                     sethiddenproperty(hrp, "PhysicsRepRootPart", hrp)
                 end
             end
