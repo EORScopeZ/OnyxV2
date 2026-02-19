@@ -2591,7 +2591,7 @@ end)
 
 -- Update mic icon status in real-time
 RunService.Heartbeat:Connect(function()
-    if AntiVCWindow.Visible or ScreenMicIndicator.Visible then
+    if (AntiVCWindow.Visible or ScreenMicIndicator.Visible) and VoiceChatInternal then
         local success, isPaused = pcall(function() 
             return VoiceChatInternal:IsPublishPaused() 
         end)
