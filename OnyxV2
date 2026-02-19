@@ -4955,9 +4955,28 @@ local function fetchNametagConfigs()
     -- Rebuild config table — only Onyx users the server knows about
     local newConfigs = {}
     for _, entry in ipairs(data.nametags) do
-        newConfigs[entry.roblox_user:lower()] = entry
+        if entry and entry.roblox_user then
+            newConfigs[entry.roblox_user:lower()] = entry
+        end
     end
     nametagConfigs = newConfigs
+
+    -- Always ensure local player has their own entry (server may have custom config for us)
+    -- If server returned our entry, it's already in nametagConfigs.
+    -- If not (we just registered, TTL race), force-insert default so our tag always shows custom.
+    local selfKey = plr.Name:lower()
+    if not nametagConfigs[selfKey] then
+        nametagConfigs[selfKey] = {
+            roblox_user   = selfKey,
+            name_text     = DEFAULT_CONFIG.name_text,
+            tag_text      = DEFAULT_CONFIG.tag_text,
+            name_color    = DEFAULT_CONFIG.name_color,
+            tag_color     = DEFAULT_CONFIG.tag_color,
+            glow_color    = DEFAULT_CONFIG.glow_color,
+            outline_color = DEFAULT_CONFIG.outline_color,
+            image_url     = DEFAULT_CONFIG.image_url,
+        }
+    end
 end
 
 -- Get the effective config for a player (custom or default).
@@ -5214,6 +5233,12 @@ local function rebuildAllNametags()
             removeNametag(player)
         end
     end
+    -- Always rebuild local player tag after every poll so custom config is reflected
+    task.defer(function()
+        if plr.Character and plr.Character:FindFirstChild("Head") then
+            buildNametag(plr)
+        end
+    end)
 end
 
 -- ── Hook up character respawns ────────────────────────────────────────────────
@@ -5247,6 +5272,59 @@ task.spawn(function()
         pcall(fetchNametagConfigs)
         pcall(rebuildAllNametags)
         task.wait(POLL_INTERVAL)
+    end
+end)
+
+-- ── AK Admin chat trigger: send ",,,," in chat to force-show tags on nearby players ──
+-- AK Admin system shows tags when a player sends text in chat.
+-- We automatically send ",,,," which AK Admin intercepts to show our nametag.
+-- This runs once on load and whenever we need to re-announce to nearby players.
+task.spawn(function()
+    task.wait(3) -- wait for game to fully load
+    -- Try TextChatService (new chat) first, then legacy chat
+    local function sendChat(msg)
+        pcall(function()
+            local tcs = game:GetService("TextChatService")
+            if tcs and tcs.TextChannels then
+                local general = tcs.TextChannels:FindFirstChild("RBXGeneral")
+                if general then
+                    general:SendAsync(msg)
+                    return
+                end
+            end
+        end)
+        -- Legacy chat fallback
+        pcall(function()
+            game:GetService("ReplicatedStorage"):FindFirstChild("DefaultChatSystemChatEvents")
+                :FindFirstChild("SayMessageRequest"):FireServer(msg, "All")
+        end)
+    end
+
+    -- Send once on load
+    sendChat(",,,,")
+
+    -- Re-send every 30s so newly-joined Onyx users see our tag
+    while true do
+        task.wait(30)
+        sendChat(",,,,")
+    end
+end)
+
+-- Also re-send chat trigger whenever nametagConfigs updates (new Onyx user detected)
+local lastNametagCount = 0
+task.spawn(function()
+    while true do
+        task.wait(POLL_INTERVAL)
+        local count = 0
+        for _ in pairs(nametagConfigs) do count = count + 1 end
+        if count ~= lastNametagCount then
+            lastNametagCount = count
+            pcall(function()
+                local tcs = game:GetService("TextChatService")
+                local general = tcs and tcs.TextChannels and tcs.TextChannels:FindFirstChild("RBXGeneral")
+                if general then general:SendAsync(",,,,") end
+            end)
+        end
     end
 end)
 
