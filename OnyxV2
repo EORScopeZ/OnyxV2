@@ -3,27 +3,27 @@ OnyxV2    By Biscuit
 ]]
 
 – Check if GUI already exists
-if game.CoreGui:FindFirstChild(“OnyxUI”) then
+if game.CoreGui:FindFirstChild("OnyxUI") then
 game.CoreGui.OnyxUI:Destroy()
 end
-if game.CoreGui:FindFirstChild(“OnyxAuth”) then
+if game.CoreGui:FindFirstChild("OnyxAuth") then
 game.CoreGui.OnyxAuth:Destroy()
 end
 
 – Services
-local Players = game:GetService(“Players”)
-local TweenService = game:GetService(“TweenService”)
-local UserInputService = game:GetService(“UserInputService”)
-local RunService = game:GetService(“RunService”)
-local HttpService = game:GetService(“HttpService”)
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
 local plr = Players.LocalPlayer
 local mouse = plr:GetMouse()
 
 – KEY SYSTEM - AUTHENTICATION
-local KEY_SERVER_URL = “https://onyx-key-system.onyxv2.workers.dev”
+local ONYX_URL = "https://onyx-bot-production.up.railway.app" -- Your Railway Bot URL
 
 local function buildUrl(endpoint)
-return KEY_SERVER_URL:gsub(”/$”, “”) .. “/” .. endpoint:gsub(”^/”, “”)
+    return ONYX_URL:gsub("/$", "") .. "/" .. endpoint:gsub("^/", "")
 end
 local function httpRequest(options)
 if request then
@@ -41,30 +41,42 @@ return HttpService:RequestAsync(options)
 end
 end
 
-local function ValidateKey(key)
-local robloxUser = plr.Name
-local ok, result = pcall(function()
-return httpRequest({
-Url    = buildUrl(”/validate”),
-Method = “POST”,
-Headers = { [“Content-Type”] = “application/json” },
-Body   = HttpService:JSONEncode({ key = key, roblox_user = robloxUser })
-})
-end)
-if not ok or not result then
-warn(”[Onyx] HTTP failed: “ .. tostring(result))
-return { valid = false, message = “Could not reach key server.” }
-end
-local ok2, decoded = pcall(HttpService.JSONDecode, HttpService, result.Body)
-if not ok2 then
-warn(”[Onyx] Bad response body: “ .. tostring(result.Body))
-return { valid = false, message = “Invalid response from key server.” }
-end
-return decoded
+local function GetHWID()
+    local hwid = "Unknown"
+    pcall(function()
+        hwid = game:GetService("RbxAnalyticsService"):GetClientId()
+    end)
+    return hwid
 end
 
-local AuthGui = Instance.new(“ScreenGui”)
-AuthGui.Name = “OnyxAuth”
+local function ValidateKey(key)
+    local robloxUser = plr.Name
+    local ok, result = pcall(function()
+        return httpRequest({
+            Url    = buildUrl("/validate"),
+            Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body   = HttpService:JSONEncode({ 
+                key         = key, 
+                roblox_user = robloxUser,
+                hwid        = GetHWID()
+            })
+        })
+    end)
+    if not ok or not result then
+        warn("[Onyx] HTTP failed: " .. tostring(result))
+        return { valid = false, message = "Could not reach key server." }
+    end
+    local ok2, decoded = pcall(HttpService.JSONDecode, HttpService, result.Body)
+    if not ok2 then
+        warn("[Onyx] Bad response body: " .. tostring(result.Body))
+        return { valid = false, message = "Invalid response from key server." }
+    end
+    return decoded
+end
+
+local AuthGui = Instance.new("ScreenGui")
+AuthGui.Name = "OnyxAuth"
 AuthGui.Parent = game.CoreGui
 AuthGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 AuthGui.ResetOnSpawn = false
@@ -75,7 +87,7 @@ local WIN_W   = 340
 local WIN_H   = 252
 local REST_Y  = 10  – pixels from top of screen when at rest
 
-local AuthWin = Instance.new(“Frame”)
+local AuthWin = Instance.new("Frame")
 AuthWin.Parent = AuthGui
 AuthWin.AnchorPoint = Vector2.new(0.5, 0)
 AuthWin.Position = UDim2.new(0.5, 0, 0, -(WIN_H + 20))
@@ -86,24 +98,24 @@ AuthWin.BorderSizePixel = 0
 AuthWin.ZIndex = 2
 AuthWin.ClipsDescendants = true
 do
-local c = Instance.new(“UICorner”); c.CornerRadius = UDim.new(0, 16); c.Parent = AuthWin
-local s = Instance.new(“UIStroke”); s.Color = Color3.fromRGB(255, 255, 255)
+local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 16); c.Parent = AuthWin
+local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(255, 255, 255)
 s.Transparency = 0.78; s.Thickness = 1.2; s.Parent = AuthWin
-local overlay = Instance.new(“Frame”); overlay.Parent = AuthWin
+local overlay = Instance.new("Frame"); overlay.Parent = AuthWin
 overlay.BackgroundColor3 = Color3.fromRGB(140, 130, 255)
 overlay.BackgroundTransparency = 0.96
 overlay.BorderSizePixel = 0
 overlay.Size = UDim2.new(1, 0, 1, 0)
 overlay.ZIndex = 2
-do local oc = Instance.new(“UICorner”); oc.CornerRadius = UDim.new(0, 16); oc.Parent = overlay end
+do local oc = Instance.new("UICorner"); oc.CornerRadius = UDim.new(0, 16); oc.Parent = overlay end
 end
-local AccentStrip = Instance.new(“Frame”)
+local AccentStrip = Instance.new("Frame")
 AccentStrip.Parent = AuthWin
 AccentStrip.BackgroundColor3 = Color3.fromRGB(140, 130, 255)
 AccentStrip.BorderSizePixel = 0
 AccentStrip.Size = UDim2.new(1, 0, 0, 3)
 AccentStrip.ZIndex = 4
-local AuthTitleBar = Instance.new(“Frame”)
+local AuthTitleBar = Instance.new("Frame")
 AuthTitleBar.Parent = AuthWin
 AuthTitleBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 AuthTitleBar.BackgroundTransparency = 0.96
@@ -112,43 +124,43 @@ AuthTitleBar.Position = UDim2.new(0, 0, 0, 3)
 AuthTitleBar.Size = UDim2.new(1, 0, 0, 48)
 AuthTitleBar.ZIndex = 3
 do
-local c = Instance.new(“UICorner”); c.CornerRadius = UDim.new(0, 16); c.Parent = AuthTitleBar
+local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 16); c.Parent = AuthTitleBar
 end
-local AuthTitle = Instance.new(“TextLabel”)
+local AuthTitle = Instance.new("TextLabel")
 AuthTitle.Parent = AuthTitleBar
 AuthTitle.BackgroundTransparency = 1
 AuthTitle.Position = UDim2.new(0, 0, 0, 6)
 AuthTitle.Size = UDim2.new(1, 0, 0, 22)
 AuthTitle.Font = Enum.Font.GothamBlack
-AuthTitle.Text = “ONYX”
+AuthTitle.Text = "ONYX"
 AuthTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
 AuthTitle.TextSize = 19
 AuthTitle.TextXAlignment = Enum.TextXAlignment.Center
 AuthTitle.ZIndex = 4
-local AuthSubtitle = Instance.new(“TextLabel”)
+local AuthSubtitle = Instance.new("TextLabel")
 AuthSubtitle.Parent = AuthTitleBar
 AuthSubtitle.BackgroundTransparency = 1
 AuthSubtitle.Position = UDim2.new(0, 0, 0, 28)
 AuthSubtitle.Size = UDim2.new(1, 0, 0, 14)
 AuthSubtitle.Font = Enum.Font.Gotham
-AuthSubtitle.Text = “Key Authentication”
+AuthSubtitle.Text = "Key Authentication"
 AuthSubtitle.TextColor3 = Color3.fromRGB(140, 130, 255)
 AuthSubtitle.TextSize = 11
 AuthSubtitle.TextXAlignment = Enum.TextXAlignment.Center
 AuthSubtitle.ZIndex = 4
-local AuthInstruct = Instance.new(“TextLabel”)
+local AuthInstruct = Instance.new("TextLabel")
 AuthInstruct.Parent = AuthWin
 AuthInstruct.BackgroundTransparency = 1
 AuthInstruct.Position = UDim2.new(0, 18, 0, 60)
 AuthInstruct.Size = UDim2.new(1, -36, 0, 26)
 AuthInstruct.Font = Enum.Font.Gotham
-AuthInstruct.Text = “Paste your key below. Get a free key by completing the Linkvertise link posted in our Discord.”
+AuthInstruct.Text = "Paste your key below. Get a free key by completing the Linkvertise link posted in our Discord."
 AuthInstruct.TextColor3 = Color3.fromRGB(160, 160, 190)
 AuthInstruct.TextSize = 11
 AuthInstruct.TextWrapped = true
 AuthInstruct.TextXAlignment = Enum.TextXAlignment.Center
 AuthInstruct.ZIndex = 3
-local AuthInput = Instance.new(“TextBox”)
+local AuthInput = Instance.new("TextBox")
 AuthInput.Parent = AuthWin
 AuthInput.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 AuthInput.BackgroundTransparency = 0.92
@@ -156,31 +168,31 @@ AuthInput.BorderSizePixel = 0
 AuthInput.Position = UDim2.new(0, 18, 0, 96)
 AuthInput.Size = UDim2.new(1, -36, 0, 36)
 AuthInput.Font = Enum.Font.GothamMedium
-AuthInput.PlaceholderText = “ONYX-XXXX-XXXX-XXXX”
+AuthInput.PlaceholderText = "ONYX-XXXX-XXXX-XXXX"
 AuthInput.PlaceholderColor3 = Color3.fromRGB(90, 90, 120)
-AuthInput.Text = “”
+AuthInput.Text = ""
 AuthInput.TextColor3 = Color3.fromRGB(220, 220, 240)
 AuthInput.TextSize = 13
 AuthInput.ClearTextOnFocus = false
 AuthInput.ZIndex = 3
 do
-local c = Instance.new(“UICorner”); c.CornerRadius = UDim.new(0, 8); c.Parent = AuthInput
-local s = Instance.new(“UIStroke”); s.Color = Color3.fromRGB(140, 130, 255)
+local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = AuthInput
+local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(140, 130, 255)
 s.Transparency = 0.55; s.Thickness = 1; s.Parent = AuthInput
-local p = Instance.new(“UIPadding”); p.Parent = AuthInput; p.PaddingLeft = UDim.new(0, 12)
+local p = Instance.new("UIPadding"); p.Parent = AuthInput; p.PaddingLeft = UDim.new(0, 12)
 end
-local AuthStatus = Instance.new(“TextLabel”)
+local AuthStatus = Instance.new("TextLabel")
 AuthStatus.Parent = AuthWin
 AuthStatus.BackgroundTransparency = 1
 AuthStatus.Position = UDim2.new(0, 18, 0, 140)
 AuthStatus.Size = UDim2.new(1, -36, 0, 16)
 AuthStatus.Font = Enum.Font.GothamBold
-AuthStatus.Text = “”
+AuthStatus.Text = ""
 AuthStatus.TextColor3 = Color3.fromRGB(200, 200, 220)
 AuthStatus.TextSize = 11
 AuthStatus.TextXAlignment = Enum.TextXAlignment.Center
 AuthStatus.ZIndex = 3
-local AuthBtn = Instance.new(“TextButton”)
+local AuthBtn = Instance.new("TextButton")
 AuthBtn.Parent = AuthWin
 AuthBtn.BackgroundColor3 = Color3.fromRGB(140, 130, 255)
 AuthBtn.BackgroundTransparency = 0.08
@@ -188,13 +200,13 @@ AuthBtn.BorderSizePixel = 0
 AuthBtn.Position = UDim2.new(0, 18, 0, 164)
 AuthBtn.Size = UDim2.new(1, -36, 0, 38)
 AuthBtn.Font = Enum.Font.GothamBold
-AuthBtn.Text = “Authenticate”
+AuthBtn.Text = "Authenticate"
 AuthBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 AuthBtn.TextSize = 14
 AuthBtn.ZIndex = 3
 AuthBtn.AutoButtonColor = false
 do
-local c = Instance.new(“UICorner”); c.CornerRadius = UDim.new(0, 10); c.Parent = AuthBtn
+local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 10); c.Parent = AuthBtn
 end
 AuthBtn.MouseEnter:Connect(function()
 TweenService:Create(AuthBtn, TweenInfo.new(0.15), { BackgroundTransparency = 0 }):Play()
@@ -202,13 +214,13 @@ end)
 AuthBtn.MouseLeave:Connect(function()
 TweenService:Create(AuthBtn, TweenInfo.new(0.15), { BackgroundTransparency = 0.08 }):Play()
 end)
-local AuthHint = Instance.new(“TextLabel”)
+local AuthHint = Instance.new("TextLabel")
 AuthHint.Parent = AuthWin
 AuthHint.BackgroundTransparency = 1
 AuthHint.Position = UDim2.new(0, 18, 0, 212)
 AuthHint.Size = UDim2.new(1, -36, 0, 30)
 AuthHint.Font = Enum.Font.Gotham
-AuthHint.Text = “🔗 Complete the Linkvertise link in Discord → get your key → paste it above\n♾️  Whitelisted? Use your permanent key — no link needed.”
+AuthHint.Text = "🔗 Complete the Linkvertise link in Discord → get your key → paste it above\n♾️  Whitelisted? Use your permanent key — no link needed."
 AuthHint.TextColor3 = Color3.fromRGB(80, 80, 110)
 AuthHint.TextSize = 10
 AuthHint.TextWrapped = true
@@ -244,7 +256,7 @@ task.wait(0.05)
 TweenService:Create(AuthWin, TweenInfo.new(0.05), { Position = pos(6) }):Play()
 task.wait(0.05)
 TweenService:Create(AuthWin, TweenInfo.new(0.05), { Position = REST_POS }):Play()
-local stroke = AuthInput:FindFirstChildOfClass(“UIStroke”)
+local stroke = AuthInput:FindFirstChildOfClass("UIStroke")
 if stroke then
 stroke.Color = Color3.fromRGB(255, 60, 60)
 task.wait(1)
@@ -256,10 +268,10 @@ end
 
 local function GrantAccess(keyType)
 SetStatus(
-keyType == “whitelist” and “✓ Whitelisted — Welcome!” or “✓ Key Valid — Loading…”,
+keyType == "whitelist" and "✓ Whitelisted — Welcome!" or "✓ Key Valid — Loading…",
 Color3.fromRGB(80, 255, 140)
 )
-AuthBtn.Text = “✓ Authenticated”
+AuthBtn.Text = "✓ Authenticated"
 AuthBtn.BackgroundColor3 = Color3.fromRGB(50, 185, 90)
 
 ```
@@ -276,9 +288,9 @@ end
 
 local function TryAuthenticate()
 if authChecking then return end
-local key = AuthInput.Text:match(”^%s*(.-)%s*$”)
-if key == “” then
-FlashDenied(“Please enter a key.”)
+local key = AuthInput.Text:match("^%s*(.-)%s*$")
+if key == "" then
+FlashDenied("Please enter a key.")
 return
 end
 
@@ -316,13 +328,13 @@ AuthInput.FocusLost:Connect(function(enterPressed)
 if enterPressed then TryAuthenticate() end
 end)
 
-repeat task.wait(0.1) until not game.CoreGui:FindFirstChild(“OnyxAuth”)
+repeat task.wait(0.1) until not game.CoreGui:FindFirstChild("OnyxAuth")
 
 – Drawing API check
 local DrawingEnabled = false
 do
 local ok = pcall(function()
-local test = Drawing.new(“Square”)
+local test = Drawing.new("Square")
 test:Remove()
 end)
 DrawingEnabled = ok
@@ -338,17 +350,17 @@ end)
 return ok and result or nil
 end
 
-local VoiceChatService  = GetService(‘VoiceChatService’)
-local VoiceChatInternal = GetService(‘VoiceChatInternal’)
+local VoiceChatService  = GetService('VoiceChatService')
+local VoiceChatInternal = GetService('VoiceChatInternal')
 
 – check PhysicsRepRootPart
 local canUsePhysicsRep = false
 task.defer(function()
 if not sethiddenproperty then return end
 local ok = pcall(function()
-local p = Instance.new(“Part”)
+local p = Instance.new("Part")
 p.Parent = workspace
-sethiddenproperty(p, “PhysicsRepRootPart”, p)
+sethiddenproperty(p, "PhysicsRepRootPart", p)
 p:Destroy()
 end)
 canUsePhysicsRep = ok
@@ -359,7 +371,7 @@ local TargetedPlayer = nil
 
 – Utility Functions
 local function GetPlayer(UserDisplay)
-if UserDisplay ~= “” then
+if UserDisplay ~= "" then
 for i,v in pairs(Players:GetPlayers()) do
 if v.Name:lower():match(UserDisplay:lower()) or v.DisplayName:lower():match(UserDisplay:lower()) then
 return v
@@ -379,7 +391,7 @@ end
 
 local function GetRoot(Player)
 local char = GetCharacter(Player)
-if char and char:FindFirstChild(“HumanoidRootPart”) then
+if char and char:FindFirstChild("HumanoidRootPart") then
 return char.HumanoidRootPart
 end
 end
@@ -502,14 +514,14 @@ end
 end)
 end
 
-local OnyxUI = Instance.new(“ScreenGui”)
-OnyxUI.Name = “OnyxUI”
+local OnyxUI = Instance.new("ScreenGui")
+OnyxUI.Name = "OnyxUI"
 OnyxUI.Parent = game.CoreGui
 OnyxUI.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 OnyxUI.ResetOnSpawn = false
 
-NotifContainer = Instance.new(“Frame”)
-NotifContainer.Name = “OnyxNotifContainer”
+NotifContainer = Instance.new("Frame")
+NotifContainer.Name = "OnyxNotifContainer"
 NotifContainer.Parent = OnyxUI
 NotifContainer.BackgroundTransparency = 1
 NotifContainer.AnchorPoint = Vector2.new(1, 1)
@@ -518,14 +530,14 @@ NotifContainer.Size = UDim2.new(0, 290, 0.6, 0)
 NotifContainer.ZIndex = 200
 NotifContainer.ClipsDescendants = false
 do
-local l = Instance.new(“UIListLayout”); l.Parent = NotifContainer
+local l = Instance.new("UIListLayout"); l.Parent = NotifContainer
 l.SortOrder = Enum.SortOrder.LayoutOrder
 l.VerticalAlignment = Enum.VerticalAlignment.Bottom
 l.HorizontalAlignment = Enum.HorizontalAlignment.Right
 l.Padding = UDim.new(0, 6)
 end
-local MainFrame = Instance.new(“Frame”)
-MainFrame.Name = “MainFrame”
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
 MainFrame.Parent = OnyxUI
 MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 MainFrame.BackgroundColor3 = Color3.fromRGB(9, 9, 18)
@@ -537,7 +549,7 @@ MainFrame.ClipsDescendants = true
 MainFrame.Active = true
 
 do
-local MainCorner = Instance.new(“UICorner”)
+local MainCorner = Instance.new("UICorner")
 MainCorner.CornerRadius = UDim.new(0, 13)
 MainCorner.Parent = MainFrame
 
@@ -564,8 +576,8 @@ BlurCorner.Parent = BlurOverlay
 end
 
 – Title Bar
-local TitleBar = Instance.new(“Frame”)
-TitleBar.Name = “TitleBar”
+local TitleBar = Instance.new("Frame")
+TitleBar.Name = "TitleBar"
 TitleBar.Parent = MainFrame
 TitleBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 TitleBar.BackgroundTransparency = 0.96
@@ -573,11 +585,11 @@ TitleBar.BorderSizePixel = 0
 TitleBar.Size = UDim2.new(1, 0, 0, 48)
 TitleBar.ZIndex = 2
 do
-local TitleBarCorner = Instance.new(“UICorner”)
+local TitleBarCorner = Instance.new("UICorner")
 TitleBarCorner.CornerRadius = UDim.new(0, 13)
 TitleBarCorner.Parent = TitleBar
-local TitleBorder = Instance.new(“Frame”)
-TitleBorder.Name = “TitleBorder”
+local TitleBorder = Instance.new("Frame")
+TitleBorder.Name = "TitleBorder"
 TitleBorder.Parent = TitleBar
 TitleBorder.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 TitleBorder.BackgroundTransparency = 0.87
@@ -586,32 +598,32 @@ TitleBorder.Position = UDim2.new(0, 12, 1, -1)
 TitleBorder.Size = UDim2.new(1, -24, 0, 1)
 TitleBorder.ZIndex = 3
 end
-local TitleText = Instance.new(“TextLabel”)
-TitleText.Name = “TitleText”
+local TitleText = Instance.new("TextLabel")
+TitleText.Name = "TitleText"
 TitleText.Parent = TitleBar
 TitleText.BackgroundTransparency = 1
 TitleText.Position = UDim2.new(0, 18, 0, 5)
 TitleText.Size = UDim2.new(1, -120, 0, 22)
 TitleText.Font = Enum.Font.GothamBlack
-TitleText.Text = “ONYX”
+TitleText.Text = "ONYX"
 TitleText.TextColor3 = Color3.fromRGB(255, 255, 255)
 TitleText.TextSize = 17
 TitleText.TextXAlignment = Enum.TextXAlignment.Left
 TitleText.ZIndex = 3
-local SubtitleText = Instance.new(“TextLabel”)
-SubtitleText.Name = “SubtitleText”
+local SubtitleText = Instance.new("TextLabel")
+SubtitleText.Name = "SubtitleText"
 SubtitleText.Parent = TitleBar
 SubtitleText.BackgroundTransparency = 1
 SubtitleText.Position = UDim2.new(0, 18, 0, 28)
 SubtitleText.Size = UDim2.new(0.5, 0, 0, 14)
 SubtitleText.Font = Enum.Font.Gotham
-SubtitleText.Text = “by Biscuit”
+SubtitleText.Text = "by Biscuit"
 SubtitleText.TextColor3 = Color3.fromRGB(135, 135, 175)
 SubtitleText.TextSize = 11
 SubtitleText.TextXAlignment = Enum.TextXAlignment.Left
 SubtitleText.ZIndex = 3
-local MinimizeButton = Instance.new(“TextButton”)
-MinimizeButton.Name = “MinimizeButton”
+local MinimizeButton = Instance.new("TextButton")
+MinimizeButton.Name = "MinimizeButton"
 MinimizeButton.Parent = TitleBar
 MinimizeButton.AnchorPoint = Vector2.new(1, 0.5)
 MinimizeButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -620,18 +632,18 @@ MinimizeButton.BorderSizePixel = 0
 MinimizeButton.Position = UDim2.new(1, -42, 0.5, 0)
 MinimizeButton.Size = UDim2.new(0, 26, 0, 26)
 MinimizeButton.Font = Enum.Font.GothamBold
-MinimizeButton.Text = “−”
+MinimizeButton.Text = "−"
 MinimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 MinimizeButton.TextSize = 18
 MinimizeButton.ZIndex = 3
 MinimizeButton.AutoButtonColor = false
 do
-local MinimizeCorner = Instance.new(“UICorner”)
+local MinimizeCorner = Instance.new("UICorner")
 MinimizeCorner.CornerRadius = UDim.new(0, 7)
 MinimizeCorner.Parent = MinimizeButton
 end
-local CloseButton = Instance.new(“TextButton”)
-CloseButton.Name = “CloseButton”
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "CloseButton"
 CloseButton.Parent = TitleBar
 CloseButton.AnchorPoint = Vector2.new(1, 0.5)
 CloseButton.BackgroundColor3 = Color3.fromRGB(255, 65, 65)
@@ -640,26 +652,26 @@ CloseButton.BorderSizePixel = 0
 CloseButton.Position = UDim2.new(1, -10, 0.5, 0)
 CloseButton.Size = UDim2.new(0, 26, 0, 26)
 CloseButton.Font = Enum.Font.GothamBold
-CloseButton.Text = “×”
+CloseButton.Text = "×"
 CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseButton.TextSize = 20
 CloseButton.ZIndex = 3
 CloseButton.AutoButtonColor = false
 do
-local CloseCorner = Instance.new(“UICorner”)
+local CloseCorner = Instance.new("UICorner")
 CloseCorner.CornerRadius = UDim.new(0, 7)
 CloseCorner.Parent = CloseButton
 end
-local ContentContainer = Instance.new(“Frame”)
-ContentContainer.Name = “ContentContainer”
+local ContentContainer = Instance.new("Frame")
+ContentContainer.Name = "ContentContainer"
 ContentContainer.Parent = MainFrame
 ContentContainer.BackgroundTransparency = 1
 ContentContainer.BorderSizePixel = 0
 ContentContainer.Position = UDim2.new(0, 0, 0, 48)
 ContentContainer.Size = UDim2.new(1, 0, 1, -48)
 ContentContainer.ZIndex = 2
-local TabContainer = Instance.new(“Frame”)
-TabContainer.Name = “TabContainer”
+local TabContainer = Instance.new("Frame")
+TabContainer.Name = "TabContainer"
 TabContainer.Parent = ContentContainer
 TabContainer.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 TabContainer.BackgroundTransparency = 0.965
@@ -668,10 +680,10 @@ TabContainer.Position = UDim2.new(0, 10, 0, 10)
 TabContainer.Size = UDim2.new(0, 118, 1, -20)
 TabContainer.ZIndex = 2
 do
-local TabCorner = Instance.new(“UICorner”)
+local TabCorner = Instance.new("UICorner")
 TabCorner.CornerRadius = UDim.new(0, 10)
 TabCorner.Parent = TabContainer
-local TabStroke = Instance.new(“UIStroke”)
+local TabStroke = Instance.new("UIStroke")
 TabStroke.Color = Color3.fromRGB(255, 255, 255)
 TabStroke.Transparency = 0.88
 TabStroke.Thickness = 1
@@ -679,7 +691,7 @@ TabStroke.Parent = TabContainer
 end
 
 do
-local TabListLayout = Instance.new(“UIListLayout”)
+local TabListLayout = Instance.new("UIListLayout")
 TabListLayout.Parent = TabContainer
 TabListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 TabListLayout.Padding = UDim.new(0, 4)
@@ -696,8 +708,8 @@ TabPadding.PaddingRight = UDim.new(0, 7)
 end
 
 local function CreateTab(name, order)
-local TabButton = Instance.new(“TextButton”)
-TabButton.Name = name .. “Tab”
+local TabButton = Instance.new("TextButton")
+TabButton.Name = name .. "Tab"
 TabButton.Parent = TabContainer
 TabButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 TabButton.BackgroundTransparency = 1
@@ -725,18 +737,18 @@ return TabButton
 ```
 
 end
-local HomeTab = CreateTab(“Home”, 1)
-local PlayerTab = CreateTab(“Player”, 2)
-local AnimationTab = CreateTab(“Animation”, 3)
-local CombatTab = CreateTab(“Combat”, 4)
-local VisualTab = CreateTab(“Visual”, 5)
-local MiscTab = CreateTab(“Misc”, 6)
+local HomeTab = CreateTab("Home", 1)
+local PlayerTab = CreateTab("Player", 2)
+local AnimationTab = CreateTab("Animation", 3)
+local CombatTab = CreateTab("Combat", 4)
+local VisualTab = CreateTab("Visual", 5)
+local MiscTab = CreateTab("Misc", 6)
 
 HomeTab.BackgroundTransparency = 0.82
 HomeTab.TextColor3 = Color3.fromRGB(255, 255, 255)
 
-local MainContent = Instance.new(“Frame”)
-MainContent.Name = “MainContent”
+local MainContent = Instance.new("Frame")
+MainContent.Name = "MainContent"
 MainContent.Parent = ContentContainer
 MainContent.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 MainContent.BackgroundTransparency = 0.965
@@ -745,10 +757,10 @@ MainContent.Position = UDim2.new(0, 138, 0, 10)
 MainContent.Size = UDim2.new(1, -148, 1, -20)
 MainContent.ZIndex = 2
 do
-local ContentCorner = Instance.new(“UICorner”)
+local ContentCorner = Instance.new("UICorner")
 ContentCorner.CornerRadius = UDim.new(0, 10)
 ContentCorner.Parent = MainContent
-local ContentStroke = Instance.new(“UIStroke”)
+local ContentStroke = Instance.new("UIStroke")
 ContentStroke.Color = Color3.fromRGB(255, 255, 255)
 ContentStroke.Transparency = 0.88
 ContentStroke.Thickness = 1
@@ -756,7 +768,7 @@ ContentStroke.Parent = MainContent
 end
 
 do
-local ContentPadding = Instance.new(“UIPadding”)
+local ContentPadding = Instance.new("UIPadding")
 ContentPadding.Parent = MainContent
 ContentPadding.PaddingTop = UDim.new(0, 15)
 ContentPadding.PaddingBottom = UDim.new(0, 15)
@@ -764,8 +776,8 @@ ContentPadding.PaddingLeft = UDim.new(0, 15)
 ContentPadding.PaddingRight = UDim.new(0, 15)
 end
 
-local ContentScroll = Instance.new(“ScrollingFrame”)
-ContentScroll.Name = “ContentScroll”
+local ContentScroll = Instance.new("ScrollingFrame")
+ContentScroll.Name = "ContentScroll"
 ContentScroll.Parent = MainContent
 ContentScroll.BackgroundTransparency = 1
 ContentScroll.BorderSizePixel = 0
@@ -776,37 +788,37 @@ ContentScroll.ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255)
 ContentScroll.ScrollBarImageTransparency = 0.8
 ContentScroll.ZIndex = 3
 
-local ContentLayout = Instance.new(“UIListLayout”)
+local ContentLayout = Instance.new("UIListLayout")
 ContentLayout.Parent = ContentScroll
 ContentLayout.SortOrder = Enum.SortOrder.LayoutOrder
 ContentLayout.Padding = UDim.new(0, 10)
 
-ContentLayout:GetPropertyChangedSignal(“AbsoluteContentSize”):Connect(function()
+ContentLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 ContentScroll.CanvasSize = UDim2.new(0, 0, 0, ContentLayout.AbsoluteContentSize.Y + 20)
 end)
 
 – player tab content
-local TargetSection = Instance.new(“Frame”)
-TargetSection.Name = “TargetSection”
+local TargetSection = Instance.new("Frame")
+TargetSection.Name = "TargetSection"
 TargetSection.Parent = ContentScroll
 TargetSection.BackgroundTransparency = 1
 TargetSection.Size = UDim2.new(1, 0, 0, 600)
 TargetSection.Visible = false
 TargetSection.LayoutOrder = 1
 do
-local TargetHeader = Instance.new(“TextLabel”)
-TargetHeader.Name = “TargetHeader”
+local TargetHeader = Instance.new("TextLabel")
+TargetHeader.Name = "TargetHeader"
 TargetHeader.Parent = TargetSection
 TargetHeader.BackgroundTransparency = 1
 TargetHeader.Size = UDim2.new(1, 0, 0, 30)
 TargetHeader.Font = Enum.Font.GothamBold
-TargetHeader.Text = “Target Player”
+TargetHeader.Text = "Target Player"
 TargetHeader.TextColor3 = Color3.fromRGB(255, 255, 255)
 TargetHeader.TextSize = 20
 TargetHeader.TextXAlignment = Enum.TextXAlignment.Left
 TargetHeader.ZIndex = 3
-local TargetInfoContainer = Instance.new(“Frame”)
-TargetInfoContainer.Name = “TargetInfoContainer”
+local TargetInfoContainer = Instance.new("Frame")
+TargetInfoContainer.Name = "TargetInfoContainer"
 TargetInfoContainer.Parent = TargetSection
 TargetInfoContainer.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 TargetInfoContainer.BackgroundTransparency = 0.95
@@ -815,32 +827,32 @@ TargetInfoContainer.Position = UDim2.new(0, 0, 0, 40)
 TargetInfoContainer.Size = UDim2.new(1, 0, 0, 120)
 TargetInfoContainer.ZIndex = 3
 do
-local TargetInfoCorner = Instance.new(“UICorner”)
+local TargetInfoCorner = Instance.new("UICorner")
 TargetInfoCorner.CornerRadius = UDim.new(0, 10)
 TargetInfoCorner.Parent = TargetInfoContainer
-local TargetInfoStroke = Instance.new(“UIStroke”)
+local TargetInfoStroke = Instance.new("UIStroke")
 TargetInfoStroke.Color = Color3.fromRGB(255, 255, 255)
 TargetInfoStroke.Transparency = 0.9
 TargetInfoStroke.Thickness = 1
 TargetInfoStroke.Parent = TargetInfoContainer
 end
-local TargetImage = Instance.new(“ImageLabel”)
-TargetImage.Name = “TargetImage”
+local TargetImage = Instance.new("ImageLabel")
+TargetImage.Name = "TargetImage"
 TargetImage.Parent = TargetInfoContainer
 TargetImage.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
 TargetImage.BackgroundTransparency = 0.5
 TargetImage.BorderSizePixel = 0
 TargetImage.Position = UDim2.new(0, 15, 0, 15)
 TargetImage.Size = UDim2.new(0, 90, 0, 90)
-TargetImage.Image = “rbxasset://textures/ui/GuiImagePlaceholder.png”
+TargetImage.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
 TargetImage.ZIndex = 4
 do
-local TargetImageCorner = Instance.new(“UICorner”)
+local TargetImageCorner = Instance.new("UICorner")
 TargetImageCorner.CornerRadius = UDim.new(0, 10)
 TargetImageCorner.Parent = TargetImage
 end
-local TargetNameInput = Instance.new(“TextBox”)
-TargetNameInput.Name = “TargetNameInput”
+local TargetNameInput = Instance.new("TextBox")
+TargetNameInput.Name = "TargetNameInput"
 TargetNameInput.Parent = TargetInfoContainer
 TargetNameInput.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 TargetNameInput.BackgroundTransparency = 0.9
@@ -848,28 +860,28 @@ TargetNameInput.BorderSizePixel = 0
 TargetNameInput.Position = UDim2.new(0, 120, 0, 15)
 TargetNameInput.Size = UDim2.new(1, -135, 0, 35)
 TargetNameInput.Font = Enum.Font.GothamMedium
-TargetNameInput.PlaceholderText = “Enter player name…”
-TargetNameInput.Text = “”
+TargetNameInput.PlaceholderText = "Enter player name…"
+TargetNameInput.Text = ""
 TargetNameInput.TextColor3 = Color3.fromRGB(255, 255, 255)
 TargetNameInput.TextSize = 14
 TargetNameInput.ZIndex = 4
 TargetNameInput.ClearTextOnFocus = false
 do
-local TargetNameCorner = Instance.new(“UICorner”)
+local TargetNameCorner = Instance.new("UICorner")
 TargetNameCorner.CornerRadius = UDim.new(0, 8)
 TargetNameCorner.Parent = TargetNameInput
-local TargetNamePadding = Instance.new(“UIPadding”)
+local TargetNamePadding = Instance.new("UIPadding")
 TargetNamePadding.Parent = TargetNameInput
 TargetNamePadding.PaddingLeft = UDim.new(0, 12)
 end
-local TargetInfoLabel = Instance.new(“TextLabel”)
-TargetInfoLabel.Name = “TargetInfoLabel”
+local TargetInfoLabel = Instance.new("TextLabel")
+TargetInfoLabel.Name = "TargetInfoLabel"
 TargetInfoLabel.Parent = TargetInfoContainer
 TargetInfoLabel.BackgroundTransparency = 1
 TargetInfoLabel.Position = UDim2.new(0, 120, 0, 55)
 TargetInfoLabel.Size = UDim2.new(1, -135, 0, 50)
 TargetInfoLabel.Font = Enum.Font.Gotham
-TargetInfoLabel.Text = “No target selected”
+TargetInfoLabel.Text = "No target selected"
 TargetInfoLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
 TargetInfoLabel.TextSize = 12
 TargetInfoLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -877,7 +889,7 @@ TargetInfoLabel.TextYAlignment = Enum.TextYAlignment.Top
 TargetInfoLabel.ZIndex = 4
 TargetInfoLabel.TextWrapped = true
 local function CreateActionButton(parent, name, position, text, layoutOrder)
-local button = Instance.new(“TextButton”)
+local button = Instance.new("TextButton")
 button.Name = name
 button.Parent = parent
 button.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -927,8 +939,8 @@ return button
 ```
 
 end
-local TargetActionsContainer = Instance.new(“Frame”)
-TargetActionsContainer.Name = “TargetActionsContainer”
+local TargetActionsContainer = Instance.new("Frame")
+TargetActionsContainer.Name = "TargetActionsContainer"
 TargetActionsContainer.Parent = TargetSection
 TargetActionsContainer.BackgroundTransparency = 1
 TargetActionsContainer.Position = UDim2.new(0, 0, 0, 170)
@@ -936,23 +948,23 @@ TargetActionsContainer.Size = UDim2.new(1, 0, 0, 400)
 TargetActionsContainer.ZIndex = 3
 
 do
-local ActionsLayout = Instance.new(“UIListLayout”)
+local ActionsLayout = Instance.new("UIListLayout")
 ActionsLayout.Parent = TargetActionsContainer
 ActionsLayout.SortOrder = Enum.SortOrder.LayoutOrder
 ActionsLayout.Padding = UDim.new(0, 8)
 end
-local ViewButton = CreateActionButton(TargetActionsContainer, “ViewButton”, UDim2.new(0, 0, 0, 0), “👁️ View Target”, 1)
-local TeleportButton = CreateActionButton(TargetActionsContainer, “TeleportButton”, UDim2.new(0, 0, 0, 0), “⚡ Teleport to Target”, 2)
-local BringButton = CreateActionButton(TargetActionsContainer, “BringButton”, UDim2.new(0, 0, 0, 0), “🔄 Bring Target to You”, 3)
-local SpectateButton = CreateActionButton(TargetActionsContainer, “SpectateButton”, UDim2.new(0, 0, 0, 0), “📹 Spectate Target”, 4)
-local FocusButton = CreateActionButton(TargetActionsContainer, “FocusButton”, UDim2.new(0, 0, 0, 0), “🎯 Focus Target (Loop TP)”, 5)
-local HeadSitButton = CreateActionButton(TargetActionsContainer, “HeadSitButton”, UDim2.new(0, 0, 0, 0), “🪑 Sit on Head”, 6)
-local BackpackButton = CreateActionButton(TargetActionsContainer, “BackpackButton”, UDim2.new(0, 0, 0, 0), “🎒 Backpack Mode”, 7)
-local ClearTargetButton = CreateActionButton(TargetActionsContainer, “ClearTargetButton”, UDim2.new(0, 0, 0, 0), “❌ Clear Target”, 8)
+local ViewButton = CreateActionButton(TargetActionsContainer, "ViewButton", UDim2.new(0, 0, 0, 0), "👁️ View Target", 1)
+local TeleportButton = CreateActionButton(TargetActionsContainer, "TeleportButton", UDim2.new(0, 0, 0, 0), "⚡ Teleport to Target", 2)
+local BringButton = CreateActionButton(TargetActionsContainer, "BringButton", UDim2.new(0, 0, 0, 0), "🔄 Bring Target to You", 3)
+local SpectateButton = CreateActionButton(TargetActionsContainer, "SpectateButton", UDim2.new(0, 0, 0, 0), "📹 Spectate Target", 4)
+local FocusButton = CreateActionButton(TargetActionsContainer, "FocusButton", UDim2.new(0, 0, 0, 0), "🎯 Focus Target (Loop TP)", 5)
+local HeadSitButton = CreateActionButton(TargetActionsContainer, "HeadSitButton", UDim2.new(0, 0, 0, 0), "🪑 Sit on Head", 6)
+local BackpackButton = CreateActionButton(TargetActionsContainer, "BackpackButton", UDim2.new(0, 0, 0, 0), "🎒 Backpack Mode", 7)
+local ClearTargetButton = CreateActionButton(TargetActionsContainer, "ClearTargetButton", UDim2.new(0, 0, 0, 0), "❌ Clear Target", 8)
 
 – home tab content
-local HomeSection = Instance.new(“Frame”)
-HomeSection.Name = “HomeSection”
+local HomeSection = Instance.new("Frame")
+HomeSection.Name = "HomeSection"
 HomeSection.Parent = ContentScroll
 HomeSection.BackgroundTransparency = 1
 HomeSection.Size = UDim2.new(1, 0, 0, 600)
@@ -961,32 +973,32 @@ HomeSection.LayoutOrder = 0
 
 local UpdatesScroll, UpdatesLayout
 do
-local WelcomeText = Instance.new(“TextLabel”)
-WelcomeText.Name = “WelcomeText”
+local WelcomeText = Instance.new("TextLabel")
+WelcomeText.Name = "WelcomeText"
 WelcomeText.Parent = HomeSection
 WelcomeText.BackgroundTransparency = 1
 WelcomeText.Size = UDim2.new(1, 0, 0, 40)
 WelcomeText.Font = Enum.Font.GothamBold
-WelcomeText.Text = “Welcome to Onyx”
+WelcomeText.Text = "Welcome to Onyx"
 WelcomeText.TextColor3 = Color3.fromRGB(255, 255, 255)
 WelcomeText.TextSize = 24
 WelcomeText.TextXAlignment = Enum.TextXAlignment.Left
 WelcomeText.ZIndex = 3
 
-local WelcomeSubtext = Instance.new(“TextLabel”)
-WelcomeSubtext.Name = “WelcomeSubtext”
+local WelcomeSubtext = Instance.new("TextLabel")
+WelcomeSubtext.Name = "WelcomeSubtext"
 WelcomeSubtext.Parent = HomeSection
 WelcomeSubtext.BackgroundTransparency = 1
 WelcomeSubtext.Position = UDim2.new(0, 0, 0, 45)
 WelcomeSubtext.Size = UDim2.new(1, 0, 0, 20)
 WelcomeSubtext.Font = Enum.Font.Gotham
-WelcomeSubtext.Text = “Version 2.1 | By Biscuit”
+WelcomeSubtext.Text = "Version 2.1 | By Biscuit"
 WelcomeSubtext.TextColor3 = Color3.fromRGB(180, 180, 180)
 WelcomeSubtext.TextSize = 13
 WelcomeSubtext.TextXAlignment = Enum.TextXAlignment.Left
 WelcomeSubtext.ZIndex = 3
-local UpdatesContainer = Instance.new(“Frame”)
-UpdatesContainer.Name = “UpdatesContainer”
+local UpdatesContainer = Instance.new("Frame")
+UpdatesContainer.Name = "UpdatesContainer"
 UpdatesContainer.Parent = HomeSection
 UpdatesContainer.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 UpdatesContainer.BackgroundTransparency = 0.95
@@ -995,29 +1007,29 @@ UpdatesContainer.Position = UDim2.new(0, 0, 0, 75)
 UpdatesContainer.Size = UDim2.new(1, 0, 0, 500)
 UpdatesContainer.ZIndex = 3
 
-local UpdatesCorner = Instance.new(“UICorner”)
+local UpdatesCorner = Instance.new("UICorner")
 UpdatesCorner.CornerRadius = UDim.new(0, 10)
 UpdatesCorner.Parent = UpdatesContainer
 
-local UpdatesStroke = Instance.new(“UIStroke”)
+local UpdatesStroke = Instance.new("UIStroke")
 UpdatesStroke.Color = Color3.fromRGB(255, 255, 255)
 UpdatesStroke.Transparency = 0.9
 UpdatesStroke.Thickness = 1
 UpdatesStroke.Parent = UpdatesContainer
-local UpdatesTitle = Instance.new(“TextLabel”)
-UpdatesTitle.Name = “UpdatesTitle”
+local UpdatesTitle = Instance.new("TextLabel")
+UpdatesTitle.Name = "UpdatesTitle"
 UpdatesTitle.Parent = UpdatesContainer
 UpdatesTitle.BackgroundTransparency = 1
 UpdatesTitle.Position = UDim2.new(0, 15, 0, 10)
 UpdatesTitle.Size = UDim2.new(1, -30, 0, 25)
 UpdatesTitle.Font = Enum.Font.GothamBold
-UpdatesTitle.Text = “📋 Recent Updates”
+UpdatesTitle.Text = "📋 Recent Updates"
 UpdatesTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
 UpdatesTitle.TextSize = 16
 UpdatesTitle.TextXAlignment = Enum.TextXAlignment.Left
 UpdatesTitle.ZIndex = 4
-UpdatesScroll = Instance.new(“ScrollingFrame”)
-UpdatesScroll.Name = “UpdatesScroll”
+UpdatesScroll = Instance.new("ScrollingFrame")
+UpdatesScroll.Name = "UpdatesScroll"
 UpdatesScroll.Parent = UpdatesContainer
 UpdatesScroll.BackgroundTransparency = 1
 UpdatesScroll.BorderSizePixel = 0
@@ -1029,17 +1041,17 @@ UpdatesScroll.ScrollBarImageTransparency = 0.8
 UpdatesScroll.ZIndex = 4
 UpdatesScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 
-UpdatesLayout = Instance.new(“UIListLayout”)
+UpdatesLayout = Instance.new("UIListLayout")
 UpdatesLayout.Parent = UpdatesScroll
 UpdatesLayout.SortOrder = Enum.SortOrder.LayoutOrder
 UpdatesLayout.Padding = UDim.new(0, 10)
 
-UpdatesLayout:GetPropertyChangedSignal(“AbsoluteContentSize”):Connect(function()
+UpdatesLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 UpdatesScroll.CanvasSize = UDim2.new(0, 0, 0, UpdatesLayout.AbsoluteContentSize.Y + 10)
 end)
 local function CreateUpdateEntry(version, title, features, order)
-local entry = Instance.new(“Frame”)
-entry.Name = “UpdateEntry”
+local entry = Instance.new("Frame")
+entry.Name = "UpdateEntry"
 entry.Parent = UpdatesScroll
 entry.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 entry.BackgroundTransparency = 0.97
@@ -1084,173 +1096,173 @@ entry.Size = UDim2.new(1, -10, 0, math.max(120, textHeight + 45))
 ```
 
 end
-CreateUpdateEntry(“v2.1”, “Misc Additions”,
-“⏮️ Time Reverse moved to Misc tab\n” ..
-“⏱️ Time Reverse now lasts 10 seconds (up from 2)\n” ..
-“🤸 Added Trip feature (Press T)\n” ..
-“   - Ragdoll physics\n” ..
-“   - Tumbling animation\n” ..
-“   - Auto-recovery after 0.5s”, 1)
+CreateUpdateEntry("v2.1", "Misc Additions",
+"⏮️ Time Reverse moved to Misc tab\n" ..
+"⏱️ Time Reverse now lasts 10 seconds (up from 2)\n" ..
+"🤸 Added Trip feature (Press T)\n" ..
+"   - Ragdoll physics\n" ..
+"   - Tumbling animation\n" ..
+"   - Auto-recovery after 0.5s", 1)
 
-CreateUpdateEntry(“v2.0”, “Major Update”,
-“✨ Added ESP (Box, Name, Distance, Health)\n” ..
-“🎯 Added Aimlock with FOV circle\n” ..
-“⏮️ Added Time Reverse (Hold C)\n” ..
-“🌟 Improved Shaders (less bright, no blur)\n” ..
-“📍 Fixed Click Teleport reliability\n” ..
-“🟦 Enhanced Infinite Baseplate”, 2)
+CreateUpdateEntry("v2.0", "Major Update",
+"✨ Added ESP (Box, Name, Distance, Health)\n" ..
+"🎯 Added Aimlock with FOV circle\n" ..
+"⏮️ Added Time Reverse (Hold C)\n" ..
+"🌟 Improved Shaders (less bright, no blur)\n" ..
+"📍 Fixed Click Teleport reliability\n" ..
+"🟦 Enhanced Infinite Baseplate", 2)
 
-CreateUpdateEntry(“v1.5”, “Misc Features”,
-“🎤 Anti VC Ban system\n” ..
-“📍 Click Teleport (Press F)\n” ..
-“🟦 Infinite Baseplate\n” ..
-“🌟 Shaders system\n” ..
-“❌ Unload Script button”, 3)
+CreateUpdateEntry("v1.5", "Misc Features",
+"🎤 Anti VC Ban system\n" ..
+"📍 Click Teleport (Press F)\n" ..
+"🟦 Infinite Baseplate\n" ..
+"🌟 Shaders system\n" ..
+"❌ Unload Script button", 3)
 
-CreateUpdateEntry(“v1.0”, “Initial Release”,
-“🎭 358+ Animations database\n” ..
-“👤 Target Player system\n” ..
-“⚡ Teleport features\n” ..
-“📹 Spectate mode\n” ..
-“🪑 HeadSit & Backpack modes\n” ..
-“💾 Animation persistence”, 4)
+CreateUpdateEntry("v1.0", "Initial Release",
+"🎭 358+ Animations database\n" ..
+"👤 Target Player system\n" ..
+"⚡ Teleport features\n" ..
+"📹 Spectate mode\n" ..
+"🪑 HeadSit & Backpack modes\n" ..
+"💾 Animation persistence", 4)
 end – end Home section do block
-local AnimationSection = Instance.new(“Frame”)
-AnimationSection.Name = “AnimationSection”
+local AnimationSection = Instance.new("Frame")
+AnimationSection.Name = "AnimationSection"
 AnimationSection.Parent = ContentScroll
 AnimationSection.BackgroundTransparency = 1
 AnimationSection.Size = UDim2.new(1, 0, 0, 500)
 AnimationSection.Visible = false
 AnimationSection.LayoutOrder = 2
 do
-local AnimationHeader = Instance.new(“TextLabel”)
-AnimationHeader.Name = “AnimationHeader”
+local AnimationHeader = Instance.new("TextLabel")
+AnimationHeader.Name = "AnimationHeader"
 AnimationHeader.Parent = AnimationSection
 AnimationHeader.BackgroundTransparency = 1
 AnimationHeader.Size = UDim2.new(1, 0, 0, 30)
 AnimationHeader.Font = Enum.Font.GothamBold
-AnimationHeader.Text = “🎭 Animation Changer”
+AnimationHeader.Text = "🎭 Animation Changer"
 AnimationHeader.TextColor3 = Color3.fromRGB(255, 255, 255)
 AnimationHeader.TextSize = 20
 AnimationHeader.TextXAlignment = Enum.TextXAlignment.Left
 AnimationHeader.ZIndex = 3
 end
-local CombatSection = Instance.new(“Frame”)
-CombatSection.Name = “CombatSection”
+local CombatSection = Instance.new("Frame")
+CombatSection.Name = "CombatSection"
 CombatSection.Parent = ContentScroll
 CombatSection.BackgroundTransparency = 1
 CombatSection.Size = UDim2.new(1, 0, 0, 500)
 CombatSection.Visible = false
 CombatSection.LayoutOrder = 3
 do
-local CombatHeader = Instance.new(“TextLabel”)
-CombatHeader.Name = “CombatHeader”
+local CombatHeader = Instance.new("TextLabel")
+CombatHeader.Name = "CombatHeader"
 CombatHeader.Parent = CombatSection
 CombatHeader.BackgroundTransparency = 1
 CombatHeader.Size = UDim2.new(1, 0, 0, 30)
 CombatHeader.Font = Enum.Font.GothamBold
-CombatHeader.Text = “⚔️ Combat Features”
+CombatHeader.Text = "⚔️ Combat Features"
 CombatHeader.TextColor3 = Color3.fromRGB(255, 255, 255)
 CombatHeader.TextSize = 20
 CombatHeader.TextXAlignment = Enum.TextXAlignment.Left
 CombatHeader.ZIndex = 3
 end
-local CombatActionsContainer = Instance.new(“Frame”)
-CombatActionsContainer.Name = “CombatActionsContainer”
+local CombatActionsContainer = Instance.new("Frame")
+CombatActionsContainer.Name = "CombatActionsContainer"
 CombatActionsContainer.Parent = CombatSection
 CombatActionsContainer.BackgroundTransparency = 1
 CombatActionsContainer.Position = UDim2.new(0, 0, 0, 40)
 CombatActionsContainer.Size = UDim2.new(1, 0, 0, 450)
 CombatActionsContainer.ZIndex = 3
 do
-local CombatLayout = Instance.new(“UIListLayout”)
+local CombatLayout = Instance.new("UIListLayout")
 CombatLayout.Parent = CombatActionsContainer
 CombatLayout.SortOrder = Enum.SortOrder.LayoutOrder
 CombatLayout.Padding = UDim.new(0, 8)
 end
-local ESPButton = CreateActionButton(CombatActionsContainer, “ESPButton”, UDim2.new(0, 0, 0, 0), “👁️ ESP: OFF”, 1)
-local AimlockButton = CreateActionButton(CombatActionsContainer, “AimlockButton”, UDim2.new(0, 0, 0, 0), “🎯 Aimlock: OFF”, 2)
+local ESPButton = CreateActionButton(CombatActionsContainer, "ESPButton", UDim2.new(0, 0, 0, 0), "👁️ ESP: OFF", 1)
+local AimlockButton = CreateActionButton(CombatActionsContainer, "AimlockButton", UDim2.new(0, 0, 0, 0), "🎯 Aimlock: OFF", 2)
 
 – Misc
-local MiscSection = Instance.new(“Frame”)
-MiscSection.Name = “MiscSection”
+local MiscSection = Instance.new("Frame")
+MiscSection.Name = "MiscSection"
 MiscSection.Parent = ContentScroll
 MiscSection.BackgroundTransparency = 1
 MiscSection.Size = UDim2.new(1, 0, 0, 400)
 MiscSection.Visible = false
 MiscSection.LayoutOrder = 4
 do
-local MiscHeader = Instance.new(“TextLabel”)
-MiscHeader.Name = “MiscHeader”
+local MiscHeader = Instance.new("TextLabel")
+MiscHeader.Name = "MiscHeader"
 MiscHeader.Parent = MiscSection
 MiscHeader.BackgroundTransparency = 1
 MiscHeader.Size = UDim2.new(1, 0, 0, 30)
 MiscHeader.Font = Enum.Font.GothamBold
-MiscHeader.Text = “Miscellaneous”
+MiscHeader.Text = "Miscellaneous"
 MiscHeader.TextColor3 = Color3.fromRGB(255, 255, 255)
 MiscHeader.TextSize = 20
 MiscHeader.TextXAlignment = Enum.TextXAlignment.Left
 MiscHeader.ZIndex = 3
 end
-local MiscActionsContainer = Instance.new(“Frame”)
-MiscActionsContainer.Name = “MiscActionsContainer”
+local MiscActionsContainer = Instance.new("Frame")
+MiscActionsContainer.Name = "MiscActionsContainer"
 MiscActionsContainer.Parent = MiscSection
 MiscActionsContainer.BackgroundTransparency = 1
 MiscActionsContainer.Position = UDim2.new(0, 0, 0, 40)
 MiscActionsContainer.Size = UDim2.new(1, 0, 0, 450)
 MiscActionsContainer.ZIndex = 3
 do
-local MiscLayout = Instance.new(“UIListLayout”)
+local MiscLayout = Instance.new("UIListLayout")
 MiscLayout.Parent = MiscActionsContainer
 MiscLayout.SortOrder = Enum.SortOrder.LayoutOrder
 MiscLayout.Padding = UDim.new(0, 8)
 end
-local AntiVCButton = CreateActionButton(MiscActionsContainer, “AntiVCButton”, UDim2.new(0, 0, 0, 0), “🎤 Open Anti VC Ban”, 1)
-local FaceBangButton = CreateActionButton(MiscActionsContainer, “FaceBangButton”, UDim2.new(0, 0, 0, 0), “💀 Open Face Bang (Z)”, 2)
-local ClickTeleportButton = CreateActionButton(MiscActionsContainer, “ClickTeleportButton”, UDim2.new(0, 0, 0, 0), “📍 Click Teleport (F): OFF”, 3)
-local InfiniteBaseplateButton = CreateActionButton(MiscActionsContainer, “InfiniteBaseplateButton”, UDim2.new(0, 0, 0, 0), “🟦 Infinite Baseplate: OFF”, 4)
-local TimeReverseButton = CreateActionButton(MiscActionsContainer, “TimeReverseButton”, UDim2.new(0, 0, 0, 0), “⏮️ Time Reverse (C): OFF”, 5)
-local TripButton = CreateActionButton(MiscActionsContainer, “TripButton”, UDim2.new(0, 0, 0, 0), “🤸 Trip (T): OFF”, 6)
+local AntiVCButton = CreateActionButton(MiscActionsContainer, "AntiVCButton", UDim2.new(0, 0, 0, 0), "🎤 Open Anti VC Ban", 1)
+local FaceBangButton = CreateActionButton(MiscActionsContainer, "FaceBangButton", UDim2.new(0, 0, 0, 0), "💀 Open Face Bang (Z)", 2)
+local ClickTeleportButton = CreateActionButton(MiscActionsContainer, "ClickTeleportButton", UDim2.new(0, 0, 0, 0), "📍 Click Teleport (F): OFF", 3)
+local InfiniteBaseplateButton = CreateActionButton(MiscActionsContainer, "InfiniteBaseplateButton", UDim2.new(0, 0, 0, 0), "🟦 Infinite Baseplate: OFF", 4)
+local TimeReverseButton = CreateActionButton(MiscActionsContainer, "TimeReverseButton", UDim2.new(0, 0, 0, 0), "⏮️ Time Reverse (C): OFF", 5)
+local TripButton = CreateActionButton(MiscActionsContainer, "TripButton", UDim2.new(0, 0, 0, 0), "🤸 Trip (T): OFF", 6)
 
-local UnloadScriptButton = CreateActionButton(MiscActionsContainer, “UnloadScriptButton”, UDim2.new(0, 0, 0, 0), “❌ Unload Script”, 7)
-local VisualSection = Instance.new(“Frame”)
-VisualSection.Name = “VisualSection”
+local UnloadScriptButton = CreateActionButton(MiscActionsContainer, "UnloadScriptButton", UDim2.new(0, 0, 0, 0), "❌ Unload Script", 7)
+local VisualSection = Instance.new("Frame")
+VisualSection.Name = "VisualSection"
 VisualSection.Parent = ContentScroll
 VisualSection.BackgroundTransparency = 1
 VisualSection.Size = UDim2.new(1, 0, 0, 400)
 VisualSection.Visible = false
 VisualSection.LayoutOrder = 5
 do
-local VisualHeader = Instance.new(“TextLabel”)
-VisualHeader.Name = “VisualHeader”
+local VisualHeader = Instance.new("TextLabel")
+VisualHeader.Name = "VisualHeader"
 VisualHeader.Parent = VisualSection
 VisualHeader.BackgroundTransparency = 1
 VisualHeader.Size = UDim2.new(1, 0, 0, 30)
 VisualHeader.Font = Enum.Font.GothamBold
-VisualHeader.Text = “👁️ Visual Features”
+VisualHeader.Text = "👁️ Visual Features"
 VisualHeader.TextColor3 = Color3.fromRGB(255, 255, 255)
 VisualHeader.TextSize = 20
 VisualHeader.TextXAlignment = Enum.TextXAlignment.Left
 VisualHeader.ZIndex = 3
 end
-local VisualActionsContainer = Instance.new(“Frame”)
-VisualActionsContainer.Name = “VisualActionsContainer”
+local VisualActionsContainer = Instance.new("Frame")
+VisualActionsContainer.Name = "VisualActionsContainer"
 VisualActionsContainer.Parent = VisualSection
 VisualActionsContainer.BackgroundTransparency = 1
 VisualActionsContainer.Position = UDim2.new(0, 0, 0, 40)
 VisualActionsContainer.Size = UDim2.new(1, 0, 0, 450)
 VisualActionsContainer.ZIndex = 3
 do
-local VisualLayout = Instance.new(“UIListLayout”)
+local VisualLayout = Instance.new("UIListLayout")
 VisualLayout.Parent = VisualActionsContainer
 VisualLayout.SortOrder = Enum.SortOrder.LayoutOrder
 VisualLayout.Padding = UDim.new(0, 8)
 end
 
-local ShadersButton = CreateActionButton(VisualActionsContainer, “ShadersButton”, UDim2.new(0, 0, 0, 0), “🌟 Shaders”, 1)
+local ShadersButton = CreateActionButton(VisualActionsContainer, "ShadersButton", UDim2.new(0, 0, 0, 0), "🌟 Shaders", 1)
 
-local EmotesButton = Instance.new(“TextButton”)
-EmotesButton.Name = “EmotesButton”
+local EmotesButton = Instance.new("TextButton")
+EmotesButton.Name = "EmotesButton"
 EmotesButton.Parent = AnimationSection
 EmotesButton.BackgroundColor3 = Color3.fromRGB(9, 9, 18)
 EmotesButton.BackgroundTransparency = 0.08
@@ -1258,14 +1270,14 @@ EmotesButton.BorderSizePixel = 0
 EmotesButton.Position = UDim2.new(0, 0, 0, 40)
 EmotesButton.Size = UDim2.new(1, 0, 0, 36)
 EmotesButton.Font = Enum.Font.GothamBold
-EmotesButton.Text = “🎭  Open Emote Menu”
+EmotesButton.Text = "🎭  Open Emote Menu"
 EmotesButton.TextColor3 = Color3.fromRGB(200, 200, 255)
 EmotesButton.TextSize = 13
 EmotesButton.AutoButtonColor = false
 EmotesButton.ZIndex = 4
 do
-local c = Instance.new(“UICorner”); c.CornerRadius = UDim.new(0, 8); c.Parent = EmotesButton
-local s = Instance.new(“UIStroke”); s.Color = Color3.fromRGB(255,255,255); s.Transparency = 0.82; s.Thickness = 1; s.Parent = EmotesButton
+local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = EmotesButton
+local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(255,255,255); s.Transparency = 0.82; s.Thickness = 1; s.Parent = EmotesButton
 end
 EmotesButton.MouseEnter:Connect(function()
 TweenService:Create(EmotesButton, TweenInfo.new(0.15), {BackgroundTransparency = 0.6, TextColor3 = Color3.fromRGB(255,255,255)}):Play()
@@ -1275,8 +1287,8 @@ TweenService:Create(EmotesButton, TweenInfo.new(0.15), {BackgroundTransparency =
 end)
 
 – Animation Changer UI Components (for Animation Tab)
-local AnimSearchBar = Instance.new(“TextBox”)
-AnimSearchBar.Name = “AnimSearchBar”
+local AnimSearchBar = Instance.new("TextBox")
+AnimSearchBar.Name = "AnimSearchBar"
 AnimSearchBar.Parent = AnimationSection
 AnimSearchBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 AnimSearchBar.BackgroundTransparency = 0.7
@@ -1284,23 +1296,23 @@ AnimSearchBar.BorderSizePixel = 0
 AnimSearchBar.Position = UDim2.new(0, 0, 0, 84)
 AnimSearchBar.Size = UDim2.new(1, 0, 0, 35)
 AnimSearchBar.Font = Enum.Font.Gotham
-AnimSearchBar.PlaceholderText = “Search animations…”
-AnimSearchBar.Text = “”
+AnimSearchBar.PlaceholderText = "Search animations…"
+AnimSearchBar.Text = ""
 AnimSearchBar.TextColor3 = Color3.fromRGB(200, 200, 200)
 AnimSearchBar.TextSize = 13
 AnimSearchBar.ZIndex = 4
 AnimSearchBar.ClearTextOnFocus = false
 do
-local AnimSearchCorner = Instance.new(“UICorner”)
+local AnimSearchCorner = Instance.new("UICorner")
 AnimSearchCorner.CornerRadius = UDim.new(0, 8)
 AnimSearchCorner.Parent = AnimSearchBar
-local AnimSearchPadding = Instance.new(“UIPadding”)
+local AnimSearchPadding = Instance.new("UIPadding")
 AnimSearchPadding.Parent = AnimSearchBar
 AnimSearchPadding.PaddingLeft = UDim.new(0, 10)
 end
 
-local AnimScrollFrame = Instance.new(“ScrollingFrame”)
-AnimScrollFrame.Name = “AnimScrollFrame”
+local AnimScrollFrame = Instance.new("ScrollingFrame")
+AnimScrollFrame.Name = "AnimScrollFrame"
 AnimScrollFrame.Parent = AnimationSection
 AnimScrollFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 AnimScrollFrame.BackgroundTransparency = 0.9
@@ -1313,17 +1325,17 @@ AnimScrollFrame.ScrollBarImageTransparency = 0.8
 AnimScrollFrame.ZIndex = 4
 AnimScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 do
-local AnimScrollCorner = Instance.new(“UICorner”)
+local AnimScrollCorner = Instance.new("UICorner")
 AnimScrollCorner.CornerRadius = UDim.new(0, 8)
 AnimScrollCorner.Parent = AnimScrollFrame
 end
 
-local AnimScrollLayout = Instance.new(“UIListLayout”)
+local AnimScrollLayout = Instance.new("UIListLayout")
 AnimScrollLayout.Parent = AnimScrollFrame
 AnimScrollLayout.SortOrder = Enum.SortOrder.LayoutOrder
 AnimScrollLayout.Padding = UDim.new(0, 5)
 do
-local AnimScrollPadding = Instance.new(“UIPadding”)
+local AnimScrollPadding = Instance.new("UIPadding")
 AnimScrollPadding.Parent = AnimScrollFrame
 AnimScrollPadding.PaddingTop = UDim.new(0, 5)
 AnimScrollPadding.PaddingBottom = UDim.new(0, 5)
@@ -1331,14 +1343,14 @@ AnimScrollPadding.PaddingLeft = UDim.new(0, 5)
 AnimScrollPadding.PaddingRight = UDim.new(0, 5)
 end
 
-local AnimInfoLabel = Instance.new(“TextLabel”)
-AnimInfoLabel.Name = “AnimInfoLabel”
+local AnimInfoLabel = Instance.new("TextLabel")
+AnimInfoLabel.Name = "AnimInfoLabel"
 AnimInfoLabel.Parent = AnimationSection
 AnimInfoLabel.BackgroundTransparency = 1
 AnimInfoLabel.Position = UDim2.new(0, 0, 1, -55)
 AnimInfoLabel.Size = UDim2.new(1, 0, 0, 50)
 AnimInfoLabel.Font = Enum.Font.Gotham
-AnimInfoLabel.Text = “Select an animation from the list above\nAnimations persist on respawn”
+AnimInfoLabel.Text = "Select an animation from the list above\nAnimations persist on respawn"
 AnimInfoLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
 AnimInfoLabel.TextSize = 11
 AnimInfoLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -1346,13 +1358,13 @@ AnimInfoLabel.TextYAlignment = Enum.TextYAlignment.Top
 AnimInfoLabel.ZIndex = 4
 AnimInfoLabel.TextWrapped = true
 
-AnimScrollLayout:GetPropertyChangedSignal(“AbsoluteContentSize”):Connect(function()
+AnimScrollLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 AnimScrollFrame.CanvasSize = UDim2.new(0, 0, 0, AnimScrollLayout.AbsoluteContentSize.Y + 10)
 end)
 
 – Anti VC ban window
-local AntiVCWindow = Instance.new(“Frame”)
-AntiVCWindow.Name = “AntiVCWindow”
+local AntiVCWindow = Instance.new("Frame")
+AntiVCWindow.Name = "AntiVCWindow"
 AntiVCWindow.Parent = OnyxUI
 AntiVCWindow.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
 AntiVCWindow.BackgroundTransparency = 0.3
@@ -1365,10 +1377,10 @@ AntiVCWindow.ZIndex = 20
 AntiVCWindow.ClipsDescendants = true
 
 do
-local AntiVCCorner = Instance.new(“UICorner”)
+local AntiVCCorner = Instance.new("UICorner")
 AntiVCCorner.CornerRadius = UDim.new(0, 16)
 AntiVCCorner.Parent = AntiVCWindow
-local AntiVCStroke = Instance.new(“UIStroke”)
+local AntiVCStroke = Instance.new("UIStroke")
 AntiVCStroke.Color = Color3.fromRGB(255, 255, 255)
 AntiVCStroke.Transparency = 0.8
 AntiVCStroke.Thickness = 1
@@ -1376,8 +1388,8 @@ AntiVCStroke.Parent = AntiVCWindow
 end
 
 – Anti VC Title Bar
-local AntiVCTitleBar = Instance.new(“Frame”)
-AntiVCTitleBar.Name = “TitleBar”
+local AntiVCTitleBar = Instance.new("Frame")
+AntiVCTitleBar.Name = "TitleBar"
 AntiVCTitleBar.Parent = AntiVCWindow
 AntiVCTitleBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 AntiVCTitleBar.BackgroundTransparency = 0.95
@@ -1386,17 +1398,17 @@ AntiVCTitleBar.Size = UDim2.new(1, 0, 0, 40)
 AntiVCTitleBar.ZIndex = 21
 
 do
-local AntiVCTitleCorner = Instance.new(“UICorner”)
+local AntiVCTitleCorner = Instance.new("UICorner")
 AntiVCTitleCorner.CornerRadius = UDim.new(0, 16)
 AntiVCTitleCorner.Parent = AntiVCTitleBar
-local AntiVCTitleText = Instance.new(“TextLabel”)
-AntiVCTitleText.Name = “Title”
+local AntiVCTitleText = Instance.new("TextLabel")
+AntiVCTitleText.Name = "Title"
 AntiVCTitleText.Parent = AntiVCTitleBar
 AntiVCTitleText.BackgroundTransparency = 1
 AntiVCTitleText.Position = UDim2.new(0, 15, 0, 0)
 AntiVCTitleText.Size = UDim2.new(1, -60, 1, 0)
 AntiVCTitleText.Font = Enum.Font.GothamBold
-AntiVCTitleText.Text = “🎤 Anti VC Ban”
+AntiVCTitleText.Text = "🎤 Anti VC Ban"
 AntiVCTitleText.TextColor3 = Color3.fromRGB(255, 255, 255)
 AntiVCTitleText.TextSize = 16
 AntiVCTitleText.TextXAlignment = Enum.TextXAlignment.Left
@@ -1404,15 +1416,15 @@ AntiVCTitleText.ZIndex = 22
 end
 
 do
-local AntiVCCloseBtn = Instance.new(“TextButton”)
-AntiVCCloseBtn.Name = “CloseBtn”; AntiVCCloseBtn.Parent = AntiVCTitleBar
+local AntiVCCloseBtn = Instance.new("TextButton")
+AntiVCCloseBtn.Name = "CloseBtn"; AntiVCCloseBtn.Parent = AntiVCTitleBar
 AntiVCCloseBtn.BackgroundColor3 = Color3.fromRGB(255, 80, 80); AntiVCCloseBtn.BackgroundTransparency = 0.3
 AntiVCCloseBtn.BorderSizePixel = 0; AntiVCCloseBtn.AnchorPoint = Vector2.new(1, 0.5)
 AntiVCCloseBtn.Position = UDim2.new(1, -10, 0.5, 0); AntiVCCloseBtn.Size = UDim2.new(0, 25, 0, 25)
-AntiVCCloseBtn.Font = Enum.Font.GothamBold; AntiVCCloseBtn.Text = “×”
+AntiVCCloseBtn.Font = Enum.Font.GothamBold; AntiVCCloseBtn.Text = "×"
 AntiVCCloseBtn.TextColor3 = Color3.fromRGB(255,255,255); AntiVCCloseBtn.TextSize = 18
 AntiVCCloseBtn.ZIndex = 22; AntiVCCloseBtn.AutoButtonColor = false
-do local c = Instance.new(“UICorner”); c.CornerRadius = UDim.new(0,8); c.Parent = AntiVCCloseBtn end
+do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,8); c.Parent = AntiVCCloseBtn end
 AntiVCCloseBtn.MouseButton1Click:Connect(function() AntiVCWindow.Visible = false end)
 
 ```
@@ -1436,8 +1448,8 @@ end)
 
 end – end AntiVC close/minimize do
 
-local MicStatusFrame = Instance.new(“Frame”)
-MicStatusFrame.Name = “MicStatus”
+local MicStatusFrame = Instance.new("Frame")
+MicStatusFrame.Name = "MicStatus"
 MicStatusFrame.Parent = AntiVCWindow
 MicStatusFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 MicStatusFrame.BackgroundTransparency = 0.5
@@ -1448,23 +1460,23 @@ MicStatusFrame.AnchorPoint = Vector2.new(0.5, 0)
 MicStatusFrame.ZIndex = 21
 
 do
-local MicStatusCorner = Instance.new(“UICorner”)
+local MicStatusCorner = Instance.new("UICorner")
 MicStatusCorner.CornerRadius = UDim.new(1, 0)
 MicStatusCorner.Parent = MicStatusFrame
 end
 
-local MicIcon = Instance.new(“ImageLabel”)
-MicIcon.Name = “MicIcon”
+local MicIcon = Instance.new("ImageLabel")
+MicIcon.Name = "MicIcon"
 MicIcon.Parent = MicStatusFrame
 MicIcon.BackgroundTransparency = 1
 MicIcon.Position = UDim2.new(0.15, 0, 0.15, 0)
 MicIcon.Size = UDim2.new(0.7, 0, 0.7, 0)
-MicIcon.Image = “rbxassetid://10734888864”
+MicIcon.Image = "rbxassetid://10734888864"
 MicIcon.ImageColor3 = Color3.fromRGB(100, 255, 100)
 MicIcon.ZIndex = 22
 
-local MicCrossLine = Instance.new(“Frame”)
-MicCrossLine.Name = “CrossLine”
+local MicCrossLine = Instance.new("Frame")
+MicCrossLine.Name = "CrossLine"
 MicCrossLine.Parent = MicStatusFrame
 MicCrossLine.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
 MicCrossLine.BorderSizePixel = 0
@@ -1476,18 +1488,18 @@ MicCrossLine.Visible = false
 MicCrossLine.ZIndex = 23
 
 do
-local MicToggleBtn = Instance.new(“TextButton”)
-MicToggleBtn.Name = “MicToggleBtn”; MicToggleBtn.Parent = MicStatusFrame
+local MicToggleBtn = Instance.new("TextButton")
+MicToggleBtn.Name = "MicToggleBtn"; MicToggleBtn.Parent = MicStatusFrame
 MicToggleBtn.BackgroundTransparency = 1; MicToggleBtn.Size = UDim2.new(1,0,1,0)
-MicToggleBtn.Text = “”; MicToggleBtn.ZIndex = 24
+MicToggleBtn.Text = ""; MicToggleBtn.ZIndex = 24
 MicToggleBtn.MouseButton1Click:Connect(function()
 local success, isPaused = pcall(function() return VoiceChatInternal:IsPublishPaused() end)
 if success then VoiceChatInternal:PublishPause(not isPaused) end
 end)
 end
 
-local ActivateVCBtn = Instance.new(“TextButton”)
-ActivateVCBtn.Name = “ActivateBtn”
+local ActivateVCBtn = Instance.new("TextButton")
+ActivateVCBtn.Name = "ActivateBtn"
 ActivateVCBtn.Parent = AntiVCWindow
 ActivateVCBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 ActivateVCBtn.BackgroundTransparency = 0.9
@@ -1495,17 +1507,17 @@ ActivateVCBtn.BorderSizePixel = 0
 ActivateVCBtn.Position = UDim2.new(0.1, 0, 0, 130)
 ActivateVCBtn.Size = UDim2.new(0.8, 0, 0, 40)
 ActivateVCBtn.Font = Enum.Font.GothamBold
-ActivateVCBtn.Text = “Activate Protection”
+ActivateVCBtn.Text = "Activate Protection"
 ActivateVCBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 ActivateVCBtn.TextSize = 14
 ActivateVCBtn.ZIndex = 21
 ActivateVCBtn.AutoButtonColor = false
 
 do
-local ActivateVCCorner = Instance.new(“UICorner”)
+local ActivateVCCorner = Instance.new("UICorner")
 ActivateVCCorner.CornerRadius = UDim.new(0, 10)
 ActivateVCCorner.Parent = ActivateVCBtn
-local ActivateVCStroke = Instance.new(“UIStroke”)
+local ActivateVCStroke = Instance.new("UIStroke")
 ActivateVCStroke.Color = Color3.fromRGB(255, 255, 255)
 ActivateVCStroke.Transparency = 0.9
 ActivateVCStroke.Thickness = 1
@@ -1555,13 +1567,13 @@ end
 – FACE BANG WINDOW
 
 – All GUI-only locals are scoped inside this do block to avoid
-– hitting Lua 5.1’s 200 local register limit at chunk level.
+– hitting Lua 5.1's 200 local register limit at chunk level.
 local FaceBangWindow, FBTitleBar, FBStatusLabel, FBToggleBtn
 local getFBSpeed, getFBDistance
 
 do
-FaceBangWindow = Instance.new(“Frame”)
-FaceBangWindow.Name = “FaceBangWindow”
+FaceBangWindow = Instance.new("Frame")
+FaceBangWindow.Name = "FaceBangWindow"
 FaceBangWindow.Parent = OnyxUI
 FaceBangWindow.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
 FaceBangWindow.BackgroundTransparency = 0.3
@@ -1573,8 +1585,8 @@ FaceBangWindow.Active = true
 FaceBangWindow.ZIndex = 20
 FaceBangWindow.ClipsDescendants = true
 do
-local c = Instance.new(“UICorner”); c.CornerRadius = UDim.new(0, 16); c.Parent = FaceBangWindow
-local s = Instance.new(“UIStroke”); s.Color = Color3.fromRGB(255,255,255)
+local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 16); c.Parent = FaceBangWindow
+local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(255,255,255)
 s.Transparency = 0.8; s.Thickness = 1; s.Parent = FaceBangWindow
 end
 
@@ -1762,13 +1774,13 @@ end – end GUI do block
 
 local FaceBangEnabled = false
 local faceBangThread = nil
-local faceBangTarget = nil  – the player we’re attached to
+local faceBangTarget = nil  – the player we're attached to
 local faceBangPhase = 1     – 1 = forward, -1 = backward
 
 local function GetNearestPlayer()
 local char = plr.Character
 if not char then return nil end
-local hrp = char:FindFirstChild(“HumanoidRootPart”)
+local hrp = char:FindFirstChild("HumanoidRootPart")
 if not hrp then return nil end
 
 ```
@@ -1803,13 +1815,13 @@ end
 pcall(function()
 local char = plr.Character
 if not char then return end
-local hum = char:FindFirstChildOfClass(“Humanoid”)
+local hum = char:FindFirstChildOfClass("Humanoid")
 if hum then
 hum.PlatformStand = false
 hum.AutoRotate = true
 hum.Sit = false
 end
-local hrp = char:FindFirstChild(“HumanoidRootPart”)
+local hrp = char:FindFirstChild("HumanoidRootPart")
 if hrp then
 hrp.AssemblyLinearVelocity = Vector3.new(0,0,0)
 hrp.AssemblyAngularVelocity = Vector3.new(0,0,0)
@@ -1817,14 +1829,14 @@ end
 end)
 pcall(function()
 if FBToggleBtn and FBToggleBtn.Parent then
-FBToggleBtn.Text = “▶ Start (Z)”
+FBToggleBtn.Text = "▶ Start (Z)"
 FBToggleBtn.BackgroundTransparency = 0.88
 end
 if FBStatusLabel and FBStatusLabel.Parent then
-FBStatusLabel.Text = “Status: Idle | Press Z to attach to nearest”
+FBStatusLabel.Text = "Status: Idle | Press Z to attach to nearest"
 end
 end)
-SendNotify(“Face Bang”, “Stopped”, 2)
+SendNotify("Face Bang", "Stopped", 2)
 end
 
 local function StartFaceBang(targetPlayer)
@@ -1956,7 +1968,7 @@ local target = GetNearestPlayer()
 if target then
 StartFaceBang(target)
 else
-SendNotify(“Face Bang”, “No players nearby”, 2)
+SendNotify("Face Bang", "No players nearby", 2)
 end
 end
 end)
@@ -1972,21 +1984,21 @@ local target = GetNearestPlayer()
 if target then
 StartFaceBang(target)
 else
-SendNotify(“Face Bang”, “No players nearby”, 2)
+SendNotify("Face Bang", "No players nearby", 2)
 end
 end
 end
 end)
 
-FaceBangWindow:GetPropertyChangedSignal(“Visible”):Connect(function()
+FaceBangWindow:GetPropertyChangedSignal("Visible"):Connect(function()
 if not FaceBangWindow.Visible and FaceBangEnabled then
 StopFaceBang()
 end
 end)
 
 – Screen mic indicator
-local ScreenMicIndicator = Instance.new(“Frame”)
-ScreenMicIndicator.Name = “ScreenMicIndicator”
+local ScreenMicIndicator = Instance.new("Frame")
+ScreenMicIndicator.Name = "ScreenMicIndicator"
 ScreenMicIndicator.Parent = OnyxUI
 ScreenMicIndicator.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 ScreenMicIndicator.BackgroundTransparency = 0.3
@@ -1997,28 +2009,28 @@ ScreenMicIndicator.Visible = false
 ScreenMicIndicator.ZIndex = 100
 
 do
-local ScreenMicCorner = Instance.new(“UICorner”)
+local ScreenMicCorner = Instance.new("UICorner")
 ScreenMicCorner.CornerRadius = UDim.new(1, 0)
 ScreenMicCorner.Parent = ScreenMicIndicator
-local ScreenMicStroke = Instance.new(“UIStroke”)
+local ScreenMicStroke = Instance.new("UIStroke")
 ScreenMicStroke.Color = Color3.fromRGB(255, 255, 255)
 ScreenMicStroke.Transparency = 0.7
 ScreenMicStroke.Thickness = 2
 ScreenMicStroke.Parent = ScreenMicIndicator
 end
 
-local ScreenMicIcon = Instance.new(“ImageLabel”)
-ScreenMicIcon.Name = “MicIcon”
+local ScreenMicIcon = Instance.new("ImageLabel")
+ScreenMicIcon.Name = "MicIcon"
 ScreenMicIcon.Parent = ScreenMicIndicator
 ScreenMicIcon.BackgroundTransparency = 1
 ScreenMicIcon.Position = UDim2.new(0.15, 0, 0.15, 0)
 ScreenMicIcon.Size = UDim2.new(0.7, 0, 0.7, 0)
-ScreenMicIcon.Image = “rbxassetid://10734888864”
+ScreenMicIcon.Image = "rbxassetid://10734888864"
 ScreenMicIcon.ImageColor3 = Color3.fromRGB(100, 255, 100)
 ScreenMicIcon.ZIndex = 101
 
-local ScreenMicCross = Instance.new(“Frame”)
-ScreenMicCross.Name = “CrossLine”
+local ScreenMicCross = Instance.new("Frame")
+ScreenMicCross.Name = "CrossLine"
 ScreenMicCross.Parent = ScreenMicIndicator
 ScreenMicCross.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
 ScreenMicCross.BorderSizePixel = 0
@@ -2031,18 +2043,18 @@ ScreenMicCross.ZIndex = 102
 
 – Screen Mic Toggle Button
 do
-local ScreenMicToggle = Instance.new(“TextButton”)
-ScreenMicToggle.Name = “ScreenMicToggle”; ScreenMicToggle.Parent = ScreenMicIndicator
+local ScreenMicToggle = Instance.new("TextButton")
+ScreenMicToggle.Name = "ScreenMicToggle"; ScreenMicToggle.Parent = ScreenMicIndicator
 ScreenMicToggle.BackgroundTransparency = 1; ScreenMicToggle.Size = UDim2.new(1,0,1,0)
-ScreenMicToggle.Text = “”; ScreenMicToggle.ZIndex = 103
+ScreenMicToggle.Text = ""; ScreenMicToggle.ZIndex = 103
 ScreenMicToggle.MouseButton1Click:Connect(function()
 local success, isPaused = pcall(function() return VoiceChatInternal:IsPublishPaused() end)
 if success then VoiceChatInternal:PublishPause(not isPaused) end
 end)
 end
 
-local ToggleButton = Instance.new(“ImageButton”)
-ToggleButton.Name = “ToggleButton”
+local ToggleButton = Instance.new("ImageButton")
+ToggleButton.Name = "ToggleButton"
 ToggleButton.Parent = OnyxUI
 ToggleButton.AnchorPoint = Vector2.new(1, 0)
 ToggleButton.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
@@ -2053,13 +2065,13 @@ ToggleButton.Size = UDim2.new(0, 50, 0, 50)
 ToggleButton.Visible = false
 ToggleButton.ZIndex = 10
 ToggleButton.AutoButtonColor = false
-ToggleButton.Image = “”
+ToggleButton.Image = ""
 
 do
-local ToggleCorner = Instance.new(“UICorner”)
+local ToggleCorner = Instance.new("UICorner")
 ToggleCorner.CornerRadius = UDim.new(0, 12)
 ToggleCorner.Parent = ToggleButton
-local ToggleStroke = Instance.new(“UIStroke”)
+local ToggleStroke = Instance.new("UIStroke")
 ToggleStroke.Color = Color3.fromRGB(255, 255, 255)
 ToggleStroke.Transparency = 0.7
 ToggleStroke.Thickness = 2
@@ -2067,8 +2079,8 @@ ToggleStroke.Parent = ToggleButton
 end
 
 do
-local LogoIcon = Instance.new(“Frame”)
-LogoIcon.Name = “LogoIcon”
+local LogoIcon = Instance.new("Frame")
+LogoIcon.Name = "LogoIcon"
 LogoIcon.Parent = ToggleButton
 LogoIcon.AnchorPoint = Vector2.new(0.5, 0.5)
 LogoIcon.BackgroundTransparency = 1
@@ -2196,20 +2208,20 @@ local function setupTabButton(tabButton)
 createHoverEffect(tabButton, 0.88, 1)
 tabButton.MouseButton1Click:Connect(function()
 for _, child in pairs(TabContainer:GetChildren()) do
-if child:IsA(“TextButton”) then
+if child:IsA("TextButton") then
 TweenService:Create(child, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {BackgroundTransparency = 1, TextColor3 = Color3.fromRGB(160, 160, 185)}):Play()
 end
 end
 TweenService:Create(tabButton, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.82, TextColor3 = Color3.fromRGB(255, 255, 255)}):Play()
-local tabName = tabButton.Name:gsub(“Tab”, “”)
+local tabName = tabButton.Name:gsub("Tab", "")
 HomeSection.Visible = false; TargetSection.Visible = false; AnimationSection.Visible = false
 CombatSection.Visible = false; MiscSection.Visible = false; VisualSection.Visible = false
-if tabName == “Home” then HomeSection.Visible = true
-elseif tabName == “Player” then TargetSection.Visible = true
-elseif tabName == “Animation” then AnimationSection.Visible = true
-elseif tabName == “Combat” then CombatSection.Visible = true
-elseif tabName == “Visual” then VisualSection.Visible = true
-elseif tabName == “Misc” then MiscSection.Visible = true
+if tabName == "Home" then HomeSection.Visible = true
+elseif tabName == "Player" then TargetSection.Visible = true
+elseif tabName == "Animation" then AnimationSection.Visible = true
+elseif tabName == "Combat" then CombatSection.Visible = true
+elseif tabName == "Visual" then VisualSection.Visible = true
+elseif tabName == "Misc" then MiscSection.Visible = true
 end
 end)
 end
@@ -2224,17 +2236,17 @@ local ZeroDelayEnabled = false
 local zeroDelayThread = nil
 local zeroDelayTargetPlayer = nil
 local zeroDelayConnection = nil
-local zeroDelayMode = nil – “headsit” or “backpack”
+local zeroDelayMode = nil – "headsit" or "backpack"
 
 local function FreezeCharacter()
 local char = plr.Character
 if not char then return end
-local humanoid = char:FindFirstChildOfClass(“Humanoid”)
+local humanoid = char:FindFirstChildOfClass("Humanoid")
 if humanoid then
 humanoid.PlatformStand = true
 end
 for _, part in pairs(char:GetDescendants()) do
-if part:IsA(“BasePart”) then
+if part:IsA("BasePart") then
 part.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
 part.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
 end
@@ -2244,7 +2256,7 @@ end
 local function UnfreezeCharacter()
 local char = plr.Character
 if not char then return end
-local humanoid = char:FindFirstChildOfClass(“Humanoid”)
+local humanoid = char:FindFirstChildOfClass("Humanoid")
 if humanoid then
 humanoid.PlatformStand = false
 end
@@ -2254,20 +2266,20 @@ local function StopZeroDelayCleanup()
 UnfreezeCharacter()
 if canUsePhysicsRep then
 pcall(function()
-if plr.Character and plr.Character:FindFirstChild(“HumanoidRootPart”) then
-sethiddenproperty(plr.Character.HumanoidRootPart, “PhysicsRepRootPart”, nil)
+if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+sethiddenproperty(plr.Character.HumanoidRootPart, "PhysicsRepRootPart", nil)
 end
 end)
 end
 task.wait(0.15)
 pcall(function()
-if plr.Character and plr.Character:FindFirstChild(“Humanoid”) then
+if plr.Character and plr.Character:FindFirstChild("Humanoid") then
 plr.Character.Humanoid.AutoRotate = true
 plr.Character.Humanoid.Sit = false
 end
 end)
 pcall(function()
-if plr.Character and plr.Character:FindFirstChild(“HumanoidRootPart”) then
+if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
 local hrp = plr.Character.HumanoidRootPart
 hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
 hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
@@ -2289,12 +2301,12 @@ zeroDelayConnection = nil
 end
 zeroDelayTargetPlayer = nil
 StopZeroDelayCleanup()
-SendNotify(“Zero Delay”, “Stopped”, 2)
+SendNotify("Zero Delay", "Stopped", 2)
 end
 
 local function StartZeroDelay(targetPlayer, mode)
 if not targetPlayer then
-SendNotify(“Error”, “No target player”, 3)
+SendNotify("Error", "No target player", 3)
 return
 end
 
@@ -2508,7 +2520,7 @@ local function UpdateTarget(player)
 if player then
 TargetedPlayer = player.Name
 TargetNameInput.Text = player.Name
-TargetInfoLabel.Text = “Target: “ .. player.DisplayName .. “ (@” .. player.Name .. “)\nUserID: “ .. player.UserId
+TargetInfoLabel.Text = "Target: " .. player.DisplayName .. " (@" .. player.Name .. ")\nUserID: " .. player.UserId
 
 ```
     local userId = player.UserId
@@ -2575,7 +2587,7 @@ end)
 ViewButton.MouseButton1Click:Connect(function()
 if TargetedPlayer then
 local target = Players:FindFirstChild(TargetedPlayer)
-if target and target.Character and target.Character:FindFirstChild(“Humanoid”) then
+if target and target.Character and target.Character:FindFirstChild("Humanoid") then
 ViewingTarget = not ViewingTarget
 
 ```
@@ -2621,18 +2633,18 @@ if TargetedPlayer then
 local target = Players:FindFirstChild(TargetedPlayer)
 if target then
 TeleportTO(target)
-SendNotify(“Teleport”, “Teleported to “ .. target.DisplayName, 2)
+SendNotify("Teleport", "Teleported to " .. target.DisplayName, 2)
 end
 else
-SendNotify(“Error”, “No target selected”, 3)
+SendNotify("Error", "No target selected", 3)
 end
 end)
 
 BringButton.MouseButton1Click:Connect(function()
 if TargetedPlayer then
-SendNotify(“Bring Target”, “This feature requires specific exploit capabilities”, 3)
+SendNotify("Bring Target", "This feature requires specific exploit capabilities", 3)
 else
-SendNotify(“Error”, “No target selected”, 3)
+SendNotify("Error", "No target selected", 3)
 end
 end)
 
@@ -2700,13 +2712,13 @@ ClearTargetButton.MouseButton1Click:Connect(function()
 – Stop zero delay attach if active
 if ZeroDelayEnabled then
 StopZeroDelay()
-HeadSitButton.Text = “🪑 Sit on Head”
+HeadSitButton.Text = "🪑 Sit on Head"
 HeadSitButton.BackgroundTransparency = 0.91
-BackpackButton.Text = “🎒 Backpack Mode”
+BackpackButton.Text = "🎒 Backpack Mode"
 BackpackButton.BackgroundTransparency = 0.91
 end
 UpdateTarget(nil)
-SendNotify(“Target Cleared”, “Target has been cleared”, 2)
+SendNotify("Target Cleared", "Target has been cleared", 2)
 end)
 
 Players.PlayerRemoving:Connect(function(player)
@@ -2716,7 +2728,7 @@ if ZeroDelayEnabled then
 StopZeroDelay()
 end
 UpdateTarget(nil)
-SendNotify(“Target Left”, player.DisplayName .. “ left the game”, 3)
+SendNotify("Target Left", player.DisplayName .. " left the game", 3)
 end
 end)
 
@@ -2725,12 +2737,12 @@ local AntiVCActive = false
 AntiVCButton.MouseButton1Click:Connect(function()
 AntiVCWindow.Visible = true
 ScreenMicIndicator.Visible = true
-SendNotify(“Anti VC Ban”, “Window opened - Click mic icons to toggle mute”, 3)
+SendNotify("Anti VC Ban", "Window opened - Click mic icons to toggle mute", 3)
 end)
 
 ActivateVCBtn.MouseButton1Click:Connect(function()
 if AntiVCActive then
-SendNotify(“Anti VC Ban”, “Already running, please wait…”, 3)
+SendNotify("Anti VC Ban", "Already running, please wait…", 3)
 return
 end
 
@@ -2798,405 +2810,405 @@ end)
 
 – Animation system
 
-if not plr.Character or plr.Character:WaitForChild(“Humanoid”).RigType ~= Enum.HumanoidRigType.R15 then
-SendNotify(“R6 Detected”, “Animations require R15! Please switch to R15.”, 10)
+if not plr.Character or plr.Character:WaitForChild("Humanoid").RigType ~= Enum.HumanoidRigType.R15 then
+SendNotify("R6 Detected", "Animations require R15! Please switch to R15.", 10)
 end
 
 – Animations
 local OriginalAnimations = {
-[“Idle”] = {
-[“2016 Animation (mm2)”] = {“387947158”, “387947464”},
-[”(UGC) Oh Really?”] = {“98004748982532”, “98004748982532”},
-[“Astronaut”] = {“891621366”, “891633237”},
-[“Adidas Community”] = {“122257458498464”, “102357151005774”},
-[“Bold”] = {“16738333868”, “16738334710”},
-[”(UGC) Slasher”] = {“140051337061095”, “140051337061095”},
-[”(UGC) Retro”] = {“80479383912838”, “80479383912838”},
-[”(UGC) Magician”] = {“139433213852503”, “139433213852503”},
-[”(UGC) John Doe”] = {“72526127498800”, “72526127498800”},
-[”(UGC) Noli”] = {“139360856809483”, “139360856809483”},
-[”(UGC) Coolkid”] = {“95203125292023”, “95203125292023”},
-[”(UGC) Survivor Injured”] = {“73905365652295”, “73905365652295”},
-[”(UGC) Retro Zombie”] = {“90806086002292”, “90806086002292”},
-[”(UGC) 1x1x1x1”] = {“76780522821306”, “76780522821306”},
-[“Borock”] = {“3293641938”, “3293642554”},
-[“Bubbly”] = {“910004836”, “910009958”},
-[“Cartoony”] = {“742637544”, “742638445”},
-[“Confident”] = {“1069977950”, “1069987858”},
-[“Catwalk Glam”] = {“133806214992291”, “94970088341563”},
-[“Cowboy”] = {“1014390418”, “1014398616”},
-[“Drooling Zombie”] = {“3489171152”, “3489171152”},
-[“Elder”] = {“10921101664”, “10921102574”},
-[“Ghost”] = {“616006778”, “616008087”},
-[“Knight”] = {“657595757”, “657568135”},
-[“Levitation”] = {“616006778”, “616008087”},
-[“Mage”] = {“707742142”, “707855907”},
-[“MrToilet”] = {“4417977954”, “4417978624”},
-[“Ninja”] = {“656117400”, “656118341”},
-[“NFL”] = {“92080889861410”, “74451233229259”},
-[“OldSchool”] = {“10921230744”, “10921232093”},
-[“Patrol”] = {“1149612882”, “1150842221”},
-[“Pirate”] = {“750781874”, “750782770”},
-[“Default Retarget”] = {“95884606664820”, “95884606664820”},
-[“Very Long”] = {“18307781743”, “18307781743”},
-[“Sway”] = {“560832030”, “560833564”},
-[“Popstar”] = {“1212900985”, “1150842221”},
-[“Princess”] = {“941003647”, “941013098”},
-[“R6”] = {“12521158637”, “12521162526”},
-[“R15 Reanimated”] = {“4211217646”, “4211218409”},
-[“Realistic”] = {“17172918855”, “17173014241”},
-[“Robot”] = {“616088211”, “616089559”},
-[“Sneaky”] = {“1132473842”, “1132477671”},
-[“Sports (Adidas)”] = {“18537376492”, “18537371272”},
-[“Soldier”] = {“3972151362”, “3972151362”},
-[“Stylish”] = {“616136790”, “616138447”},
-[“Stylized Female”] = {“4708191566”, “4708192150”},
-[“Superhero”] = {“10921288909”, “10921290167”},
-[“Toy”] = {“782841498”, “782845736”},
-[“Udzal”] = {“3303162274”, “3303162549”},
-[“Vampire”] = {“1083445855”, “1083450166”},
-[“Werewolf”] = {“1083195517”, “1083214717”},
-[“Wicked (Popular)”] = {“118832222982049”, “76049494037641”},
-[“No Boundaries (Walmart)”] = {“18747067405”, “18747063918”},
-[“Zombie”] = {“616158929”, “616160636”},
-[”(UGC) Zombie”] = {“77672872857991”, “77672872857991”},
-[”(UGC) TailWag”] = {“129026910898635”, “129026910898635”},
-[”[VOTE] warming up”] = {“83573330053643”, “83573330053643”},
-[“cesus”] = {“115879733952840”, “115879733952840”},
-[”[VOTE] Float”] = {“110375749767299”, “110375749767299”},
-[“UGC Oneleft”] = {“121217497452435”, “121217497452435”},
-[“AuraFarming”] = {“138665010911335”, “138665010911335”},
-[”[VOTE] Mech Float”] = {“74447366032908”, “74447366032908”},
-[“Badware”] = {“140131631438778”, “140131631438778”},
-[“Wicked ‘Dancing Through Life’”] = {“92849173543269”, “132238900951109”},
-[“Unboxed By Amazon”] = {“98281136301627”, “138183121662404”}
+["Idle"] = {
+["2016 Animation (mm2)"] = {"387947158", "387947464"},
+["(UGC) Oh Really?"] = {"98004748982532", "98004748982532"},
+["Astronaut"] = {"891621366", "891633237"},
+["Adidas Community"] = {"122257458498464", "102357151005774"},
+["Bold"] = {"16738333868", "16738334710"},
+["(UGC) Slasher"] = {"140051337061095", "140051337061095"},
+["(UGC) Retro"] = {"80479383912838", "80479383912838"},
+["(UGC) Magician"] = {"139433213852503", "139433213852503"},
+["(UGC) John Doe"] = {"72526127498800", "72526127498800"},
+["(UGC) Noli"] = {"139360856809483", "139360856809483"},
+["(UGC) Coolkid"] = {"95203125292023", "95203125292023"},
+["(UGC) Survivor Injured"] = {"73905365652295", "73905365652295"},
+["(UGC) Retro Zombie"] = {"90806086002292", "90806086002292"},
+["(UGC) 1x1x1x1"] = {"76780522821306", "76780522821306"},
+["Borock"] = {"3293641938", "3293642554"},
+["Bubbly"] = {"910004836", "910009958"},
+["Cartoony"] = {"742637544", "742638445"},
+["Confident"] = {"1069977950", "1069987858"},
+["Catwalk Glam"] = {"133806214992291", "94970088341563"},
+["Cowboy"] = {"1014390418", "1014398616"},
+["Drooling Zombie"] = {"3489171152", "3489171152"},
+["Elder"] = {"10921101664", "10921102574"},
+["Ghost"] = {"616006778", "616008087"},
+["Knight"] = {"657595757", "657568135"},
+["Levitation"] = {"616006778", "616008087"},
+["Mage"] = {"707742142", "707855907"},
+["MrToilet"] = {"4417977954", "4417978624"},
+["Ninja"] = {"656117400", "656118341"},
+["NFL"] = {"92080889861410", "74451233229259"},
+["OldSchool"] = {"10921230744", "10921232093"},
+["Patrol"] = {"1149612882", "1150842221"},
+["Pirate"] = {"750781874", "750782770"},
+["Default Retarget"] = {"95884606664820", "95884606664820"},
+["Very Long"] = {"18307781743", "18307781743"},
+["Sway"] = {"560832030", "560833564"},
+["Popstar"] = {"1212900985", "1150842221"},
+["Princess"] = {"941003647", "941013098"},
+["R6"] = {"12521158637", "12521162526"},
+["R15 Reanimated"] = {"4211217646", "4211218409"},
+["Realistic"] = {"17172918855", "17173014241"},
+["Robot"] = {"616088211", "616089559"},
+["Sneaky"] = {"1132473842", "1132477671"},
+["Sports (Adidas)"] = {"18537376492", "18537371272"},
+["Soldier"] = {"3972151362", "3972151362"},
+["Stylish"] = {"616136790", "616138447"},
+["Stylized Female"] = {"4708191566", "4708192150"},
+["Superhero"] = {"10921288909", "10921290167"},
+["Toy"] = {"782841498", "782845736"},
+["Udzal"] = {"3303162274", "3303162549"},
+["Vampire"] = {"1083445855", "1083450166"},
+["Werewolf"] = {"1083195517", "1083214717"},
+["Wicked (Popular)"] = {"118832222982049", "76049494037641"},
+["No Boundaries (Walmart)"] = {"18747067405", "18747063918"},
+["Zombie"] = {"616158929", "616160636"},
+["(UGC) Zombie"] = {"77672872857991", "77672872857991"},
+["(UGC) TailWag"] = {"129026910898635", "129026910898635"},
+["[VOTE] warming up"] = {"83573330053643", "83573330053643"},
+["cesus"] = {"115879733952840", "115879733952840"},
+["[VOTE] Float"] = {"110375749767299", "110375749767299"},
+["UGC Oneleft"] = {"121217497452435", "121217497452435"},
+["AuraFarming"] = {"138665010911335", "138665010911335"},
+["[VOTE] Mech Float"] = {"74447366032908", "74447366032908"},
+["Badware"] = {"140131631438778", "140131631438778"},
+["Wicked 'Dancing Through Life'"] = {"92849173543269", "132238900951109"},
+["Unboxed By Amazon"] = {"98281136301627", "138183121662404"}
 },
-[“Walk”] = {
-[“Geto”] = “85811471336028”,
-[“Patrol”] = “1151231493”,
-[“Drooling Zombie”] = “3489174223”,
-[“Adidas Community”] = “122150855457006”,
-[“Levitation”] = “616013216”,
-[“Catwalk Glam”] = “109168724482748”,
-[“Knight”] = “10921127095”,
-[“Pirate”] = “750785693”,
-[“Bold”] = “16738340646”,
-[“Sports (Adidas)”] = “18537392113”,
-[“Zombie”] = “616168032”,
-[“Astronaut”] = “891667138”,
-[“Cartoony”] = “742640026”,
-[“Ninja”] = “656121766”,
-[“Confident”] = “1070017263”,
-[“Wicked ‘Dancing Through Life’”] = “73718308412641”,
-[“Unboxed By Amazon”] = “90478085024465”,
-[“Gojo”] = “95643163365384”,
-[“R15 Reanimated”] = “4211223236”,
-[“Ghost”] = “616013216”,
-[“2016 Animation (mm2)”] = “387947975”,
-[”(UGC) Zombie”] = “113603435314095”,
-[“No Boundaries (Walmart)”] = “18747074203”,
-[“Rthro”] = “10921269718”,
-[“Werewolf”] = “1083178339”,
-[“Wicked (Popular)”] = “92072849924640”,
-[“Vampire”] = “1083473930”,
-[“Popstar”] = “1212980338”,
-[“Mage”] = “707897309”,
-[”(UGC) Smooth”] = “76630051272791”,
-[“R6”] = “12518152696”,
-[“NFL”] = “110358958299415”,
-[“Bubbly”] = “910034870”,
-[”(UGC) Retro”] = “107806791584829”,
-[”(UGC) Retro Zombie”] = “140703855480494”,
-[“OldSchool”] = “10921244891”,
-[“Elder”] = “10921111375”,
-[“Stylish”] = “616146177”,
-[“Stylized Female”] = “4708193840”,
-[“Robot”] = “616095330”,
-[“Sneaky”] = “1132510133”,
-[“Superhero”] = “10921298616”,
-[“Udzal”] = “3303162967”,
-[“Toy”] = “782843345”,
-[“Default Retarget”] = “115825677624788”,
-[“Princess”] = “941028902”,
-[“Cowboy”] = “1014421541”
+["Walk"] = {
+["Geto"] = "85811471336028",
+["Patrol"] = "1151231493",
+["Drooling Zombie"] = "3489174223",
+["Adidas Community"] = "122150855457006",
+["Levitation"] = "616013216",
+["Catwalk Glam"] = "109168724482748",
+["Knight"] = "10921127095",
+["Pirate"] = "750785693",
+["Bold"] = "16738340646",
+["Sports (Adidas)"] = "18537392113",
+["Zombie"] = "616168032",
+["Astronaut"] = "891667138",
+["Cartoony"] = "742640026",
+["Ninja"] = "656121766",
+["Confident"] = "1070017263",
+["Wicked 'Dancing Through Life'"] = "73718308412641",
+["Unboxed By Amazon"] = "90478085024465",
+["Gojo"] = "95643163365384",
+["R15 Reanimated"] = "4211223236",
+["Ghost"] = "616013216",
+["2016 Animation (mm2)"] = "387947975",
+["(UGC) Zombie"] = "113603435314095",
+["No Boundaries (Walmart)"] = "18747074203",
+["Rthro"] = "10921269718",
+["Werewolf"] = "1083178339",
+["Wicked (Popular)"] = "92072849924640",
+["Vampire"] = "1083473930",
+["Popstar"] = "1212980338",
+["Mage"] = "707897309",
+["(UGC) Smooth"] = "76630051272791",
+["R6"] = "12518152696",
+["NFL"] = "110358958299415",
+["Bubbly"] = "910034870",
+["(UGC) Retro"] = "107806791584829",
+["(UGC) Retro Zombie"] = "140703855480494",
+["OldSchool"] = "10921244891",
+["Elder"] = "10921111375",
+["Stylish"] = "616146177",
+["Stylized Female"] = "4708193840",
+["Robot"] = "616095330",
+["Sneaky"] = "1132510133",
+["Superhero"] = "10921298616",
+["Udzal"] = "3303162967",
+["Toy"] = "782843345",
+["Default Retarget"] = "115825677624788",
+["Princess"] = "941028902",
+["Cowboy"] = "1014421541"
 },
-[“Run”] = {
-[“Robot”] = “10921250460”,
-[“Patrol”] = “1150967949”,
-[“Drooling Zombie”] = “3489173414”,
-[“Adidas Community”] = “82598234841035”,
-[“Heavy Run (Udzal / Borock)”] = “3236836670”,
-[“Catwalk Glam”] = “81024476153754”,
-[“Knight”] = “10921121197”,
-[“Pirate”] = “750783738”,
-[“Bold”] = “16738337225”,
-[“Sports (Adidas)”] = “18537384940”,
-[“Zombie”] = “616163682”,
-[“Astronaut”] = “10921039308”,
-[“Cartoony”] = “10921076136”,
-[“Ninja”] = “656118852”,
-[”(UGC) Dog”] = “130072963359721”,
-[“Wicked ‘Dancing Through Life’”] = “135515454877967”,
-[“Unboxed By Amazon”] = “134824450619865”,
-[”[UGC] Flipping”] = “124427738251511”,
-[“Sneaky”] = “1132494274”,
-[“R6”] = “12518152696”,
-[”[VOTE] Aura”] = “120142877225965”,
-[“Popstar”] = “1212980348”,
-[”[UGC] reset”] = “0”,
-[“Wicked (Popular)”] = “72301599441680”,
-[”[UGC] chibi”] = “85887415033585”,
-[“R15 Reanimated”] = “4211220381”,
-[“Mage”] = “10921148209”,
-[“Ghost”] = “616013216”,
-[“Rthro”] = “10921261968”,
-[“Confident”] = “1070001516”,
-[“Stylized Female”] = “4708192705”,
-[“No Boundaries (Walmart)”] = “18747070484”,
-[“Elder”] = “10921104374”,
-[“Werewolf”] = “10921336997”,
-[”[UGC] Girly”] = “128578785610052”,
-[“Stylish”] = “10921276116”,
-[”(UGC) Pride”] = “116462200642360”,
-[“NFL”] = “117333533048078”,
-[”(UGC) Soccer”] = “116881956670910”,
-[“MrToilet”] = “4417979645”,
-[”[VOTE] Float”] = “71267457613791”,
-[“Levitation”] = “616010382”,
-[”(UGC) Retro”] = “107806791584829”,
-[”(UGC) Retro Zombie”] = “140703855480494”,
-[“OldSchool”] = “10921240218”,
-[“Vampire”] = “10921320299”,
-[“furry”] = “102269417125238”,
-[“Bubbly”] = “10921057244”,
-[“fake wicked”] = “138992096476836”,
-[“2016 Animation (mm2)”] = “387947975”,
-[”[UGC] ball”] = “132499588684957”,
-[“Superhero”] = “10921291831”,
-[“Toy”] = “10921306285”,
-[“Default Retarget”] = “102294264237491”,
-[“Princess”] = “941015281”,
-[“Cowboy”] = “1014401683”
+["Run"] = {
+["Robot"] = "10921250460",
+["Patrol"] = "1150967949",
+["Drooling Zombie"] = "3489173414",
+["Adidas Community"] = "82598234841035",
+["Heavy Run (Udzal / Borock)"] = "3236836670",
+["Catwalk Glam"] = "81024476153754",
+["Knight"] = "10921121197",
+["Pirate"] = "750783738",
+["Bold"] = "16738337225",
+["Sports (Adidas)"] = "18537384940",
+["Zombie"] = "616163682",
+["Astronaut"] = "10921039308",
+["Cartoony"] = "10921076136",
+["Ninja"] = "656118852",
+["(UGC) Dog"] = "130072963359721",
+["Wicked 'Dancing Through Life'"] = "135515454877967",
+["Unboxed By Amazon"] = "134824450619865",
+["[UGC] Flipping"] = "124427738251511",
+["Sneaky"] = "1132494274",
+["R6"] = "12518152696",
+["[VOTE] Aura"] = "120142877225965",
+["Popstar"] = "1212980348",
+["[UGC] reset"] = "0",
+["Wicked (Popular)"] = "72301599441680",
+["[UGC] chibi"] = "85887415033585",
+["R15 Reanimated"] = "4211220381",
+["Mage"] = "10921148209",
+["Ghost"] = "616013216",
+["Rthro"] = "10921261968",
+["Confident"] = "1070001516",
+["Stylized Female"] = "4708192705",
+["No Boundaries (Walmart)"] = "18747070484",
+["Elder"] = "10921104374",
+["Werewolf"] = "10921336997",
+["[UGC] Girly"] = "128578785610052",
+["Stylish"] = "10921276116",
+["(UGC) Pride"] = "116462200642360",
+["NFL"] = "117333533048078",
+["(UGC) Soccer"] = "116881956670910",
+["MrToilet"] = "4417979645",
+["[VOTE] Float"] = "71267457613791",
+["Levitation"] = "616010382",
+["(UGC) Retro"] = "107806791584829",
+["(UGC) Retro Zombie"] = "140703855480494",
+["OldSchool"] = "10921240218",
+["Vampire"] = "10921320299",
+["furry"] = "102269417125238",
+["Bubbly"] = "10921057244",
+["fake wicked"] = "138992096476836",
+["2016 Animation (mm2)"] = "387947975",
+["[UGC] ball"] = "132499588684957",
+["Superhero"] = "10921291831",
+["Toy"] = "10921306285",
+["Default Retarget"] = "102294264237491",
+["Princess"] = "941015281",
+["Cowboy"] = "1014401683"
 },
-[“Jump”] = {
-[“Robot”] = “616090535”,
-[“Patrol”] = “1148811837”,
-[“Adidas Community”] = “75290611992385”,
-[“Levitation”] = “616008936”,
-[“Catwalk Glam”] = “116936326516985”,
-[“Knight”] = “910016857”,
-[“Pirate”] = “750782230”,
-[“Bold”] = “16738336650”,
-[“Sports (Adidas)”] = “18537380791”,
-[“Zombie”] = “616161997”,
-[“Astronaut”] = “891627522”,
-[“Cartoony”] = “742637942”,
-[“Ninja”] = “656117878”,
-[“Confident”] = “1069984524”,
-[“Wicked ‘Dancing Through Life’”] = “78508480717326”,
-[“Unboxed By Amazon”] = “121454505477205”,
-[“R6”] = “12520880485”,
-[“R15 Reanimated”] = “4211219390”,
-[“Ghost”] = “616008936”,
-[“Rthro”] = “10921263860”,
-[“No Boundaries (Walmart)”] = “18747069148”,
-[“Werewolf”] = “1083218792”,
-[“Cowboy”] = “1014394726”,
-[“UGC”] = “91788124131212”,
-[”[VOTE] Animal”] = “131203832825082”,
-[“Popstar”] = “1212954642”,
-[“Mage”] = “10921149743”,
-[“Sneaky”] = “1132489853”,
-[“Superhero”] = “10921294559”,
-[“Elder”] = “10921107367”,
-[”(UGC) Retro”] = “139390570947836”,
-[“NFL”] = “119846112151352”,
-[“OldSchool”] = “10921242013”,
-[“Stylized Female”] = “4708188025”,
-[“Stylish”] = “616139451”,
-[“Bubbly”] = “910016857”,
-[”[VOTE] Float”] = “75611679208549”,
-[”[VOTE] Aura”] = “93382302369459”,
-[“Vampire”] = “1083455352”,
-[“Wicked (Popular)”] = “104325245285198”,
-[“Toy”] = “10921308158”,
-[“Default Retarget”] = “117150377950987”,
-[“Princess”] = “941008832”,
-[”[UGC] happy”] = “72388373557525”
+["Jump"] = {
+["Robot"] = "616090535",
+["Patrol"] = "1148811837",
+["Adidas Community"] = "75290611992385",
+["Levitation"] = "616008936",
+["Catwalk Glam"] = "116936326516985",
+["Knight"] = "910016857",
+["Pirate"] = "750782230",
+["Bold"] = "16738336650",
+["Sports (Adidas)"] = "18537380791",
+["Zombie"] = "616161997",
+["Astronaut"] = "891627522",
+["Cartoony"] = "742637942",
+["Ninja"] = "656117878",
+["Confident"] = "1069984524",
+["Wicked 'Dancing Through Life'"] = "78508480717326",
+["Unboxed By Amazon"] = "121454505477205",
+["R6"] = "12520880485",
+["R15 Reanimated"] = "4211219390",
+["Ghost"] = "616008936",
+["Rthro"] = "10921263860",
+["No Boundaries (Walmart)"] = "18747069148",
+["Werewolf"] = "1083218792",
+["Cowboy"] = "1014394726",
+["UGC"] = "91788124131212",
+["[VOTE] Animal"] = "131203832825082",
+["Popstar"] = "1212954642",
+["Mage"] = "10921149743",
+["Sneaky"] = "1132489853",
+["Superhero"] = "10921294559",
+["Elder"] = "10921107367",
+["(UGC) Retro"] = "139390570947836",
+["NFL"] = "119846112151352",
+["OldSchool"] = "10921242013",
+["Stylized Female"] = "4708188025",
+["Stylish"] = "616139451",
+["Bubbly"] = "910016857",
+["[VOTE] Float"] = "75611679208549",
+["[VOTE] Aura"] = "93382302369459",
+["Vampire"] = "1083455352",
+["Wicked (Popular)"] = "104325245285198",
+["Toy"] = "10921308158",
+["Default Retarget"] = "117150377950987",
+["Princess"] = "941008832",
+["[UGC] happy"] = "72388373557525"
 },
-[“Fall”] = {
-[“Robot”] = “616087089”,
-[“Patrol”] = “1148863382”,
-[“Adidas Community”] = “98600215928904”,
-[“Levitation”] = “616005863”,
-[“Catwalk Glam”] = “92294537340807”,
-[“Knight”] = “10921122579”,
-[“Pirate”] = “750780242”,
-[“Bold”] = “16738333171”,
-[“Sports (Adidas)”] = “18537367238”,
-[“Zombie”] = “616157476”,
-[“Astronaut”] = “891617961”,
-[“Cartoony”] = “742637151”,
-[“Ninja”] = “656115606”,
-[“Confident”] = “1069973677”,
-[“Wicked ‘Dancing Through Life’”] = “78147885297412”,
-[“Unboxed By Amazon”] = “94788218468396”,
-[“R6”] = “12520972571”,
-[”[UGC] skydiving”] = “102674302534126”,
-[“R15 Reanimated”] = “4211216152”,
-[“Rthro”] = “10921262864”,
-[“No Boundaries (Walmart)”] = “18747062535”,
-[“Werewolf”] = “1083189019”,
-[”[VOTE] TPose”] = “139027266704971”,
-[“Mage”] = “707829716”,
-[”[VOTE] Animal”] = “77069224396280”,
-[“Wicked (Popular)”] = “121152442762481”,
-[“Popstar”] = “1212900995”,
-[“NFL”] = “129773241321032”,
-[“OldSchool”] = “10921241244”,
-[“Sneaky”] = “1132469004”,
-[“Elder”] = “10921105765”,
-[“Bubbly”] = “910001910”,
-[“Stylish”] = “616134815”,
-[“Stylized Female”] = “4708186162”,
-[“Vampire”] = “1083443587”,
-[“Superhero”] = “10921293373”,
-[“Toy”] = “782846423”,
-[“Default Retarget”] = “110205622518029”,
-[“Princess”] = “941000007”,
-[“Cowboy”] = “1014384571”
+["Fall"] = {
+["Robot"] = "616087089",
+["Patrol"] = "1148863382",
+["Adidas Community"] = "98600215928904",
+["Levitation"] = "616005863",
+["Catwalk Glam"] = "92294537340807",
+["Knight"] = "10921122579",
+["Pirate"] = "750780242",
+["Bold"] = "16738333171",
+["Sports (Adidas)"] = "18537367238",
+["Zombie"] = "616157476",
+["Astronaut"] = "891617961",
+["Cartoony"] = "742637151",
+["Ninja"] = "656115606",
+["Confident"] = "1069973677",
+["Wicked 'Dancing Through Life'"] = "78147885297412",
+["Unboxed By Amazon"] = "94788218468396",
+["R6"] = "12520972571",
+["[UGC] skydiving"] = "102674302534126",
+["R15 Reanimated"] = "4211216152",
+["Rthro"] = "10921262864",
+["No Boundaries (Walmart)"] = "18747062535",
+["Werewolf"] = "1083189019",
+["[VOTE] TPose"] = "139027266704971",
+["Mage"] = "707829716",
+["[VOTE] Animal"] = "77069224396280",
+["Wicked (Popular)"] = "121152442762481",
+["Popstar"] = "1212900995",
+["NFL"] = "129773241321032",
+["OldSchool"] = "10921241244",
+["Sneaky"] = "1132469004",
+["Elder"] = "10921105765",
+["Bubbly"] = "910001910",
+["Stylish"] = "616134815",
+["Stylized Female"] = "4708186162",
+["Vampire"] = "1083443587",
+["Superhero"] = "10921293373",
+["Toy"] = "782846423",
+["Default Retarget"] = "110205622518029",
+["Princess"] = "941000007",
+["Cowboy"] = "1014384571"
 },
-[“SwimIdle”] = {
-[“Sneaky”] = “1132506407”,
-[“SuperHero”] = “10921297391”,
-[“Adidas Community”] = “109346520324160”,
-[“Levitation”] = “10921139478”,
-[“Catwalk Glam”] = “98854111361360”,
-[“Knight”] = “10921125935”,
-[“Pirate”] = “750785176”,
-[“Bold”] = “16738339817”,
-[“Sports (Adidas)”] = “18537387180”,
-[“Stylized”] = “4708190607”,
-[“Astronaut”] = “891663592”,
-[“Cartoony”] = “10921079380”,
-[“Wicked (Popular)”] = “113199415118199”,
-[“Mage”] = “707894699”,
-[“Wicked ‘Dancing Through Life’”] = “129183123083281”,
-[“Unboxed By Amazon”] = “129126268464847”,
-[“R6”] = “12518152696”,
-[“Rthro”] = “10921265698”,
-[“CowBoy”] = “1014411816”,
-[“No Boundaries (Walmart)”] = “18747071682”,
-[“Werewolf”] = “10921341319”,
-[“NFL”] = “79090109939093”,
-[“OldSchool”] = “10921244018”,
-[“Robot”] = “10921253767”,
-[“Elder”] = “10921110146”,
-[“Bubbly”] = “910030921”,
-[“Patrol”] = “1151221899”,
-[“Vampire”] = “10921325443”,
-[“Popstar”] = “1212998578”,
-[“Ninja”] = “656118341”,
-[“Toy”] = “10921310341”,
-[“Confident”] = “1070012133”,
-[“Princess”] = “941025398”,
-[“Stylish”] = “10921281964”
+["SwimIdle"] = {
+["Sneaky"] = "1132506407",
+["SuperHero"] = "10921297391",
+["Adidas Community"] = "109346520324160",
+["Levitation"] = "10921139478",
+["Catwalk Glam"] = "98854111361360",
+["Knight"] = "10921125935",
+["Pirate"] = "750785176",
+["Bold"] = "16738339817",
+["Sports (Adidas)"] = "18537387180",
+["Stylized"] = "4708190607",
+["Astronaut"] = "891663592",
+["Cartoony"] = "10921079380",
+["Wicked (Popular)"] = "113199415118199",
+["Mage"] = "707894699",
+["Wicked 'Dancing Through Life'"] = "129183123083281",
+["Unboxed By Amazon"] = "129126268464847",
+["R6"] = "12518152696",
+["Rthro"] = "10921265698",
+["CowBoy"] = "1014411816",
+["No Boundaries (Walmart)"] = "18747071682",
+["Werewolf"] = "10921341319",
+["NFL"] = "79090109939093",
+["OldSchool"] = "10921244018",
+["Robot"] = "10921253767",
+["Elder"] = "10921110146",
+["Bubbly"] = "910030921",
+["Patrol"] = "1151221899",
+["Vampire"] = "10921325443",
+["Popstar"] = "1212998578",
+["Ninja"] = "656118341",
+["Toy"] = "10921310341",
+["Confident"] = "1070012133",
+["Princess"] = "941025398",
+["Stylish"] = "10921281964"
 },
-[“Swim”] = {
-[“Sneaky”] = “1132500520”,
-[“Patrol”] = “1151204998”,
-[“Adidas Community”] = “133308483266208”,
-[“Levitation”] = “10921138209”,
-[“Catwalk Glam”] = “134591743181628”,
-[“Knight”] = “10921125160”,
-[“Pirate”] = “750784579”,
-[“Bold”] = “16738339158”,
-[“Sports (Adidas)”] = “18537389531”,
-[“Zombie”] = “616165109”,
-[“Astronaut”] = “891663592”,
-[“Cartoony”] = “10921079380”,
-[“Wicked (Popular)”] = “99384245425157”,
-[“Mage”] = “707876443”,
-[“PopStar”] = “1212998578”,
-[“Unboxed By Amazon”] = “105962919001086”,
-[“R6”] = “12518152696”,
-[”[VOTE] Boat”] = “85689117221382”,
-[“Rthro”] = “10921264784”,
-[“CowBoy”] = “1014406523”,
-[“No Boundaries (Walmart)”] = “18747073181”,
-[“Werewolf”] = “10921340419”,
-[“NFL”] = “132697394189921”,
-[“OldSchool”] = “10921243048”,
-[“Wicked ‘Dancing Through Life’”] = “110657013921774”,
-[“Elder”] = “10921108971”,
-[“Bubbly”] = “910028158”,
-[“Robot”] = “10921253142”,
-[”[VOTE] Aura”] = “80645586378736”,
-[“Vampire”] = “10921324408”,
-[“Stylish”] = “10921281000”,
-[“Toy”] = “10921309319”,
-[“SuperHero”] = “10921295495”,
-[“Princess”] = “941018893”,
-[“Confident”] = “1070009914”
+["Swim"] = {
+["Sneaky"] = "1132500520",
+["Patrol"] = "1151204998",
+["Adidas Community"] = "133308483266208",
+["Levitation"] = "10921138209",
+["Catwalk Glam"] = "134591743181628",
+["Knight"] = "10921125160",
+["Pirate"] = "750784579",
+["Bold"] = "16738339158",
+["Sports (Adidas)"] = "18537389531",
+["Zombie"] = "616165109",
+["Astronaut"] = "891663592",
+["Cartoony"] = "10921079380",
+["Wicked (Popular)"] = "99384245425157",
+["Mage"] = "707876443",
+["PopStar"] = "1212998578",
+["Unboxed By Amazon"] = "105962919001086",
+["R6"] = "12518152696",
+["[VOTE] Boat"] = "85689117221382",
+["Rthro"] = "10921264784",
+["CowBoy"] = "1014406523",
+["No Boundaries (Walmart)"] = "18747073181",
+["Werewolf"] = "10921340419",
+["NFL"] = "132697394189921",
+["OldSchool"] = "10921243048",
+["Wicked 'Dancing Through Life'"] = "110657013921774",
+["Elder"] = "10921108971",
+["Bubbly"] = "910028158",
+["Robot"] = "10921253142",
+["[VOTE] Aura"] = "80645586378736",
+["Vampire"] = "10921324408",
+["Stylish"] = "10921281000",
+["Toy"] = "10921309319",
+["SuperHero"] = "10921295495",
+["Princess"] = "941018893",
+["Confident"] = "1070009914"
 },
-[“Climb”] = {
-[“Robot”] = “616086039”,
-[“Patrol”] = “1148811837”,
-[“Adidas Community”] = “88763136693023”,
-[“Levitation”] = “10921132092”,
-[“Catwalk Glam”] = “119377220967554”,
-[“Knight”] = “10921125160”,
-[”[VOTE] Animal”] = “124810859712282”,
-[“Bold”] = “16738332169”,
-[“Sports (Adidas)”] = “18537363391”,
-[“Zombie”] = “616156119”,
-[“Astronaut”] = “10921032124”,
-[“Cartoony”] = “742636889”,
-[“Ninja”] = “656114359”,
-[“Confident”] = “1069946257”,
-[“Wicked ‘Dancing Through Life’”] = “129447497744818”,
-[“Unboxed By Amazon”] = “121145883950231”,
-[“R6”] = “12520982150”,
-[“Ghost”] = “616003713”,
-[“Rthro”] = “10921257536”,
-[“CowBoy”] = “1014380606”,
-[“No Boundaries (Walmart)”] = “18747060903”,
-[“Mage”] = “707826056”,
-[”[VOTE] sticky”] = “77520617871799”,
-[“Reanimated R15”] = “4211214992”,
-[“Popstar”] = “1213044953”,
-[”(UGC) Retro”] = “121075390792786”,
-[“NFL”] = “134630013742019”,
-[“OldSchool”] = “10921229866”,
-[“Sneaky”] = “1132461372”,
-[“Elder”] = “845392038”,
-[“Stylized Female”] = “4708184253”,
-[“Stylish”] = “10921271391”,
-[“SuperHero”] = “10921286911”,
-[“WereWolf”] = “10921329322”,
-[“Vampire”] = “1083439238”,
-[“Toy”] = “10921300839”,
-[“Wicked (Popular)”] = “131326830509784”,
-[“Princess”] = “940996062”,
-[”[VOTE] Rope”] = “134977367563514”
+["Climb"] = {
+["Robot"] = "616086039",
+["Patrol"] = "1148811837",
+["Adidas Community"] = "88763136693023",
+["Levitation"] = "10921132092",
+["Catwalk Glam"] = "119377220967554",
+["Knight"] = "10921125160",
+["[VOTE] Animal"] = "124810859712282",
+["Bold"] = "16738332169",
+["Sports (Adidas)"] = "18537363391",
+["Zombie"] = "616156119",
+["Astronaut"] = "10921032124",
+["Cartoony"] = "742636889",
+["Ninja"] = "656114359",
+["Confident"] = "1069946257",
+["Wicked 'Dancing Through Life'"] = "129447497744818",
+["Unboxed By Amazon"] = "121145883950231",
+["R6"] = "12520982150",
+["Ghost"] = "616003713",
+["Rthro"] = "10921257536",
+["CowBoy"] = "1014380606",
+["No Boundaries (Walmart)"] = "18747060903",
+["Mage"] = "707826056",
+["[VOTE] sticky"] = "77520617871799",
+["Reanimated R15"] = "4211214992",
+["Popstar"] = "1213044953",
+["(UGC) Retro"] = "121075390792786",
+["NFL"] = "134630013742019",
+["OldSchool"] = "10921229866",
+["Sneaky"] = "1132461372",
+["Elder"] = "845392038",
+["Stylized Female"] = "4708184253",
+["Stylish"] = "10921271391",
+["SuperHero"] = "10921286911",
+["WereWolf"] = "10921329322",
+["Vampire"] = "1083439238",
+["Toy"] = "10921300839",
+["Wicked (Popular)"] = "131326830509784",
+["Princess"] = "940996062",
+["[VOTE] Rope"] = "134977367563514"
 }
 }
 
 local Animations = {}
 
-writefile(“OnyxAnimations.json”, HttpService:JSONEncode(OriginalAnimations))
+writefile("OnyxAnimations.json", HttpService:JSONEncode(OriginalAnimations))
 Animations = OriginalAnimations
-SendNotify(“Animations”, “Loaded complete animation database”, 3)
+SendNotify("Animations", "Loaded complete animation database", 3)
 
 local lastAnimations = {}
-if isfile(“OnyxLastAnims.json”) then
-local data = readfile(“OnyxLastAnims.json”)
+if isfile("OnyxLastAnims.json") then
+local data = readfile("OnyxLastAnims.json")
 lastAnimations = HttpService:JSONDecode(data)
 end
 
 local function StopAnim()
 local Char = plr.Character or plr.CharacterAdded:Wait()
-local Hum = Char:FindFirstChildOfClass(“Humanoid”) or Char:FindFirstChildOfClass(“AnimationController”)
+local Hum = Char:FindFirstChildOfClass("Humanoid") or Char:FindFirstChildOfClass("AnimationController")
 if Hum then
 for _, track in ipairs(Hum:GetPlayingAnimationTracks()) do
 track:Stop(0)
@@ -3207,7 +3219,7 @@ end
 local function refreshState(state)
 local character = plr.Character
 if not character then return end
-local humanoid = character:FindFirstChild(“Humanoid”)
+local humanoid = character:FindFirstChild("Humanoid")
 if not humanoid then return end
 
 ```
@@ -3257,13 +3269,13 @@ end
 
 local function freeze()
 if plr and plr.Character then
-local humanoid = plr.Character:FindFirstChild(“Humanoid”)
+local humanoid = plr.Character:FindFirstChild("Humanoid")
 if humanoid then
 humanoid.PlatformStand = true
 end
 task.spawn(function()
 for i, part in ipairs(plr.Character:GetDescendants()) do
-if part:IsA(“BasePart”) and not part.Anchored then
+if part:IsA("BasePart") and not part.Anchored then
 part.Anchored = true
 end
 end
@@ -3273,13 +3285,13 @@ end
 
 local function unfreeze()
 if plr and plr.Character then
-local humanoid = plr.Character:FindFirstChild(“Humanoid”)
+local humanoid = plr.Character:FindFirstChild("Humanoid")
 if humanoid then
 humanoid.PlatformStand = false
 end
 task.spawn(function()
 for i, part in ipairs(plr.Character:GetDescendants()) do
-if part:IsA(“BasePart”) and part.Anchored then
+if part:IsA("BasePart") and part.Anchored then
 part.Anchored = false
 end
 end
@@ -3288,7 +3300,7 @@ end
 end
 
 function setAnimation(animationType, animationId)
-if type(animationId) ~= “table” and type(animationId) ~= “string” then return end
+if type(animationId) ~= "table" and type(animationId) ~= "string" then return end
 
 ```
 if not plr.Character then return end
@@ -3385,13 +3397,13 @@ end
 end
 
 local function loadLastAnimations()
-if isfile(“OnyxLastAnims.json”) then
-local data = readfile(“OnyxLastAnims.json”)
+if isfile("OnyxLastAnims.json") then
+local data = readfile("OnyxLastAnims.json")
 local lastAnimationsData = HttpService:JSONDecode(data)
 for k, v in pairs(lastAnimationsData) do
 lastAnimations[k] = v
 end
-SendNotify(“Animations”, “Restoring saved animations”, 3)
+SendNotify("Animations", "Restoring saved animations", 3)
 
 ```
     task.wait(1) -- Wait for character to load
@@ -3410,8 +3422,8 @@ end
 end
 
 plr.CharacterAdded:Connect(function(character)
-local hum = character:WaitForChild(“Humanoid”)
-local animate = character:WaitForChild(“Animate”, 10)
+local hum = character:WaitForChild("Humanoid")
+local animate = character:WaitForChild("Animate", 10)
 if not animate then return end
 
 ```
@@ -3432,15 +3444,15 @@ end)
 local animButtons = {}
 
 local function CreateAnimationButton(animName, animType, animId)
-local button = Instance.new(“TextButton”)
-button.Name = animName .. “_” .. animType
+local button = Instance.new("TextButton")
+button.Name = animName .. "_" .. animType
 button.Parent = AnimScrollFrame
 button.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 button.BackgroundTransparency = 0.8
 button.BorderSizePixel = 0
 button.Size = UDim2.new(1, -10, 0, 35)
 button.Font = Enum.Font.Gotham
-button.Text = animName .. “ - “ .. animType
+button.Text = animName .. " - " .. animType
 button.TextColor3 = Color3.fromRGB(255, 255, 255)
 button.TextSize = 11
 button.TextXAlignment = Enum.TextXAlignment.Left
@@ -3495,10 +3507,10 @@ end
 
 end
 
-AnimSearchBar:GetPropertyChangedSignal(“Text”):Connect(function()
+AnimSearchBar:GetPropertyChangedSignal("Text"):Connect(function()
 local searchText = AnimSearchBar.Text:lower()
 for _, button in ipairs(animButtons) do
-if searchText == “” or button.Text:lower():find(searchText) then
+if searchText == "" or button.Text:lower():find(searchText) then
 button.Visible = true
 else
 button.Visible = false
@@ -3525,16 +3537,16 @@ local allEmotes          = {}
 local emotesLoaded       = false
 local listeningKeyBtn    = nil
 local isDraggingSpeed    = false
-local EMOTE_JSON_URL     = “https://raw.githubusercontent.com/7yd7/sniper-Emote/refs/heads/test/EmoteSniper.json”
-local EMOTE_CACHE        = “OnyxEmotes.json”
+local EMOTE_JSON_URL     = "https://raw.githubusercontent.com/7yd7/sniper-Emote/refs/heads/test/EmoteSniper.json"
+local EMOTE_CACHE        = "OnyxEmotes.json"
 
 – load saved keybinds
 do
 local ok, decoded = pcall(function()
-if not isfile(“OnyxEmoteBinds.json”) then return nil end
-return HttpService:JSONDecode(readfile(“OnyxEmoteBinds.json”))
+if not isfile("OnyxEmoteBinds.json") then return nil end
+return HttpService:JSONDecode(readfile("OnyxEmoteBinds.json"))
 end)
-if ok and type(decoded) == “table” then
+if ok and type(decoded) == "table" then
 emoteKeybinds = decoded
 end
 end
@@ -3544,7 +3556,7 @@ local toSave = {}
 for id, data in pairs(emoteKeybinds) do
 toSave[id] = data.key and data.key.Name or nil
 end
-pcall(function() writefile(“OnyxEmoteBinds.json”, HttpService:JSONEncode(toSave)) end)
+pcall(function() writefile("OnyxEmoteBinds.json", HttpService:JSONEncode(toSave)) end)
 end
 
 local EmoteMenu, NowPlayingLabel, StopEmoteBtn, EmoteMenuClose
@@ -3552,8 +3564,8 @@ local SpeedLabel, SpeedTrack, SpeedFill, SpeedHandle, SpeedValueBox
 local EmoteListFrame, EmoteCountLabel, LoadingLabel, EmoteSearch
 
 local function BuildEmoteUI()
-local menu = Instance.new(“Frame”)
-menu.Name               = “EmoteMenu”
+local menu = Instance.new("Frame")
+menu.Name               = "EmoteMenu"
 menu.Parent             = OnyxUI
 menu.BackgroundColor3   = Color3.fromRGB(15, 15, 25)
 menu.BackgroundTransparency = 0.3
@@ -3565,8 +3577,8 @@ menu.Active             = true
 menu.ZIndex             = 30
 menu.ClipsDescendants   = true
 do
-local c = Instance.new(“UICorner”); c.CornerRadius = UDim.new(0, 16); c.Parent = menu
-local s = Instance.new(“UIStroke”); s.Color = Color3.fromRGB(255, 255, 255)
+local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 16); c.Parent = menu
+local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(255, 255, 255)
 s.Transparency = 0.8; s.Thickness = 1; s.Parent = menu
 end
 
@@ -3778,7 +3790,7 @@ currentEmoteTrack = nil
 end
 selectedEmoteId   = nil
 selectedEmoteName = nil
-NowPlayingLabel.Text = “▶  No emote playing”
+NowPlayingLabel.Text = "▶  No emote playing"
 
 ```
 local char = plr.Character
@@ -3805,7 +3817,7 @@ if RefreshVirtualRows then RefreshVirtualRows() end
 end
 
 local function PlayEmoteById(emoteId, emoteName)
-local idStr = tostring(emoteId):gsub(”%.0$”, “”)
+local idStr = tostring(emoteId):gsub("%.0$", "")
 
 ```
 if selectedEmoteId and tostring(selectedEmoteId):gsub("%.0$", "") == idStr then
@@ -3920,8 +3932,8 @@ local speed = math.floor((0.1 + fraction * 3.9) * 10 + 0.5) / 10
 currentEmoteSpeed    = speed
 SpeedFill.Size       = UDim2.new(fraction, 0, 1, 0)
 SpeedHandle.Position = UDim2.new(fraction, 0, 0.5, 0)
-SpeedLabel.Text      = “⚡ Speed: “ .. string.format(”%.1f”, speed) .. “x”
-SpeedValueBox.Text   = string.format(”%.1f”, speed)
+SpeedLabel.Text      = "⚡ Speed: " .. string.format("%.1f", speed) .. "x"
+SpeedValueBox.Text   = string.format("%.1f", speed)
 if currentEmoteTrack then pcall(function() currentEmoteTrack:AdjustSpeed(speed) end) end
 end
 
@@ -3944,14 +3956,14 @@ end)
 SpeedValueBox.FocusLost:Connect(function()
 local v = tonumber(SpeedValueBox.Text)
 if v then ApplySpeed((math.clamp(v,0.1,4.0)-0.1)/3.9)
-else SpeedValueBox.Text = string.format(”%.1f”, currentEmoteSpeed) end
+else SpeedValueBox.Text = string.format("%.1f", currentEmoteSpeed) end
 end)
 
 local function CancelListening()
 if listeningKeyBtn then
 local id = emoteListenTarget and emoteListenTarget.id
 local bound = id and emoteKeybinds[tostring(id)]
-listeningKeyBtn.Text             = bound and (”[” .. bound.key.Name .. “]”) or “[+]”
+listeningKeyBtn.Text             = bound and ("[" .. bound.key.Name .. "]") or "[+]"
 listeningKeyBtn.BackgroundColor3 = bound and Color3.fromRGB(50,80,140) or Color3.fromRGB(50,50,75)
 listeningKeyBtn.TextColor3       = bound and Color3.fromRGB(200,220,255) or Color3.fromRGB(140,140,170)
 listeningKeyBtn = nil
@@ -3968,23 +3980,23 @@ for existId, data in pairs(emoteKeybinds) do
 if data.key == keyCode and existId ~= tostring(id) then
 data.key = nil
 if data.btn and data.btn.Parent then
-data.btn.Text = “[+]”; data.btn.BackgroundColor3 = Color3.fromRGB(50,50,75)
+data.btn.Text = "[+]"; data.btn.BackgroundColor3 = Color3.fromRGB(50,50,75)
 data.btn.TextColor3 = Color3.fromRGB(140,140,170)
 end
 end
 end
 emoteKeybinds[tostring(id)] = { key = keyCode, btn = btn }
-btn.Text = “[” .. keyCode.Name .. “]”
+btn.Text = "[" .. keyCode.Name .. "]"
 btn.BackgroundColor3 = Color3.fromRGB(50,80,140)
 btn.TextColor3 = Color3.fromRGB(200,220,255)
 listeningKeyBtn = nil; emoteListenTarget = nil
 SaveKeybinds()
-SendNotify(“Emotes”, keyCode.Name .. “ → “ .. name, 2)
+SendNotify("Emotes", keyCode.Name .. " → " .. name, 2)
 end
 
 local function UnbindEmote(id, btn)
 emoteKeybinds[tostring(id)] = nil
-btn.Text = “[+]”; btn.BackgroundColor3 = Color3.fromRGB(50,50,75)
+btn.Text = "[+]"; btn.BackgroundColor3 = Color3.fromRGB(50,50,75)
 btn.TextColor3 = Color3.fromRGB(140,140,170)
 SaveKeybinds()
 end
@@ -4001,8 +4013,8 @@ local vFirstIdx      = 0   – index of topmost rendered row in visibleEmotes
 
 local function BuildRowPool()
 for i = 1, VPOOL_SIZE do
-local row = Instance.new(“Frame”)
-row.Name = “VRow”..i; row.Parent = EmoteListFrame
+local row = Instance.new("Frame")
+row.Name = "VRow"..i; row.Parent = EmoteListFrame
 row.BackgroundTransparency = 1
 row.Size = UDim2.new(1, -10, 0, VROW_H - 4)
 row.Position = UDim2.new(0, 5, 0, 0)
@@ -4078,8 +4090,8 @@ end
 
 local function BindRowToEmote(widget, emote, yPos)
 local row = widget.row
-row:SetAttribute(“BoundEmoteId”,   emote.id)
-row:SetAttribute(“BoundEmoteName”, emote.name)
+row:SetAttribute("BoundEmoteId",   emote.id)
+row:SetAttribute("BoundEmoteName", emote.name)
 row.Position = UDim2.new(0, 5, 0, yPos)
 row.Visible  = true
 
@@ -4120,11 +4132,11 @@ vFirstIdx = startIdx
 
 end
 
-EmoteListFrame:GetPropertyChangedSignal(“CanvasPosition”):Connect(RefreshVirtualRows)
+EmoteListFrame:GetPropertyChangedSignal("CanvasPosition"):Connect(RefreshVirtualRows)
 
 local function RebuildVisible(term)
 visibleEmotes = {}
-if term == “” then
+if term == "" then
 visibleEmotes = allEmotes
 else
 term = term:lower()
@@ -4140,36 +4152,36 @@ EmoteListFrame.CanvasPosition = Vector2.new(0, 0)
 RefreshVirtualRows()
 end
 
-EmoteSearch:GetPropertyChangedSignal(“Text”):Connect(function()
+EmoteSearch:GetPropertyChangedSignal("Text"):Connect(function()
 RebuildVisible(EmoteSearch.Text)
 end)
 
 local function PopulateEmoteList(emoteList)
 pcall(function() LoadingLabel:Destroy() end)
 allEmotes = emoteList
-EmoteCountLabel.Text = tostring(#allEmotes) .. “ emotes”
+EmoteCountLabel.Text = tostring(#allEmotes) .. " emotes"
 local restoredBinds = {}
 for idStr, v in pairs(emoteKeybinds) do
-idStr = tostring(idStr):gsub(”%.0$”,””)
-if type(v) == “string” then
+idStr = tostring(idStr):gsub("%.0$","")
+if type(v) == "string" then
 local ok, kc = pcall(function() return Enum.KeyCode[v] end)
 if ok and kc then restoredBinds[idStr] = {key=kc, btn=nil} end
-elseif type(v) == “table” and v.key then
+elseif type(v) == "table" and v.key then
 restoredBinds[idStr] = v
 end
 end
 emoteKeybinds = restoredBinds
 BuildRowPool()
-RebuildVisible(””)
+RebuildVisible("")
 emotesLoaded = true
-SendNotify(“Emotes”, tostring(#allEmotes) .. “ emotes loaded!”, 3)
+SendNotify("Emotes", tostring(#allEmotes) .. " emotes loaded!", 3)
 end
 
 local function LoadEmoteDatabase()
-EmoteCountLabel.Text = “Loading…”
+EmoteCountLabel.Text = "Loading…"
 task.spawn(function()
 local raw = nil
-local cacheFiles = {EMOTE_CACHE, “Onyx_emotes.lua”, “OnyxEmotes.lua”, “emotes.json”}
+local cacheFiles = {EMOTE_CACHE, "Onyx_emotes.lua", "OnyxEmotes.lua", "emotes.json"}
 for _, fname in ipairs(cacheFiles) do
 local fileExists = false
 pcall(function() fileExists = isfile(fname) end)
@@ -4188,7 +4200,7 @@ if not raw then
 local fetchOk, fetchResult = false, nil
 if httpRequest then
 local hok, hres = pcall(function()
-return httpRequest({ Url = EMOTE_JSON_URL, Method = “GET” })
+return httpRequest({ Url = EMOTE_JSON_URL, Method = "GET" })
 end)
 if hok and hres and (hres.Body or hres.body) then
 local body = hres.Body or hres.body
@@ -4209,21 +4221,21 @@ if fetchOk and fetchResult then
 raw = fetchResult
 pcall(function() writefile(EMOTE_CACHE, raw) end)
 else
-EmoteCountLabel.Text = “Load failed”
-SendNotify(“Emotes”,“Failed to fetch emote database — put Onyx_emotes.lua in your workspace folder”,5)
-pcall(function() LoadingLabel.Text = “❌ Failed to load. Place Onyx_emotes.lua in your executor workspace.” end)
+EmoteCountLabel.Text = "Load failed"
+SendNotify("Emotes","Failed to fetch emote database — put Onyx_emotes.lua in your workspace folder",5)
+pcall(function() LoadingLabel.Text = "❌ Failed to load. Place Onyx_emotes.lua in your executor workspace." end)
 return
 end
 end
 local ok, decoded = pcall(function() return HttpService:JSONDecode(raw) end)
 if not ok or not decoded or not decoded.data then
-EmoteCountLabel.Text = “Parse error”
-pcall(function() LoadingLabel.Text = “❌ Failed to parse emote data.” end)
+EmoteCountLabel.Text = "Parse error"
+pcall(function() LoadingLabel.Text = "❌ Failed to parse emote data." end)
 return
 end
 for _, entry in ipairs(decoded.data) do
 entry.id = tostring(entry.id)
-entry.id = entry.id:gsub(”%.0$”, “”)
+entry.id = entry.id:gsub("%.0$", "")
 end
 PopulateEmoteList(decoded.data)
 end)
@@ -4257,12 +4269,12 @@ if gameProcessed then return end
 for emoteIdStr, data in pairs(emoteKeybinds) do
 if data.key and data.key == input.KeyCode then
 – Toggle: if this emote is already playing, stop it
-if selectedEmoteId and tostring(selectedEmoteId):gsub(”%.0$”,””) == emoteIdStr then
+if selectedEmoteId and tostring(selectedEmoteId):gsub("%.0$","") == emoteIdStr then
 StopCurrentEmote()
 RefreshVirtualRows()
 else
 for _, emote in ipairs(allEmotes) do
-if tostring(emote.id):gsub(”%.0$”,””) == emoteIdStr then
+if tostring(emote.id):gsub("%.0$","") == emoteIdStr then
 PlayEmoteById(emote.id, emote.name)
 task.defer(function() if RefreshVirtualRows then RefreshVirtualRows() end end)
 break
@@ -4278,9 +4290,9 @@ plr.CharacterAdded:Connect(function(char)
 currentEmoteTrack = nil
 selectedEmoteId   = nil
 selectedEmoteName = nil
-NowPlayingLabel.Text = “▶  No emote playing”
+NowPlayingLabel.Text = "▶  No emote playing"
 – Make sure Animate is re-enabled if we died during an emote
-local animate = char:FindFirstChild(“Animate”) or char:WaitForChild(“Animate”, 5)
+local animate = char:FindFirstChild("Animate") or char:WaitForChild("Animate", 5)
 if animate then pcall(function() animate.Disabled = false end) end
 task.defer(function() if RefreshVirtualRows then RefreshVirtualRows() end end)
 end)
@@ -4362,7 +4374,7 @@ local gridSize = 512
 
 local function FindBaseplate()
 for _, obj in pairs(workspace:GetChildren()) do
-if obj:IsA(“Part”) and obj.Name:lower():find(“baseplate”) then
+if obj:IsA("Part") and obj.Name:lower():find("baseplate") then
 return obj
 end
 end
@@ -4370,7 +4382,7 @@ return nil
 end
 
 local function CreateBaseplateClone(position, original)
-local clone = Instance.new(“Part”)
+local clone = Instance.new("Part")
 clone.Size = original.Size
 clone.CFrame = CFrame.new(position)
 clone.Material = original.Material
@@ -4382,7 +4394,7 @@ clone.TopSurface = original.TopSurface
 clone.BottomSurface = original.BottomSurface
 clone.Anchored = true
 clone.CanCollide = true
-clone.Name = “InfiniteBaseplateClone”
+clone.Name = "InfiniteBaseplateClone"
 clone.Parent = workspace
 
 ```
@@ -4504,7 +4516,7 @@ end)
 – SHADERS SYSTEM (via loadstring)
 
 ShadersButton.MouseButton1Click:Connect(function()
-SendNotify(“Shaders”, “Loading shaders script…”, 2)
+SendNotify("Shaders", "Loading shaders script…", 2)
 
 ```
 local success, errorMsg = pcall(function()
@@ -4686,7 +4698,7 @@ local function CreateFOVCircle()
 if not DrawingEnabled then return end  – Xeno: skip if Drawing unavailable
 if not fovCircle then
 pcall(function()
-fovCircle = Drawing.new(“Circle”)
+fovCircle = Drawing.new("Circle")
 fovCircle.Visible = false
 fovCircle.Thickness = 2
 fovCircle.NumSides = 64
@@ -4979,10 +4991,10 @@ end)
 
 end)
 
-SendNotify(“Onyx”, “Press B to toggle | Loaded Successfully”, 4)
+SendNotify("Onyx", "Press B to toggle | Loaded Successfully", 4)
 task.wait(0.5)
 if canUsePhysicsRep then
-SendNotify(“Onyx”, “Zero-delay mode active (PhysicsRepRootPart supported)”, 3)
+SendNotify("Onyx", "Zero-delay mode active (PhysicsRepRootPart supported)", 3)
 else
-SendNotify(“Onyx”, “Fallback mode active (CFrame tracking - PhysicsRepRootPart unsupported)”, 4)
+SendNotify("Onyx", "Fallback mode active (CFrame tracking - PhysicsRepRootPart unsupported)", 4)
 end
