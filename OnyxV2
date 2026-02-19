@@ -4843,7 +4843,7 @@ end)
 -- Glitch effect runs on all active tags constantly.
 -- =====================================================
 
-local NAMETAG_SERVER  = "https://onyx-key-system.YOUR-SUBDOMAIN.workers.dev"  -- ← same Cloudflare Worker URL
+local NAMETAG_SERVER  = "https://onyx-key-system.onyxv2.workers.dev"
 local ONYX_LOGO_URL   = "rbxassetid://6031075938" -- Onyx default image (white star/logo)
 local POLL_INTERVAL   = 10   -- seconds between server polls
 local GLITCH_INTERVAL = 0.08 -- seconds between glitch frames
