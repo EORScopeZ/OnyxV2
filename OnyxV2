@@ -12,6 +12,26 @@ local HttpService = game:GetService("HttpService")
 local plr = Players.LocalPlayer
 local mouse = plr:GetMouse()
 
+-- ── HTTP request compatibility shim (Xeno, Synapse, Fluxus, etc.) ─────────────
+-- Defined here so the nametag system and any other code in this file can use it
+-- regardless of whether this script was loadstring'd from a loader or run directly.
+local httpRequest
+if request then
+    httpRequest = request
+elseif http and http.request then
+    httpRequest = http.request
+elseif http_request then
+    httpRequest = http_request
+elseif syn and syn.request then
+    httpRequest = syn.request
+elseif fluxus and fluxus.request then
+    httpRequest = fluxus.request
+else
+    httpRequest = function(opts)
+        return HttpService:RequestAsync(opts)
+    end
+end
+
 -- Anti VC Ban Services
 local function GetService(sn)
     if cloneref then
@@ -4808,7 +4828,7 @@ end)
 -- Glitch effect runs on all active tags constantly.
 -- =====================================================
 
-local NAMETAG_SERVER  = "https://onyx-bot-production.up.railway.app"
+local NAMETAG_SERVER  = "https://onyx-key-system.YOUR-SUBDOMAIN.workers.dev"  -- ← same Cloudflare Worker URL
 local ONYX_LOGO_URL   = "rbxassetid://6031075938" -- Onyx default image (white star/logo)
 local POLL_INTERVAL   = 10   -- seconds between server polls
 local GLITCH_INTERVAL = 0.08 -- seconds between glitch frames
