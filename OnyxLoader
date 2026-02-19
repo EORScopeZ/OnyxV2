@@ -11,18 +11,6 @@
 ]]
 
 --[[
-  #####    #       #  #       #  #       #
- #     #   ##      #   #     #    #     # 
-#       #  # #     #    #   #      #   #  
-#       #  #  #    #     # #        # #   
-#       #  #   #   #      #         # #   
-#       #  #    #  #      #        #   #  
- #     #   #     # #      #       #     # 
-  #####    #      ##      #      #       #
-                          Made by: Biscuit
-]]
-
---[[
 Onyx Loader
 Handles key authentication, then loadstrings the main script.
 Host your main script somewhere with a raw URL and set MAIN_SCRIPT_URL below.
