@@ -7,7 +7,7 @@
 -- =====================================================
 -- CONFIG
 -- =====================================================
-local KEY_SERVER_URL    = "https://onyx-key-system.onyxv2.workers.dev"  -- ← replace with your Cloudflare Worker URL
+local KEY_SERVER_URL    = "https://onyx-key-system.onyxv2.workers.dev/getkey"  -- ← replace with your Cloudflare Worker URL
 local MAIN_SCRIPT_URL   = "https://raw.githubusercontent.com/EORScopeZ/OnyxV2/refs/heads/main/OnyxV2"
 -- ^ Replace with your raw GitHub/Pastebin/etc URL for the main script
 
