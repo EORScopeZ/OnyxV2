@@ -275,7 +275,7 @@ Color3.fromRGB(80, 255, 140)
 AuthBtn.Text = "✓ Authenticated"
 AuthBtn.BackgroundColor3 = Color3.fromRGB(50, 185, 90)
 
-```
+
 TweenService:Create(AuthWin,
     TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.In),
     { Position = UDim2.new(0.5, 0, 0, -(WIN_H + 30)) }
@@ -283,7 +283,7 @@ TweenService:Create(AuthWin,
 
 task.wait(0.52)
 AuthGui:Destroy()
-```
+
 
 end
 
@@ -295,7 +295,7 @@ FlashDenied("Please enter a key.")
 return
 end
 
-```
+
 authChecking = true
 AuthBtn.Text = "Checking..."
 AuthBtn.BackgroundColor3 = Color3.fromRGB(90, 85, 140)
@@ -320,7 +320,7 @@ task.spawn(function()
         end
     end
 end)
-```
+
 
 end
 
@@ -406,7 +406,7 @@ notifCount = notifCount + 1
 local order = notifCount
 duration = duration or 3
 
-```
+
 local wrapper = Instance.new("Frame")
 wrapper.Name = "NotifWrap_" .. order
 wrapper.Parent = NotifContainer
@@ -503,7 +503,7 @@ task.spawn(function()
     task.wait(0.28)
     wrapper:Destroy()
 end)
-```
+
 
 end
 
@@ -554,7 +554,7 @@ local MainCorner = Instance.new("UICorner")
 MainCorner.CornerRadius = UDim.new(0, 13)
 MainCorner.Parent = MainFrame
 
-```
+
 local MainStroke = Instance.new("UIStroke")
 MainStroke.Color = Color3.fromRGB(255, 255, 255)
 MainStroke.Transparency = 0.76
@@ -572,7 +572,7 @@ BlurOverlay.ZIndex = 1
 local BlurCorner = Instance.new("UICorner")
 BlurCorner.CornerRadius = UDim.new(0, 13)
 BlurCorner.Parent = BlurOverlay
-```
+
 
 end
 
@@ -697,14 +697,14 @@ TabListLayout.Parent = TabContainer
 TabListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 TabListLayout.Padding = UDim.new(0, 4)
 
-```
+
 local TabPadding = Instance.new("UIPadding")
 TabPadding.Parent = TabContainer
 TabPadding.PaddingTop = UDim.new(0, 8)
 TabPadding.PaddingBottom = UDim.new(0, 8)
 TabPadding.PaddingLeft = UDim.new(0, 7)
 TabPadding.PaddingRight = UDim.new(0, 7)
-```
+
 
 end
 
@@ -725,7 +725,7 @@ TabButton.ZIndex = 3
 TabButton.LayoutOrder = order
 TabButton.AutoButtonColor = false
 
-```
+
 local TabButtonPadding = Instance.new("UIPadding")
 TabButtonPadding.Parent = TabButton
 TabButtonPadding.PaddingLeft = UDim.new(0, 10)
@@ -735,7 +735,7 @@ TabButtonCorner.CornerRadius = UDim.new(0, 7)
 TabButtonCorner.Parent = TabButton
 
 return TabButton
-```
+
 
 end
 local HomeTab = CreateTab("Home", 1)
@@ -906,7 +906,7 @@ button.AutoButtonColor = false
 button.LayoutOrder = layoutOrder
 button.TextXAlignment = Enum.TextXAlignment.Left
 
-```
+
 local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(0, 7)
 corner.Parent = button
@@ -937,7 +937,7 @@ button.MouseButton1Up:Connect(function()
 end)
 
 return button
-```
+
 
 end
 local TargetActionsContainer = Instance.new("Frame")
@@ -1061,7 +1061,7 @@ entry.Size = UDim2.new(1, -10, 0, 120)
 entry.ZIndex = 5
 entry.LayoutOrder = order
 
-```
+
 local entryCorner = Instance.new("UICorner")
 entryCorner.CornerRadius = UDim.new(0, 8)
 entryCorner.Parent = entry
@@ -1094,7 +1094,7 @@ featuresLabel.ZIndex = 6
 
 local textHeight = featuresLabel.TextBounds.Y
 entry.Size = UDim2.new(1, -10, 0, math.max(120, textHeight + 45))
-```
+
 
 end
 CreateUpdateEntry("v2.1", "Misc Additions",
@@ -1428,7 +1428,7 @@ AntiVCCloseBtn.ZIndex = 22; AntiVCCloseBtn.AutoButtonColor = false
 do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,8); c.Parent = AntiVCCloseBtn end
 AntiVCCloseBtn.MouseButton1Click:Connect(function() AntiVCWindow.Visible = false end)
 
-```
+
 local AntiVCMinimizeBtn = Instance.new("TextButton")
 AntiVCMinimizeBtn.Name = "MinimizeBtn"; AntiVCMinimizeBtn.Parent = AntiVCTitleBar
 AntiVCMinimizeBtn.BackgroundColor3 = Color3.fromRGB(255,255,255); AntiVCMinimizeBtn.BackgroundTransparency = 0.9
@@ -1445,7 +1445,7 @@ AntiVCMinimizeBtn.MouseButton1Click:Connect(function()
     local ti = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
     TweenService:Create(AntiVCWindow, ti, {Size = antiVCMinimized and UDim2.new(0,250,0,40) or UDim2.new(0,250,0,200)}):Play()
 end)
-```
+
 
 end -- end AntiVC close/minimize do
 
@@ -1591,7 +1591,7 @@ local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(255,255,255)
 s.Transparency = 0.8; s.Thickness = 1; s.Parent = FaceBangWindow
 end
 
-```
+
 FBTitleBar = Instance.new("Frame")
 FBTitleBar.Name = "TitleBar"
 FBTitleBar.Parent = FaceBangWindow
@@ -1767,7 +1767,7 @@ end
 FaceBangButton.MouseButton1Click:Connect(function()
     FaceBangWindow.Visible = not FaceBangWindow.Visible
 end)
-```
+
 
 end -- end GUI do block
 
@@ -1784,7 +1784,7 @@ if not char then return nil end
 local hrp = char:FindFirstChild("HumanoidRootPart")
 if not hrp then return nil end
 
-```
+
 local nearest = nil
 local nearestDist = math.huge
 
@@ -1801,7 +1801,7 @@ for _, p in pairs(Players:GetPlayers()) do
     end
 end
 return nearest
-```
+
 
 end
 
@@ -1843,7 +1843,7 @@ end
 local function StartFaceBang(targetPlayer)
 if FaceBangEnabled then StopFaceBang() end
 
-```
+
 local char = plr.Character
 if not char then SendNotify("Error", "No character", 2) return end
 local hum = char:FindFirstChildOfClass("Humanoid")
@@ -1957,7 +1957,7 @@ faceBangThread = task.spawn(function()
 end)
 
 SendNotify("Face Bang", "Attached to " .. targetPlayer.DisplayName, 3)
-```
+
 
 end
 
@@ -2089,7 +2089,7 @@ LogoIcon.Position = UDim2.new(0.5, 0, 0.5, 0)
 LogoIcon.Size = UDim2.new(0, 30, 0, 30)
 LogoIcon.ZIndex = 11
 
-```
+
 local function createLine(yPos)
     local line = Instance.new("Frame")
     line.Parent = LogoIcon
@@ -2104,7 +2104,7 @@ local function createLine(yPos)
     return line
 end
 createLine(4); createLine(13); createLine(22)
-```
+
 
 end
 
@@ -2158,7 +2158,7 @@ end
 MinimizeButton.MouseButton1Click:Connect(toggleMinimize)
 ToggleButton.MouseButton1Click:Connect(toggleMinimize)
 
-```
+
 -- Keyboard shortcut (B) to toggle minimize
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
@@ -2166,7 +2166,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         toggleMinimize()
     end
 end)
-```
+
 
 end -- end minimize do
 
@@ -2175,13 +2175,13 @@ CloseButton.MouseButton1Click:Connect(function()
 local tweenInfo = TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 local fadeTween = TweenService:Create(MainFrame, tweenInfo, {BackgroundTransparency = 1})
 
-```
+
 fadeTween:Play()
 
 fadeTween.Completed:Connect(function()
     OnyxUI:Destroy()
 end)
-```
+
 
 end)
 
@@ -2311,7 +2311,7 @@ SendNotify("Error", "No target player", 3)
 return
 end
 
-```
+
 if ZeroDelayEnabled then
     StopZeroDelay()
     task.wait(0.1)
@@ -2444,7 +2444,7 @@ zeroDelayConnection = plr.CharacterAdded:Connect(function(newChar)
 end)
 
 SendNotify("Zero Delay", mode:upper() .. " started on " .. targetPlayer.DisplayName, 2)
-```
+
 
 end
 
@@ -2453,7 +2453,7 @@ HeadSitButton.MouseButton1Click:Connect(function()
 if isHeadSitToggling then return end
 isHeadSitToggling = true
 
-```
+
 if TargetedPlayer then
     local target = Players:FindFirstChild(TargetedPlayer)
     if target then
@@ -2475,7 +2475,7 @@ end
 
 task.wait(0.5)
 isHeadSitToggling = false
-```
+
 
 end)
 
@@ -2484,7 +2484,7 @@ BackpackButton.MouseButton1Click:Connect(function()
 if isBackpackToggling then return end
 isBackpackToggling = true
 
-```
+
 if TargetedPlayer then
     local target = Players:FindFirstChild(TargetedPlayer)
     if target then
@@ -2506,7 +2506,7 @@ end
 
 task.wait(0.5)
 isBackpackToggling = false
-```
+
 
 end)
 
@@ -2523,7 +2523,7 @@ TargetedPlayer = player.Name
 TargetNameInput.Text = player.Name
 TargetInfoLabel.Text = "Target: " .. player.DisplayName .. " (@" .. player.Name .. ")\nUserID: " .. player.UserId
 
-```
+
     local userId = player.UserId
     local thumbType = Enum.ThumbnailType.HeadShot
     local thumbSize = Enum.ThumbnailSize.Size150x150
@@ -2566,7 +2566,7 @@ else
         plr.Character.Humanoid.Sit = false
     end
 end
-```
+
 
 end
 
@@ -2574,14 +2574,14 @@ TargetNameInput.FocusLost:Connect(function()
 local playerName = TargetNameInput.Text
 local player = GetPlayer(playerName)
 
-```
+
 if player then
     UpdateTarget(player)
 else
     SendNotify("Error", "Player not found", 3)
     TargetNameInput.Text = ""
 end
-```
+
 
 end)
 
@@ -2591,7 +2591,7 @@ local target = Players:FindFirstChild(TargetedPlayer)
 if target and target.Character and target.Character:FindFirstChild("Humanoid") then
 ViewingTarget = not ViewingTarget
 
-```
+
         if ViewingTarget then
             SendNotify("View Target", "Now viewing " .. target.DisplayName, 2)
             ViewButton.Text = "👁️ Stop Viewing"
@@ -2625,7 +2625,7 @@ ViewingTarget = not ViewingTarget
 else
     SendNotify("Error", "No target selected", 3)
 end
-```
+
 
 end)
 
@@ -2655,7 +2655,7 @@ local target = Players:FindFirstChild(TargetedPlayer)
 if target then
 SpectatingTarget = not SpectatingTarget
 
-```
+
         if SpectatingTarget then
             workspace.CurrentCamera.CameraSubject = target.Character.Humanoid
             SendNotify("Spectate", "Now spectating " .. target.DisplayName, 2)
@@ -2669,7 +2669,7 @@ SpectatingTarget = not SpectatingTarget
 else
     SendNotify("Error", "No target selected", 3)
 end
-```
+
 
 end)
 
@@ -2679,7 +2679,7 @@ local target = Players:FindFirstChild(TargetedPlayer)
 if target then
 FocusingTarget = not FocusingTarget
 
-```
+
         if FocusingTarget then
             SendNotify("Focus Target", "Looping teleport to " .. target.DisplayName, 2)
             FocusButton.Text = "🎯 Stop Focus"
@@ -2705,7 +2705,7 @@ FocusingTarget = not FocusingTarget
 else
     SendNotify("Error", "No target selected", 3)
 end
-```
+
 
 end)
 
@@ -2747,7 +2747,7 @@ SendNotify("Anti VC Ban", "Already running, please wait...", 3)
 return
 end
 
-```
+
 AntiVCActive = true
 local originalText = ActivateVCBtn.Text
 ActivateVCBtn.Text = "Processing..."
@@ -2774,7 +2774,7 @@ task.spawn(function()
     
     AntiVCActive = false
 end)
-```
+
 
 end)
 
@@ -2784,7 +2784,7 @@ local success, isPaused = pcall(function()
 return VoiceChatInternal:IsPublishPaused()
 end)
 
-```
+
     if success then
         if isPaused then
             MicCrossLine.Visible = true
@@ -2805,7 +2805,7 @@ end)
         end
     end
 end
-```
+
 
 end)
 
@@ -3223,7 +3223,7 @@ if not character then return end
 local humanoid = character:FindFirstChild("Humanoid")
 if not humanoid then return end
 
-```
+
 if state == "swim" then
     humanoid:ChangeState(Enum.HumanoidStateType.Swimming)
 elseif state == "climb" then
@@ -3231,7 +3231,7 @@ elseif state == "climb" then
 else
     humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
 end
-```
+
 
 end
 
@@ -3239,7 +3239,7 @@ local function ResetAnimation(animType)
 local Char = plr.Character
 if not Char then return end
 
-```
+
 local Hum = Char:FindFirstChildOfClass("Humanoid") or Char:FindFirstChildOfClass("AnimationController")
 for _, v in next, Hum:GetPlayingAnimationTracks() do v:Stop(0) end
 
@@ -3264,7 +3264,7 @@ pcall(function()
         Animate.climb.ClimbAnim.AnimationId = "http://www.roblox.com/asset/?id=0"
     end
 end)
-```
+
 
 end
 
@@ -3303,7 +3303,7 @@ end
 function setAnimation(animationType, animationId)
 if type(animationId) ~= "table" and type(animationId) ~= "string" then return end
 
-```
+
 if not plr.Character then return end
 local Char = plr.Character
 local Animate = Char:FindFirstChild("Animate")
@@ -3393,7 +3393,7 @@ if Hum then
         Hum:ChangeState(Enum.HumanoidStateType.GettingUp)
     end
 end
-```
+
 
 end
 
@@ -3406,7 +3406,7 @@ lastAnimations[k] = v
 end
 SendNotify("Animations", "Restoring saved animations", 3)
 
-```
+
     task.wait(1) -- Wait for character to load
     
     if lastAnimationsData.Idle then setAnimation("Idle", lastAnimationsData.Idle) end
@@ -3418,7 +3418,7 @@ SendNotify("Animations", "Restoring saved animations", 3)
     if lastAnimationsData.Swim then setAnimation("Swim", lastAnimationsData.Swim) end
     if lastAnimationsData.SwimIdle then setAnimation("SwimIdle", lastAnimationsData.SwimIdle) end
 end
-```
+
 
 end
 
@@ -3427,7 +3427,7 @@ local hum = character:WaitForChild("Humanoid")
 local animate = character:WaitForChild("Animate", 10)
 if not animate then return end
 
-```
+
 task.wait(0.5)
 
 if lastAnimations.Idle then setAnimation("Idle", lastAnimations.Idle) end
@@ -3438,7 +3438,7 @@ if lastAnimations.Fall then setAnimation("Fall", lastAnimations.Fall) end
 if lastAnimations.Climb then setAnimation("Climb", lastAnimations.Climb) end
 if lastAnimations.Swim then setAnimation("Swim", lastAnimations.Swim) end
 if lastAnimations.SwimIdle then setAnimation("SwimIdle", lastAnimations.SwimIdle) end
-```
+
 
 end)
 
@@ -3460,7 +3460,7 @@ button.TextXAlignment = Enum.TextXAlignment.Left
 button.ZIndex = 5
 button.AutoButtonColor = false
 
-```
+
 local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(0, 6)
 corner.Parent = button
@@ -3483,7 +3483,7 @@ button.MouseButton1Click:Connect(function()
 end)
 
 table.insert(animButtons, button)
-```
+
 
 end
 
@@ -3493,7 +3493,7 @@ if btn and btn.Parent then btn:Destroy() end
 end
 animButtons = {}
 
-```
+
 local typeOrder = {"Idle", "Walk", "Run", "Jump", "Fall", "Swim", "SwimIdle", "Climb"}
 
 for _, animType in ipairs(typeOrder) do
@@ -3504,7 +3504,7 @@ for _, animType in ipairs(typeOrder) do
         end
     end
 end
-```
+
 
 end
 
@@ -3583,7 +3583,7 @@ local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(255, 255, 255)
 s.Transparency = 0.8; s.Thickness = 1; s.Parent = menu
 end
 
-```
+
 local titleBar = Instance.new("Frame")
 titleBar.Name = "EmoteTitleBar"; titleBar.Parent = menu
 titleBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -3776,7 +3776,7 @@ SpeedValueBox   = speedValBox
 EmoteSearch     = search
 EmoteListFrame  = listFrame
 LoadingLabel    = loadingLbl
-```
+
 
 end
 
@@ -3793,7 +3793,7 @@ selectedEmoteId   = nil
 selectedEmoteName = nil
 NowPlayingLabel.Text = "▶  No emote playing"
 
-```
+
 local char = plr.Character
 if char then
     local animate = char:FindFirstChild("Animate")
@@ -3813,14 +3813,14 @@ if char then
     end
 end
 if RefreshVirtualRows then RefreshVirtualRows() end
-```
+
 
 end
 
 local function PlayEmoteById(emoteId, emoteName)
 local idStr = tostring(emoteId):gsub("%.0$", "")
 
-```
+
 if selectedEmoteId and tostring(selectedEmoteId):gsub("%.0$", "") == idStr then
     StopCurrentEmote()
     return
@@ -3923,7 +3923,7 @@ end)
 
 if RefreshVirtualRows then RefreshVirtualRows() end
 SendNotify("Emotes","Playing: " .. emoteName, 2)
-```
+
 
 end
 
@@ -4021,7 +4021,7 @@ row.Size = UDim2.new(1, -10, 0, VROW_H - 4)
 row.Position = UDim2.new(0, 5, 0, 0)
 row.ZIndex = 33; row.Visible = false
 
-```
+
     local playBtn = Instance.new("TextButton"); playBtn.Parent = row
     playBtn.BackgroundColor3 = Color3.fromRGB(255,255,255)
     playBtn.BackgroundTransparency = 0.93; playBtn.BorderSizePixel = 0
@@ -4085,7 +4085,7 @@ row.ZIndex = 33; row.Visible = false
 
     vPool[i] = {row=row, playBtn=playBtn, keyBtn=keyBtn}
 end
-```
+
 
 end
 
@@ -4096,7 +4096,7 @@ row:SetAttribute("BoundEmoteName", emote.name)
 row.Position = UDim2.new(0, 5, 0, yPos)
 row.Visible  = true
 
-```
+
 local isPlaying = selectedEmoteId and tostring(selectedEmoteId):gsub("%.0$","") == tostring(emote.id):gsub("%.0$","")
 widget.playBtn.Text = (isPlaying and "■  " or "") .. emote.name
 widget.playBtn.BackgroundTransparency = isPlaying and 0.6 or 0.93
@@ -4108,7 +4108,7 @@ widget.keyBtn.BackgroundColor3 = bound and Color3.fromRGB(50,80,140) or Color3.f
 widget.keyBtn.TextColor3 = bound and Color3.fromRGB(200,220,255) or Color3.fromRGB(140,140,170)
 
 if bound then emoteKeybinds[tostring(emote.id)].btn = widget.keyBtn end
-```
+
 
 end
 
@@ -4118,7 +4118,7 @@ local listH      = EmoteListFrame.AbsoluteSize.Y
 local startIdx   = math.max(1, math.floor((scrollY - VPAD) / VROW_H))
 local endIdx     = math.min(#visibleEmotes, startIdx + VPOOL_SIZE - 1)
 
-```
+
 for _, w in ipairs(vPool) do w.row.Visible = false end
 
 local poolIdx = 1
@@ -4129,7 +4129,7 @@ for i = startIdx, endIdx do
     poolIdx = poolIdx + 1
 end
 vFirstIdx = startIdx
-```
+
 
 end
 
@@ -4308,7 +4308,7 @@ local ClickTeleportEnabled = false
 ClickTeleportButton.MouseButton1Click:Connect(function()
 ClickTeleportEnabled = not ClickTeleportEnabled
 
-```
+
 if ClickTeleportEnabled then
     ClickTeleportButton.Text = "📍 Click Teleport (F): ON"
     ClickTeleportButton.BackgroundTransparency = 0.7
@@ -4318,7 +4318,7 @@ else
     ClickTeleportButton.BackgroundTransparency = 0.9
     SendNotify("Click Teleport", "Disabled", 2)
 end
-```
+
 
 end)
 
@@ -4326,7 +4326,7 @@ end)
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 if gameProcessed then return end
 
-```
+
 if input.KeyCode == Enum.KeyCode.F and ClickTeleportEnabled then
     local character = plr.Character
     if not character then return end
@@ -4361,7 +4361,7 @@ if input.KeyCode == Enum.KeyCode.F and ClickTeleportEnabled then
         teleportEffect:Destroy()
     end)
 end
-```
+
 
 end)
 
@@ -4398,7 +4398,7 @@ clone.CanCollide = true
 clone.Name = "InfiniteBaseplateClone"
 clone.Parent = workspace
 
-```
+
 local texture = original:FindFirstChildOfClass("Texture")
 if texture then
     local newTexture = texture:Clone()
@@ -4406,14 +4406,14 @@ if texture then
 end
 
 return clone
-```
+
 
 end
 
 local function UpdateBaseplates()
 if not InfiniteBaseplateEnabled or not originalBaseplate then return end
 
-```
+
 local character = plr.Character
 if not character then return end
 
@@ -4470,14 +4470,14 @@ for _, pos in ipairs(neededPositions) do
         table.insert(baseplateClones, newClone)
     end
 end
-```
+
 
 end
 
 InfiniteBaseplateButton.MouseButton1Click:Connect(function()
 InfiniteBaseplateEnabled = not InfiniteBaseplateEnabled
 
-```
+
 if InfiniteBaseplateEnabled then
     originalBaseplate = FindBaseplate()
     
@@ -4503,7 +4503,7 @@ else
     end
     baseplateClones = {}
 end
-```
+
 
 end)
 
@@ -4519,7 +4519,7 @@ end)
 ShadersButton.MouseButton1Click:Connect(function()
 SendNotify("Shaders", "Loading shaders script...", 2)
 
-```
+
 local success, errorMsg = pcall(function()
     local shaderUrl = "https://raw.githubusercontent.com/randomstring0/pshade-ultimate/refs/heads/main/src/cd.lua"
     local shaderSrc = nil
@@ -4543,7 +4543,7 @@ if success then
 else
     SendNotify("Shaders Error", "Failed to load: " .. tostring(errorMsg), 5)
 end
-```
+
 
 end)
 
@@ -4555,7 +4555,7 @@ local espObjects = {}
 ESPButton.MouseButton1Click:Connect(function()
 ESPEnabled = not ESPEnabled
 
-```
+
 if ESPEnabled then
     ESPButton.Text = "👁️ ESP: ON"
     ESPButton.BackgroundTransparency = 0.7
@@ -4574,14 +4574,14 @@ else
     end
     espObjects = {}
 end
-```
+
 
 end)
 
 RunService.RenderStepped:Connect(function()
 if not ESPEnabled then return end
 
-```
+
 for _, player in pairs(Players:GetPlayers()) do
     if player ~= plr and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
         local hrp = player.Character.HumanoidRootPart
@@ -4685,7 +4685,7 @@ for playerName, esp in pairs(espObjects) do
         espObjects[playerName] = nil
     end
 end
-```
+
 
 end)
 
@@ -4716,7 +4716,7 @@ task.defer(CreateFOVCircle)
 AimlockButton.MouseButton1Click:Connect(function()
 AimlockEnabled = not AimlockEnabled
 
-```
+
 if AimlockEnabled then
     AimlockButton.Text = "🎯 Aimlock: ON"
     AimlockButton.BackgroundTransparency = 0.7
@@ -4729,7 +4729,7 @@ else
     aimlockTarget = nil
     if fovCircle then pcall(function() fovCircle.Visible = false end) end
 end
-```
+
 
 end)
 
@@ -4738,7 +4738,7 @@ RunService.Heartbeat:Connect(function()
 if not AimlockEnabled then return end
 if not UserInputService.WindowFocused then return end
 
-```
+
 local mousePos = UserInputService:GetMouseLocation()
 if fovCircle then pcall(function() fovCircle.Position = mousePos end) end
 
@@ -4772,7 +4772,7 @@ if aimlockTarget and aimlockTarget.Character and aimlockTarget.Character:FindFir
     local head = aimlockTarget.Character.Head
     workspace.CurrentCamera.CFrame = CFrame.new(workspace.CurrentCamera.CFrame.Position, head.Position)
 end
-```
+
 
 end)
 
@@ -4787,7 +4787,7 @@ local isReversing = false
 TimeReverseButton.MouseButton1Click:Connect(function()
 TimeReverseEnabled = not TimeReverseEnabled
 
-```
+
 if TimeReverseEnabled then
     TimeReverseButton.Text = "⏮️ Time Reverse (C): ON"
     TimeReverseButton.BackgroundTransparency = 0.7
@@ -4798,14 +4798,14 @@ else
     SendNotify("Time Reverse", "Disabled", 2)
     positionHistory = {}
 end
-```
+
 
 end)
 
 RunService.Heartbeat:Connect(function()
 if not TimeReverseEnabled or isReversing then return end
 
-```
+
 if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
     local hrp = plr.Character.HumanoidRootPart
     
@@ -4818,18 +4818,18 @@ if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
         table.remove(positionHistory, 1)
     end
 end
-```
+
 
 end)
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 if gameProcessed then return end
 
-```
+
 if input.KeyCode == Enum.KeyCode.C and TimeReverseEnabled then
     isReversing = true
 end
-```
+
 
 end)
 
@@ -4842,7 +4842,7 @@ end)
 RunService.Heartbeat:Connect(function()
 if not isReversing or not TimeReverseEnabled then return end
 
-```
+
 if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and #positionHistory > 0 then
     local hrp = plr.Character.HumanoidRootPart
     local lastPos = table.remove(positionHistory)
@@ -4852,7 +4852,7 @@ if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and #posit
         hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
     end
 end
-```
+
 
 end)
 
@@ -4864,7 +4864,7 @@ local TripEnabled = false
 TripButton.MouseButton1Click:Connect(function()
 TripEnabled = not TripEnabled
 
-```
+
 if TripEnabled then
     TripButton.Text = "🤸 Trip (T): ON"
     TripButton.BackgroundTransparency = 0.7
@@ -4874,7 +4874,7 @@ else
     TripButton.BackgroundTransparency = 0.9
     SendNotify("Trip", "Disabled", 2)
 end
-```
+
 
 end)
 
@@ -4882,7 +4882,7 @@ end)
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 if gameProcessed then return end
 
-```
+
 if input.KeyCode == Enum.KeyCode.T and TripEnabled then
     if plr.Character and plr.Character:FindFirstChild("Humanoid") then
         local humanoid = plr.Character.Humanoid
@@ -4906,7 +4906,7 @@ if input.KeyCode == Enum.KeyCode.T and TripEnabled then
         end
     end
 end
-```
+
 
 end)
 
@@ -4918,7 +4918,7 @@ UnloadScriptButton.MouseButton1Click:Connect(function()
 if unloadPending then return end
 unloadPending = true
 
-```
+
 UnloadScriptButton.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
 UnloadScriptButton.Text = "⚠️ Click Again to Confirm"
 
@@ -4988,7 +4988,7 @@ connection = UnloadScriptButton.MouseButton1Click:Connect(function()
     
     SendNotify("Onyx", "Successfully unloaded. Goodbye!", 3)
 end)
-```
+
 
 end)
 
