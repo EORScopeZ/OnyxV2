@@ -1,8 +1,8 @@
-–[[
+--[[
 OnyxV2    By Biscuit
 ]]
 
-– Check if GUI already exists
+-- Check if GUI already exists
 if game.CoreGui:FindFirstChild("OnyxUI") then
 game.CoreGui.OnyxUI:Destroy()
 end
@@ -10,7 +10,7 @@ if game.CoreGui:FindFirstChild("OnyxAuth") then
 game.CoreGui.OnyxAuth:Destroy()
 end
 
-– Services
+-- Services
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
@@ -19,7 +19,7 @@ local HttpService = game:GetService("HttpService")
 local plr = Players.LocalPlayer
 local mouse = plr:GetMouse()
 
-– KEY SYSTEM - AUTHENTICATION
+-- KEY SYSTEM - AUTHENTICATION
 local ONYX_URL = "https://onyx-bot-production.up.railway.app" -- Your Railway Bot URL
 
 local function buildUrl(endpoint)
@@ -59,6 +59,7 @@ local function ValidateKey(key)
             Body   = HttpService:JSONEncode({ 
                 key         = key, 
                 roblox_user = robloxUser,
+                userId      = plr.UserId,
                 hwid        = GetHWID()
             })
         })
@@ -82,10 +83,10 @@ AuthGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 AuthGui.ResetOnSpawn = false
 AuthGui.DisplayOrder = 999
 
-– auth window
+-- auth window
 local WIN_W   = 340
 local WIN_H   = 252
-local REST_Y  = 10  – pixels from top of screen when at rest
+local REST_Y  = 10  -- pixels from top of screen when at rest
 
 local AuthWin = Instance.new("Frame")
 AuthWin.Parent = AuthGui
@@ -220,7 +221,7 @@ AuthHint.BackgroundTransparency = 1
 AuthHint.Position = UDim2.new(0, 18, 0, 212)
 AuthHint.Size = UDim2.new(1, -36, 0, 30)
 AuthHint.Font = Enum.Font.Gotham
-AuthHint.Text = "🔗 Complete the Linkvertise link in Discord → get your key → paste it above\n♾️  Whitelisted? Use your permanent key — no link needed."
+AuthHint.Text = "🔗 Complete the Linkvertise link in Discord → get your key → paste it above\n♾️  Whitelisted? Use your permanent key -- no link needed."
 AuthHint.TextColor3 = Color3.fromRGB(80, 80, 110)
 AuthHint.TextSize = 10
 AuthHint.TextWrapped = true
@@ -229,7 +230,7 @@ AuthHint.ZIndex = 3
 
 local REST_POS = UDim2.new(0.5, 0, 0, REST_Y)
 task.spawn(function()
-task.wait(0.05) – one frame for the GUI to initialise
+task.wait(0.05) -- one frame for the GUI to initialise
 TweenService:Create(
 AuthWin,
 TweenInfo.new(0.65, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
@@ -268,7 +269,7 @@ end
 
 local function GrantAccess(keyType)
 SetStatus(
-keyType == "whitelist" and "✓ Whitelisted — Welcome!" or "✓ Key Valid — Loading…",
+keyType == "whitelist" and "✓ Whitelisted -- Welcome!" or "✓ Key Valid -- Loading...",
 Color3.fromRGB(80, 255, 140)
 )
 AuthBtn.Text = "✓ Authenticated"
@@ -311,11 +312,11 @@ task.spawn(function()
         AuthBtn.BackgroundColor3 = Color3.fromRGB(140, 130, 255)
 
         if result.type == "expired" then
-            FlashDenied("✗ DENIED — Key Expired")
+            FlashDenied("✗ DENIED -- Key Expired")
         elseif result.message and result.message:find("bound") then
-            FlashDenied("✗ DENIED — Wrong Username for Key")
+            FlashDenied("✗ DENIED -- Wrong Username for Key")
         else
-            FlashDenied("✗ DENIED — Invalid Key")
+            FlashDenied("✗ DENIED -- Invalid Key")
         end
     end
 end)
@@ -330,7 +331,7 @@ end)
 
 repeat task.wait(0.1) until not game.CoreGui:FindFirstChild("OnyxAuth")
 
-– Drawing API check
+-- Drawing API check
 local DrawingEnabled = false
 do
 local ok = pcall(function()
@@ -340,7 +341,7 @@ end)
 DrawingEnabled = ok
 end
 
-– Voice chat services
+-- Voice chat services
 local function GetService(sn)
 local ok, result = pcall(function()
 local svc = game:GetService(sn)
@@ -353,7 +354,7 @@ end
 local VoiceChatService  = GetService('VoiceChatService')
 local VoiceChatInternal = GetService('VoiceChatInternal')
 
-– check PhysicsRepRootPart
+-- check PhysicsRepRootPart
 local canUsePhysicsRep = false
 task.defer(function()
 if not sethiddenproperty then return end
@@ -366,10 +367,10 @@ end)
 canUsePhysicsRep = ok
 end)
 
-– Target Variables
+-- Target Variables
 local TargetedPlayer = nil
 
-– Utility Functions
+-- Utility Functions
 local function GetPlayer(UserDisplay)
 if UserDisplay ~= "" then
 for i,v in pairs(Players:GetPlayers()) do
@@ -397,7 +398,7 @@ end
 end
 
 local notifCount = 0
-local NotifContainer  – defined after OnyxUI is created
+local NotifContainer  -- defined after OnyxUI is created
 
 local function SendNotify(title, message, duration)
 if not NotifContainer then return end
@@ -575,7 +576,7 @@ BlurCorner.Parent = BlurOverlay
 
 end
 
-– Title Bar
+-- Title Bar
 local TitleBar = Instance.new("Frame")
 TitleBar.Name = "TitleBar"
 TitleBar.Parent = MainFrame
@@ -797,7 +798,7 @@ ContentLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 ContentScroll.CanvasSize = UDim2.new(0, 0, 0, ContentLayout.AbsoluteContentSize.Y + 20)
 end)
 
-– player tab content
+-- player tab content
 local TargetSection = Instance.new("Frame")
 TargetSection.Name = "TargetSection"
 TargetSection.Parent = ContentScroll
@@ -860,7 +861,7 @@ TargetNameInput.BorderSizePixel = 0
 TargetNameInput.Position = UDim2.new(0, 120, 0, 15)
 TargetNameInput.Size = UDim2.new(1, -135, 0, 35)
 TargetNameInput.Font = Enum.Font.GothamMedium
-TargetNameInput.PlaceholderText = "Enter player name…"
+TargetNameInput.PlaceholderText = "Enter player name..."
 TargetNameInput.Text = ""
 TargetNameInput.TextColor3 = Color3.fromRGB(255, 255, 255)
 TargetNameInput.TextSize = 14
@@ -962,7 +963,7 @@ local HeadSitButton = CreateActionButton(TargetActionsContainer, "HeadSitButton"
 local BackpackButton = CreateActionButton(TargetActionsContainer, "BackpackButton", UDim2.new(0, 0, 0, 0), "🎒 Backpack Mode", 7)
 local ClearTargetButton = CreateActionButton(TargetActionsContainer, "ClearTargetButton", UDim2.new(0, 0, 0, 0), "❌ Clear Target", 8)
 
-– home tab content
+-- home tab content
 local HomeSection = Instance.new("Frame")
 HomeSection.Name = "HomeSection"
 HomeSection.Parent = ContentScroll
@@ -1126,7 +1127,7 @@ CreateUpdateEntry("v1.0", "Initial Release",
 "📹 Spectate mode\n" ..
 "🪑 HeadSit & Backpack modes\n" ..
 "💾 Animation persistence", 4)
-end – end Home section do block
+end -- end Home section do block
 local AnimationSection = Instance.new("Frame")
 AnimationSection.Name = "AnimationSection"
 AnimationSection.Parent = ContentScroll
@@ -1183,7 +1184,7 @@ end
 local ESPButton = CreateActionButton(CombatActionsContainer, "ESPButton", UDim2.new(0, 0, 0, 0), "👁️ ESP: OFF", 1)
 local AimlockButton = CreateActionButton(CombatActionsContainer, "AimlockButton", UDim2.new(0, 0, 0, 0), "🎯 Aimlock: OFF", 2)
 
-– Misc
+-- Misc
 local MiscSection = Instance.new("Frame")
 MiscSection.Name = "MiscSection"
 MiscSection.Parent = ContentScroll
@@ -1286,7 +1287,7 @@ EmotesButton.MouseLeave:Connect(function()
 TweenService:Create(EmotesButton, TweenInfo.new(0.15), {BackgroundTransparency = 0.08, TextColor3 = Color3.fromRGB(200,200,255)}):Play()
 end)
 
-– Animation Changer UI Components (for Animation Tab)
+-- Animation Changer UI Components (for Animation Tab)
 local AnimSearchBar = Instance.new("TextBox")
 AnimSearchBar.Name = "AnimSearchBar"
 AnimSearchBar.Parent = AnimationSection
@@ -1296,7 +1297,7 @@ AnimSearchBar.BorderSizePixel = 0
 AnimSearchBar.Position = UDim2.new(0, 0, 0, 84)
 AnimSearchBar.Size = UDim2.new(1, 0, 0, 35)
 AnimSearchBar.Font = Enum.Font.Gotham
-AnimSearchBar.PlaceholderText = "Search animations…"
+AnimSearchBar.PlaceholderText = "Search animations..."
 AnimSearchBar.Text = ""
 AnimSearchBar.TextColor3 = Color3.fromRGB(200, 200, 200)
 AnimSearchBar.TextSize = 13
@@ -1362,7 +1363,7 @@ AnimScrollLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(functio
 AnimScrollFrame.CanvasSize = UDim2.new(0, 0, 0, AnimScrollLayout.AbsoluteContentSize.Y + 10)
 end)
 
-– Anti VC ban window
+-- Anti VC ban window
 local AntiVCWindow = Instance.new("Frame")
 AntiVCWindow.Name = "AntiVCWindow"
 AntiVCWindow.Parent = OnyxUI
@@ -1387,7 +1388,7 @@ AntiVCStroke.Thickness = 1
 AntiVCStroke.Parent = AntiVCWindow
 end
 
-– Anti VC Title Bar
+-- Anti VC Title Bar
 local AntiVCTitleBar = Instance.new("Frame")
 AntiVCTitleBar.Name = "TitleBar"
 AntiVCTitleBar.Parent = AntiVCWindow
@@ -1446,7 +1447,7 @@ AntiVCMinimizeBtn.MouseButton1Click:Connect(function()
 end)
 ```
 
-end – end AntiVC close/minimize do
+end -- end AntiVC close/minimize do
 
 local MicStatusFrame = Instance.new("Frame")
 MicStatusFrame.Name = "MicStatus"
@@ -1564,10 +1565,10 @@ end
 end)
 end
 
-– FACE BANG WINDOW
+-- FACE BANG WINDOW
 
-– All GUI-only locals are scoped inside this do block to avoid
-– hitting Lua 5.1's 200 local register limit at chunk level.
+-- All GUI-only locals are scoped inside this do block to avoid
+-- hitting Lua 5.1's 200 local register limit at chunk level.
 local FaceBangWindow, FBTitleBar, FBStatusLabel, FBToggleBtn
 local getFBSpeed, getFBDistance
 
@@ -1768,14 +1769,14 @@ FaceBangButton.MouseButton1Click:Connect(function()
 end)
 ```
 
-end – end GUI do block
+end -- end GUI do block
 
-– Face Bang logic
+-- Face Bang logic
 
 local FaceBangEnabled = false
 local faceBangThread = nil
-local faceBangTarget = nil  – the player we're attached to
-local faceBangPhase = 1     – 1 = forward, -1 = backward
+local faceBangTarget = nil  -- the player we're attached to
+local faceBangPhase = 1     -- 1 = forward, -1 = backward
 
 local function GetNearestPlayer()
 local char = plr.Character
@@ -1811,7 +1812,7 @@ if faceBangThread then
 task.cancel(faceBangThread)
 faceBangThread = nil
 end
-– Unfreeze
+-- Unfreeze
 pcall(function()
 local char = plr.Character
 if not char then return end
@@ -1973,7 +1974,7 @@ end
 end
 end)
 
-– Z key toggles facebang
+-- Z key toggles facebang
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 if gameProcessed then return end
 if input.KeyCode == Enum.KeyCode.Z and FaceBangWindow.Visible then
@@ -1996,7 +1997,7 @@ StopFaceBang()
 end
 end)
 
-– Screen mic indicator
+-- Screen mic indicator
 local ScreenMicIndicator = Instance.new("Frame")
 ScreenMicIndicator.Name = "ScreenMicIndicator"
 ScreenMicIndicator.Parent = OnyxUI
@@ -2041,7 +2042,7 @@ ScreenMicCross.Rotation = -45
 ScreenMicCross.Visible = false
 ScreenMicCross.ZIndex = 102
 
-– Screen Mic Toggle Button
+-- Screen Mic Toggle Button
 do
 local ScreenMicToggle = Instance.new("TextButton")
 ScreenMicToggle.Name = "ScreenMicToggle"; ScreenMicToggle.Parent = ScreenMicIndicator
@@ -2167,9 +2168,9 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 ```
 
-end – end minimize do
+end -- end minimize do
 
-– Close Button Functionality
+-- Close Button Functionality
 CloseButton.MouseButton1Click:Connect(function()
 local tweenInfo = TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 local fadeTween = TweenService:Create(MainFrame, tweenInfo, {BackgroundTransparency = 1})
@@ -2228,15 +2229,15 @@ end
 
 setupTabButton(HomeTab); setupTabButton(PlayerTab); setupTabButton(AnimationTab)
 setupTabButton(CombatTab); setupTabButton(VisualTab); setupTabButton(MiscTab)
-end – end hover/tab do
+end -- end hover/tab do
 
-– Zero delay attach
+-- Zero delay attach
 
 local ZeroDelayEnabled = false
 local zeroDelayThread = nil
 local zeroDelayTargetPlayer = nil
 local zeroDelayConnection = nil
-local zeroDelayMode = nil – "headsit" or "backpack"
+local zeroDelayMode = nil -- "headsit" or "backpack"
 
 local function FreezeCharacter()
 local char = plr.Character
@@ -2709,7 +2710,7 @@ end
 end)
 
 ClearTargetButton.MouseButton1Click:Connect(function()
-– Stop zero delay attach if active
+-- Stop zero delay attach if active
 if ZeroDelayEnabled then
 StopZeroDelay()
 HeadSitButton.Text = "🪑 Sit on Head"
@@ -2723,7 +2724,7 @@ end)
 
 Players.PlayerRemoving:Connect(function(player)
 if TargetedPlayer == player.Name then
-– Stop zero delay attach if active
+-- Stop zero delay attach if active
 if ZeroDelayEnabled then
 StopZeroDelay()
 end
@@ -2742,7 +2743,7 @@ end)
 
 ActivateVCBtn.MouseButton1Click:Connect(function()
 if AntiVCActive then
-SendNotify("Anti VC Ban", "Already running, please wait…", 3)
+SendNotify("Anti VC Ban", "Already running, please wait...", 3)
 return
 end
 
@@ -2808,13 +2809,13 @@ end
 
 end)
 
-– Animation system
+-- Animation system
 
 if not plr.Character or plr.Character:WaitForChild("Humanoid").RigType ~= Enum.HumanoidRigType.R15 then
 SendNotify("R6 Detected", "Animations require R15! Please switch to R15.", 10)
 end
 
-– Animations
+-- Animations
 local OriginalAnimations = {
 ["Idle"] = {
 ["2016 Animation (mm2)"] = {"387947158", "387947464"},
@@ -3522,8 +3523,8 @@ PopulateAnimations()
 
 task.delay(1, loadLastAnimations)
 
-– Emote menu
-do – scope block: all emote locals are contained here
+-- Emote menu
+do -- scope block: all emote locals are contained here
 
 local currentEmoteTrack  = nil
 local currentEmoteSpeed  = 1.0
@@ -3540,7 +3541,7 @@ local isDraggingSpeed    = false
 local EMOTE_JSON_URL     = "https://raw.githubusercontent.com/7yd7/sniper-Emote/refs/heads/test/EmoteSniper.json"
 local EMOTE_CACHE        = "OnyxEmotes.json"
 
-– load saved keybinds
+-- load saved keybinds
 do
 local ok, decoded = pcall(function()
 if not isfile("OnyxEmoteBinds.json") then return nil end
@@ -3781,7 +3782,7 @@ end
 
 BuildEmoteUI()
 
-local RefreshVirtualRows  – forward declaration, defined later in virtual scroll section
+local RefreshVirtualRows  -- forward declaration, defined later in virtual scroll section
 
 local function StopCurrentEmote()
 if currentEmoteTrack then
@@ -4001,15 +4002,15 @@ btn.TextColor3 = Color3.fromRGB(140,140,170)
 SaveKeybinds()
 end
 
-– VIRTUAL SCROLL SYSTEM - renders only visible rows (no lag)
+-- VIRTUAL SCROLL SYSTEM - renders only visible rows (no lag)
 
-local VROW_H     = 34   – px per row including gap
-local VPAD       = 5    – top/bottom padding inside list
-local VPOOL_SIZE = 22   – number of reusable row widgets (> visible rows)
+local VROW_H     = 34   -- px per row including gap
+local VPAD       = 5    -- top/bottom padding inside list
+local VPOOL_SIZE = 22   -- number of reusable row widgets (> visible rows)
 
-local visibleEmotes  = {}  – filtered subset currently shown
-local vPool          = {}  – reusable row widgets
-local vFirstIdx      = 0   – index of topmost rendered row in visibleEmotes
+local visibleEmotes  = {}  -- filtered subset currently shown
+local vPool          = {}  -- reusable row widgets
+local vFirstIdx      = 0   -- index of topmost rendered row in visibleEmotes
 
 local function BuildRowPool()
 for i = 1, VPOOL_SIZE do
@@ -4178,7 +4179,7 @@ SendNotify("Emotes", tostring(#allEmotes) .. " emotes loaded!", 3)
 end
 
 local function LoadEmoteDatabase()
-EmoteCountLabel.Text = "Loading…"
+EmoteCountLabel.Text = "Loading..."
 task.spawn(function()
 local raw = nil
 local cacheFiles = {EMOTE_CACHE, "Onyx_emotes.lua", "OnyxEmotes.lua", "emotes.json"}
@@ -4222,7 +4223,7 @@ raw = fetchResult
 pcall(function() writefile(EMOTE_CACHE, raw) end)
 else
 EmoteCountLabel.Text = "Load failed"
-SendNotify("Emotes","Failed to fetch emote database — put Onyx_emotes.lua in your workspace folder",5)
+SendNotify("Emotes","Failed to fetch emote database -- put Onyx_emotes.lua in your workspace folder",5)
 pcall(function() LoadingLabel.Text = "❌ Failed to load. Place Onyx_emotes.lua in your executor workspace." end)
 return
 end
@@ -4268,7 +4269,7 @@ end
 if gameProcessed then return end
 for emoteIdStr, data in pairs(emoteKeybinds) do
 if data.key and data.key == input.KeyCode then
-– Toggle: if this emote is already playing, stop it
+-- Toggle: if this emote is already playing, stop it
 if selectedEmoteId and tostring(selectedEmoteId):gsub("%.0$","") == emoteIdStr then
 StopCurrentEmote()
 RefreshVirtualRows()
@@ -4291,19 +4292,19 @@ currentEmoteTrack = nil
 selectedEmoteId   = nil
 selectedEmoteName = nil
 NowPlayingLabel.Text = "▶  No emote playing"
-– Make sure Animate is re-enabled if we died during an emote
+-- Make sure Animate is re-enabled if we died during an emote
 local animate = char:FindFirstChild("Animate") or char:WaitForChild("Animate", 5)
 if animate then pcall(function() animate.Disabled = false end) end
 task.defer(function() if RefreshVirtualRows then RefreshVirtualRows() end end)
 end)
 
-end – end emote scope block
+end -- end emote scope block
 
-– CLICK TELEPORT SYSTEM
+-- CLICK TELEPORT SYSTEM
 
 local ClickTeleportEnabled = false
 
-– Click Teleport Toggle
+-- Click Teleport Toggle
 ClickTeleportButton.MouseButton1Click:Connect(function()
 ClickTeleportEnabled = not ClickTeleportEnabled
 
@@ -4321,7 +4322,7 @@ end
 
 end)
 
-– Click Teleport Input Handler
+-- Click Teleport Input Handler
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 if gameProcessed then return end
 
@@ -4364,7 +4365,7 @@ end
 
 end)
 
-– INFINITE BASEPLATE SYSTEM
+-- INFINITE BASEPLATE SYSTEM
 
 local InfiniteBaseplateEnabled = false
 local baseplateClones = {}
@@ -4506,17 +4507,17 @@ end
 
 end)
 
-– baseplate update loop
+-- baseplate update loop
 RunService.Heartbeat:Connect(function()
 if InfiniteBaseplateEnabled then
 UpdateBaseplates()
 end
 end)
 
-– SHADERS SYSTEM (via loadstring)
+-- SHADERS SYSTEM (via loadstring)
 
 ShadersButton.MouseButton1Click:Connect(function()
-SendNotify("Shaders", "Loading shaders script…", 2)
+SendNotify("Shaders", "Loading shaders script...", 2)
 
 ```
 local success, errorMsg = pcall(function()
@@ -4546,7 +4547,7 @@ end
 
 end)
 
-– ESP SYSTEM
+-- ESP SYSTEM
 
 local ESPEnabled = false
 local espObjects = {}
@@ -4688,14 +4689,14 @@ end
 
 end)
 
-– AIMLOCK SYSTEM
+-- AIMLOCK SYSTEM
 
 local AimlockEnabled = false
 local aimlockTarget = nil
 local fovCircle = nil
 
 local function CreateFOVCircle()
-if not DrawingEnabled then return end  – Xeno: skip if Drawing unavailable
+if not DrawingEnabled then return end  -- Xeno: skip if Drawing unavailable
 if not fovCircle then
 pcall(function()
 fovCircle = Drawing.new("Circle")
@@ -4732,7 +4733,7 @@ end
 
 end)
 
-– aimlock loop
+-- aimlock loop
 RunService.Heartbeat:Connect(function()
 if not AimlockEnabled then return end
 if not UserInputService.WindowFocused then return end
@@ -4775,14 +4776,14 @@ end
 
 end)
 
-– TIME REVERSE SYSTEM
+-- TIME REVERSE SYSTEM
 
 local TimeReverseEnabled = false
 local positionHistory = {}
-local maxHistoryLength = 300 – 10 seconds at 30fps (increased from 60)
+local maxHistoryLength = 300 -- 10 seconds at 30fps (increased from 60)
 local isReversing = false
 
-– Time Reverse Toggle
+-- Time Reverse Toggle
 TimeReverseButton.MouseButton1Click:Connect(function()
 TimeReverseEnabled = not TimeReverseEnabled
 
@@ -4855,11 +4856,11 @@ end
 
 end)
 
-– TRIP SYSTEM
+-- TRIP SYSTEM
 
 local TripEnabled = false
 
-– Trip Toggle
+-- Trip Toggle
 TripButton.MouseButton1Click:Connect(function()
 TripEnabled = not TripEnabled
 
@@ -4877,7 +4878,7 @@ end
 
 end)
 
-– Trip Input Handler
+-- Trip Input Handler
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 if gameProcessed then return end
 
@@ -4909,9 +4910,9 @@ end
 
 end)
 
-– UNLOAD SCRIPT
+-- UNLOAD SCRIPT
 
-– Unload Script Button
+-- Unload Script Button
 local unloadPending = false
 UnloadScriptButton.MouseButton1Click:Connect(function()
 if unloadPending then return end
