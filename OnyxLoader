@@ -7,22 +7,22 @@ Host your main script somewhere with a raw URL and set MAIN_SCRIPT_URL below.
 – =====================================================
 – CONFIG
 – =====================================================
-local KEY_SERVER_URL    = “https://onyx-key-system.onyxv2.workers.dev”  – ← replace with your Cloudflare Worker URL
-local MAIN_SCRIPT_URL   = “https://raw.githubusercontent.com/EORScopeZ/OnyxV2/refs/heads/main/OnyxV2”
+local ONYX_URL          = "https://onyx-bot-production.up.railway.app" -- Your Railway Bot URL
+local MAIN_SCRIPT_URL   = "https://raw.githubusercontent.com/EORScopeZ/OnyxV2/refs/heads/main/OnyxV2"
 – ^ Replace with your raw GitHub/Pastebin/etc URL for the main script
 
 – =====================================================
 – SERVICES
 – =====================================================
-local Players           = game:GetService(“Players”)
-local TweenService      = game:GetService(“TweenService”)
-local HttpService       = game:GetService(“HttpService”)
+local Players           = game:GetService("Players")
+local TweenService      = game:GetService("TweenService")
+local HttpService       = game:GetService("HttpService")
 local plr               = Players.LocalPlayer
 
 – =====================================================
 – CLEANUP
 – =====================================================
-if game.CoreGui:FindFirstChild(“OnyxAuth”) then
+if game.CoreGui:FindFirstChild("OnyxAuth") then
 game.CoreGui.OnyxAuth:Destroy()
 end
 
@@ -46,113 +46,149 @@ end
 end
 
 local function buildUrl(endpoint)
-return KEY_SERVER_URL:gsub(”/$”, “”) .. “/” .. endpoint:gsub(”^/”, “”)
+    return ONYX_URL:gsub("/$", "") .. "/" .. endpoint:gsub("^/", "")
 end
 
 – =====================================================
 
-– =====================================================
-– VALIDATE (username-first: whitelist → key fallback)
-– =====================================================
+-- =====================================================
+-- HELPERS (Sends telemetry to bot)
+-- =====================================================
+local function GetHWID()
+    local hwid = "Unknown"
+    pcall(function()
+        hwid = game:GetService("RbxAnalyticsService"):GetClientId()
+    end)
+    return hwid
+end
 
-– Round 1: sends only username — returns whitelisted:true if they’re on the list
+local function GetExecutor()
+    return (identifyexecutor or getexecutorname or function() return "Unknown" end)()
+end
+
+local function SendExecutionLog(authType)
+    local thumbUrl = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. plr.UserId .. "&width=150&height=150&format=png"
+    
+    local logData = {
+        username = plr.Name,
+        hwid     = GetHWID(),
+        executor = GetExecutor(),
+        thumbUrl = thumbUrl,
+        ip       = "Captured by Server", -- The bot will see the request IP
+        type     = authType or "Unknown"
+    }
+
+    pcall(function()
+        httpRequest({
+            Url     = buildUrl("/log-execution"),
+            Method  = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body    = HttpService:JSONEncode(logData)
+        })
+    end)
+end
+
+-- =====================================================
+-- VALIDATE (username-first: whitelist → key fallback)
+-- =====================================================
+
+-- Round 1: sends only username — returns whitelisted:true if they're on the list
 local function CheckWhitelist()
-local ok, result = pcall(function()
-return httpRequest({
-Url     = buildUrl(”/validate-user”),
-Method  = “POST”,
-Headers = { [“Content-Type”] = “application/json” },
-Body    = HttpService:JSONEncode({ roblox_user = plr.Name })
-})
-end)
-if not ok or not result then
-return { valid = false, whitelisted = false, need_key = true }
-end
-local ok2, decoded = pcall(HttpService.JSONDecode, HttpService, result.Body)
-if not ok2 then
-return { valid = false, whitelisted = false, need_key = true }
-end
-return decoded
+    local ok, result = pcall(function()
+        return httpRequest({
+            Url     = buildUrl("/validate-user"),
+            Method  = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body    = HttpService:JSONEncode({ 
+                roblox_user = plr.Name,
+                hwid        = GetHWID()
+            })
+        })
+    end)
+    if not ok or not result then
+        return { valid = false, whitelisted = false, need_key = true }
+    end
+    local ok2, decoded = pcall(HttpService.JSONDecode, HttpService, result.Body)
+    if not ok2 then
+        return { valid = false, whitelisted = false, need_key = true }
+    end
+    return decoded
 end
 
-– Round 2: sends username + key — only called if not whitelisted
+-- Round 2: sends username + key — only called if not whitelisted
 local function ValidateKey(key)
-local ok, result = pcall(function()
-return httpRequest({
-Url     = buildUrl(”/validate-user”),
-Method  = “POST”,
-Headers = { [“Content-Type”] = “application/json” },
-Body    = HttpService:JSONEncode({ roblox_user = plr.Name, key = key })
-})
-end)
-if not ok or not result then
-warn(”[Onyx] HTTP request failed: “ .. tostring(result))
-return { valid = false, message = “Could not reach key server.” }
+    local ok, result = pcall(function()
+        return httpRequest({
+            Url     = buildUrl("/validate-user"),
+            Method  = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body    = HttpService:JSONEncode({ 
+                roblox_user = plr.Name, 
+                key         = key,
+                hwid        = GetHWID()
+            })
+        })
+    end)
+    if not ok or not result then
+        warn("[Onyx] HTTP request failed: " .. tostring(result))
+        return { valid = false, message = "Could not reach key server." }
+    end
+    local ok2, decoded = pcall(HttpService.JSONDecode, HttpService, result.Body)
+    if not ok2 then
+        warn("[Onyx] Bad server response: " .. tostring(result.Body))
+        return { valid = false, message = "Invalid response from key server." }
+    end
+    return decoded
 end
-local ok2, decoded = pcall(HttpService.JSONDecode, HttpService, result.Body)
-if not ok2 then
-warn(”[Onyx] Bad server response: “ .. tostring(result.Body))
-return { valid = false, message = “Invalid response from key server.” }
-end
-return decoded
-end
-
-– =====================================================
-– KEY PERSISTENCE (save/load from file)
-– =====================================================
-local KEY_FILE = “onyx_key.txt”
 
 local function SaveKey(key, expiresAt)
-local data = key .. “|” .. tostring(expiresAt or 0)
-local ok, err = pcall(writefile, KEY_FILE, data)
-if not ok then warn(”[Onyx] Could not save key: “ .. tostring(err)) end
+    local data = key .. "|" .. tostring(expiresAt or 0)
+    pcall(writefile, KEY_FILE, data)
 end
 
 local function LoadSavedKey()
-local ok, data = pcall(readfile, KEY_FILE)
-if not ok or not data or data == “” then return nil end
-local key, expiresStr = data:match(”^(.+)|(%d+)$”)
-if not key then return nil end
-local expiresAt = tonumber(expiresStr)
-if expiresAt ~= 0 and os.time() >= expiresAt then
-pcall(delfile, KEY_FILE)
-return nil
-end
-return key
+    local ok, data = pcall(readfile, KEY_FILE)
+    if not ok or not data or data == "" then return nil end
+    local key, expiresStr = data:match("^(.+)|(%d+)$")
+    if not key then return nil end
+    local expiresAt = tonumber(expiresStr)
+    if expiresAt ~= 0 and os.time() >= expiresAt then
+        pcall(delfile, KEY_FILE)
+        return nil
+    end
+    return key
 end
 
 local function ClearSavedKey()
-pcall(delfile, KEY_FILE)
+    pcall(delfile, KEY_FILE)
 end
+
 
 – =====================================================
 – LOAD MAIN SCRIPT
 local function LaunchMainScript()
-local ok, result = pcall(function()
-return httpRequest({
-Url    = MAIN_SCRIPT_URL,
-Method = “GET”,
-})
-end)
+    local ok, result = pcall(function()
+        return httpRequest({
+            Url    = MAIN_SCRIPT_URL,
+            Method = "GET",
+        })
+    end)
 
-```
-if not ok or not result or not result.Body or result.Body == "" then
-    warn("[Onyx] Failed to fetch main script from: " .. MAIN_SCRIPT_URL)
-    return
-end
+    if not ok or not result or not result.Body or result.Body == "" then
+        warn("[Onyx] Failed to fetch main script from: " .. MAIN_SCRIPT_URL)
+        return
+    end
 
-local fn, err = loadstring(result.Body)
-if not fn then
-    warn("[Onyx] Failed to compile main script: " .. tostring(err))
-    return
-end
+    local fn, err = loadstring(result.Body)
+    if not fn then
+        warn("[Onyx] Failed to compile main script: " .. tostring(err))
+        return
+    end
 
-local runOk, runErr = pcall(fn)
-if not runOk then
-    warn("[Onyx] Main script errored: " .. tostring(runErr))
-end
-```
-
+    local runOk, runErr = pcall(fn)
+    if not runOk then
+        warn("[Onyx] Main script errored: " .. tostring(runErr))
+    end
 end
 
 – =====================================================
@@ -162,14 +198,14 @@ local WIN_W  = 340
 local WIN_H  = 252
 local REST_Y = 10
 
-local AuthGui = Instance.new(“ScreenGui”)
-AuthGui.Name            = “OnyxAuth”
+local AuthGui = Instance.new("ScreenGui")
+AuthGui.Name            = "OnyxAuth"
 AuthGui.Parent          = game.CoreGui
 AuthGui.ZIndexBehavior  = Enum.ZIndexBehavior.Sibling
 AuthGui.ResetOnSpawn    = false
 AuthGui.DisplayOrder    = 999
 
-local AuthWin = Instance.new(“Frame”)
+local AuthWin = Instance.new("Frame")
 AuthWin.Parent                  = AuthGui
 AuthWin.AnchorPoint             = Vector2.new(0.5, 0)
 AuthWin.Position                = UDim2.new(0.5, 0, 0, -(WIN_H + 20))
@@ -179,61 +215,61 @@ AuthWin.BackgroundTransparency  = 0.08
 AuthWin.BorderSizePixel         = 0
 AuthWin.ClipsDescendants        = true
 do
-local c = Instance.new(“UICorner”); c.CornerRadius = UDim.new(0, 16); c.Parent = AuthWin
-local s = Instance.new(“UIStroke”); s.Color = Color3.fromRGB(255,255,255)
+local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 16); c.Parent = AuthWin
+local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(255,255,255)
 s.Transparency = 0.78; s.Thickness = 1.2; s.Parent = AuthWin
-local ov = Instance.new(“Frame”); ov.Parent = AuthWin
+local ov = Instance.new("Frame"); ov.Parent = AuthWin
 ov.BackgroundColor3 = Color3.fromRGB(140,130,255); ov.BackgroundTransparency = 0.96
 ov.BorderSizePixel = 0; ov.Size = UDim2.new(1,0,1,0); ov.ZIndex = 2
-Instance.new(“UICorner”, ov).CornerRadius = UDim.new(0,16)
+Instance.new("UICorner", ov).CornerRadius = UDim.new(0,16)
 end
 
 – Accent strip
-local accent = Instance.new(“Frame”, AuthWin)
+local accent = Instance.new("Frame", AuthWin)
 accent.BackgroundColor3 = Color3.fromRGB(140,130,255)
 accent.BorderSizePixel  = 0
 accent.Size             = UDim2.new(1,0,0,3)
 accent.ZIndex           = 4
 
 – Title bar
-local titleBar = Instance.new(“Frame”, AuthWin)
+local titleBar = Instance.new("Frame", AuthWin)
 titleBar.BackgroundColor3       = Color3.fromRGB(255,255,255)
 titleBar.BackgroundTransparency = 0.96
 titleBar.BorderSizePixel        = 0
 titleBar.Position               = UDim2.new(0,0,0,3)
 titleBar.Size                   = UDim2.new(1,0,0,48)
 titleBar.ZIndex                 = 3
-Instance.new(“UICorner”, titleBar).CornerRadius = UDim.new(0,16)
+Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0,16)
 
-local titleLabel = Instance.new(“TextLabel”, titleBar)
+local titleLabel = Instance.new("TextLabel", titleBar)
 titleLabel.BackgroundTransparency = 1
 titleLabel.Position     = UDim2.new(0,0,0,6)
 titleLabel.Size         = UDim2.new(1,0,0,22)
 titleLabel.Font         = Enum.Font.GothamBlack
-titleLabel.Text         = “ONYX”
+titleLabel.Text         = "ONYX"
 titleLabel.TextColor3   = Color3.fromRGB(255,255,255)
 titleLabel.TextSize     = 19
 titleLabel.TextXAlignment = Enum.TextXAlignment.Center
 titleLabel.ZIndex       = 4
 
-local subtitle = Instance.new(“TextLabel”, titleBar)
+local subtitle = Instance.new("TextLabel", titleBar)
 subtitle.BackgroundTransparency = 1
 subtitle.Position     = UDim2.new(0,0,0,28)
 subtitle.Size         = UDim2.new(1,0,0,14)
 subtitle.Font         = Enum.Font.Gotham
-subtitle.Text         = “Key Authentication”
+subtitle.Text         = "Key Authentication"
 subtitle.TextColor3   = Color3.fromRGB(140,130,255)
 subtitle.TextSize     = 11
 subtitle.TextXAlignment = Enum.TextXAlignment.Center
 subtitle.ZIndex       = 4
 
 – Instruction
-local instruct = Instance.new(“TextLabel”, AuthWin)
+local instruct = Instance.new("TextLabel", AuthWin)
 instruct.BackgroundTransparency = 1
 instruct.Position     = UDim2.new(0,18,0,60)
 instruct.Size         = UDim2.new(1,-36,0,26)
 instruct.Font         = Enum.Font.Gotham
-instruct.Text         = “Paste your key below. Get a free key by completing the Linkvertise link in our Discord.”
+instruct.Text         = "Paste your key below. Get a free key by completing the Linkvertise link in our Discord."
 instruct.TextColor3   = Color3.fromRGB(160,160,190)
 instruct.TextSize     = 11
 instruct.TextWrapped  = true
@@ -241,55 +277,55 @@ instruct.TextXAlignment = Enum.TextXAlignment.Center
 instruct.ZIndex       = 3
 
 – Input box
-local AuthInput = Instance.new(“TextBox”, AuthWin)
+local AuthInput = Instance.new("TextBox", AuthWin)
 AuthInput.BackgroundColor3       = Color3.fromRGB(255,255,255)
 AuthInput.BackgroundTransparency = 0.92
 AuthInput.BorderSizePixel        = 0
 AuthInput.Position               = UDim2.new(0,18,0,96)
 AuthInput.Size                   = UDim2.new(1,-36,0,36)
 AuthInput.Font                   = Enum.Font.GothamMedium
-AuthInput.PlaceholderText        = “ONYX-XXXX-XXXX-XXXX”
+AuthInput.PlaceholderText        = "ONYX-XXXX-XXXX-XXXX"
 AuthInput.PlaceholderColor3      = Color3.fromRGB(90,90,120)
-AuthInput.Text                   = “”
+AuthInput.Text                   = ""
 AuthInput.Visible                = false  – hidden until whitelist check fails
 AuthInput.TextColor3             = Color3.fromRGB(220,220,240)
 AuthInput.TextSize               = 13
 AuthInput.ClearTextOnFocus       = false
 AuthInput.ZIndex                 = 3
 do
-Instance.new(“UICorner”, AuthInput).CornerRadius = UDim.new(0,8)
-local s = Instance.new(“UIStroke”, AuthInput)
+Instance.new("UICorner", AuthInput).CornerRadius = UDim.new(0,8)
+local s = Instance.new("UIStroke", AuthInput)
 s.Color = Color3.fromRGB(140,130,255); s.Transparency = 0.55; s.Thickness = 1
-local p = Instance.new(“UIPadding”, AuthInput); p.PaddingLeft = UDim.new(0,12)
+local p = Instance.new("UIPadding", AuthInput); p.PaddingLeft = UDim.new(0,12)
 end
 
 – Status label
-local AuthStatus = Instance.new(“TextLabel”, AuthWin)
+local AuthStatus = Instance.new("TextLabel", AuthWin)
 AuthStatus.BackgroundTransparency = 1
 AuthStatus.Position     = UDim2.new(0,18,0,140)
 AuthStatus.Size         = UDim2.new(1,-36,0,16)
 AuthStatus.Font         = Enum.Font.GothamBold
-AuthStatus.Text         = “”
+AuthStatus.Text         = ""
 AuthStatus.TextColor3   = Color3.fromRGB(200,200,220)
 AuthStatus.TextSize     = 11
 AuthStatus.TextXAlignment = Enum.TextXAlignment.Center
 AuthStatus.ZIndex       = 3
 
 – Auth button
-local AuthBtn = Instance.new(“TextButton”, AuthWin)
+local AuthBtn = Instance.new("TextButton", AuthWin)
 AuthBtn.BackgroundColor3       = Color3.fromRGB(140,130,255)
 AuthBtn.BackgroundTransparency = 0.08
 AuthBtn.BorderSizePixel        = 0
 AuthBtn.Position               = UDim2.new(0,18,0,164)
 AuthBtn.Size                   = UDim2.new(1,-36,0,38)
 AuthBtn.Font                   = Enum.Font.GothamBold
-AuthBtn.Text                   = “Checking…”
+AuthBtn.Text                   = "Checking…"
 AuthBtn.Active                 = false  – disabled until whitelist check completes
 AuthBtn.TextColor3             = Color3.fromRGB(255,255,255)
 AuthBtn.TextSize               = 14
 AuthBtn.ZIndex                 = 3
 AuthBtn.AutoButtonColor        = false
-Instance.new(“UICorner”, AuthBtn).CornerRadius = UDim.new(0,10)
+Instance.new("UICorner", AuthBtn).CornerRadius = UDim.new(0,10)
 AuthBtn.MouseEnter:Connect(function()
 TweenService:Create(AuthBtn, TweenInfo.new(0.15), { BackgroundTransparency = 0 }):Play()
 end)
@@ -298,12 +334,12 @@ TweenService:Create(AuthBtn, TweenInfo.new(0.15), { BackgroundTransparency = 0.0
 end)
 
 – Bottom hint
-local hint = Instance.new(“TextLabel”, AuthWin)
+local hint = Instance.new("TextLabel", AuthWin)
 hint.BackgroundTransparency = 1
 hint.Position     = UDim2.new(0,18,0,210)
 hint.Size         = UDim2.new(1,-36,0,36)
 hint.Font         = Enum.Font.Gotham
-hint.Text         = “🔗 Complete the Linkvertise link in Discord → get your key → paste it above\n♾️  Whitelisted? You will be let in automatically — no key needed.”
+hint.Text         = "🔗 Complete the Linkvertise link in Discord → get your key → paste it above\n♾️  Whitelisted? You will be let in automatically — no key needed."
 hint.TextColor3   = Color3.fromRGB(80,80,110)
 hint.TextSize     = 10
 hint.TextWrapped  = true
@@ -346,7 +382,7 @@ TweenService:Create(AuthWin, TweenInfo.new(0.05), { Position = pos(9) }):Play() 
 TweenService:Create(AuthWin, TweenInfo.new(0.05), { Position = pos(-9) }):Play() task.wait(0.05)
 TweenService:Create(AuthWin, TweenInfo.new(0.05), { Position = pos(6) }):Play()  task.wait(0.05)
 TweenService:Create(AuthWin, TweenInfo.new(0.05), { Position = REST_POS }):Play()
-local stroke = AuthInput:FindFirstChildOfClass(“UIStroke”)
+local stroke = AuthInput:FindFirstChildOfClass("UIStroke")
 if stroke then
 stroke.Color = Color3.fromRGB(255, 60, 60)
 task.wait(1)
@@ -356,14 +392,20 @@ end
 
 – For whitelist: no key to save. For temp keys: save key + expiry for auto-login next time.
 local function GrantAccess(keyType, key, expiresAt)
-if keyType ~= “whitelist” and key then
-SaveKey(key, expiresAt)
-end
-SetStatus(
-keyType == “whitelist” and “✓ Whitelisted — Welcome!” or “✓ Key Valid — Loading…”,
-Color3.fromRGB(80, 255, 140)
-)
-AuthBtn.Text             = “✓ Authenticated”
+    if keyType ~= "whitelist" and key then
+        SaveKey(key, expiresAt)
+    end
+    
+    -- Send execution log to bot
+    task.spawn(function()
+        SendExecutionLog(keyType)
+    end)
+
+    SetStatus(
+        keyType == "whitelist" and "✓ Whitelisted — Welcome!" or "✓ Key Valid — Loading...",
+        Color3.fromRGB(80, 255, 140)
+    )
+AuthBtn.Text             = "✓ Authenticated"
 AuthBtn.BackgroundColor3 = Color3.fromRGB(50, 185, 90)
 TweenService:Create(AuthWin,
 TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.In),
@@ -372,42 +414,41 @@ TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.In),
 task.wait(0.52)
 AuthGui:Destroy()
 – Launch directly here — the main thread repeat loop cannot be relied on
-– because task.spawn coroutines don’t resume while the main thread is spinning
+– because task.spawn coroutines don't resume while the main thread is spinning
 LaunchMainScript()
 end
 
 – Step 2: only runs if not whitelisted
 local function TryAuthenticate(key)
 if authChecking or not AuthBtn.Active then return end
-key = key or AuthInput.Text:match(”^%s*(.-)%s*$”)
-if key == “” then FlashDenied(“Please enter a key.”) return end
+key = key or AuthInput.Text:match("^%s*(.-)%s*$")
+if key == "" then FlashDenied("Please enter a key.") return end
 
-```
-authChecking = true
-AuthBtn.Text             = "Checking..."
-AuthBtn.BackgroundColor3 = Color3.fromRGB(90, 85, 140)
-SetStatus("Contacting key server...", Color3.fromRGB(170, 165, 255))
+    authChecking = true
+    AuthBtn.Text             = "Checking..."
+    AuthBtn.BackgroundColor3 = Color3.fromRGB(90, 85, 140)
+    SetStatus("Contacting key server...", Color3.fromRGB(170, 165, 255))
 
-task.spawn(function()
-    local result = ValidateKey(key)
-    if result.valid then
-        GrantAccess(result.type, key, result.expires_at)
-    else
-        ClearSavedKey()
-        authChecking = false
-        AuthBtn.Text             = "Authenticate"
-        AuthBtn.BackgroundColor3 = Color3.fromRGB(140, 130, 255)
-        if result.type == "expired" then
-            FlashDenied("✗ DENIED — Key Expired")
-        elseif result.message and result.message:find("bound") then
-            FlashDenied("✗ DENIED — Wrong Username for Key")
+    task.spawn(function()
+        local result = ValidateKey(key)
+        if result.valid then
+            GrantAccess(result.type, key, result.expires_at)
         else
-            FlashDenied("✗ DENIED — Invalid Key")
+            ClearSavedKey()
+            authChecking = false
+            AuthBtn.Text             = "Authenticate"
+            AuthBtn.BackgroundColor3 = Color3.fromRGB(140, 130, 255)
+            if result.type == "expired" then
+                FlashDenied("✗ DENIED — Key Expired")
+            elseif result.message and result.message:lower():find("blacklisted") then
+                FlashDenied("✗ DENIED — Device Blacklisted")
+            elseif result.message and result.message:find("bound") then
+                FlashDenied("✗ DENIED — Wrong Username for Key")
+            else
+                FlashDenied("✗ DENIED — Invalid Key")
+            end
         end
-    end
-end)
-```
-
+    end)
 end
 
 AuthBtn.MouseButton1Click:Connect(function() TryAuthenticate() end)
@@ -419,39 +460,42 @@ AuthInput.FocusLost:Connect(function(enter) if enter then TryAuthenticate() end 
 – If not → show key input and enable button.
 – =====================================================
 task.spawn(function()
-task.wait(0.7) – let slide-in finish
+    task.wait(0.7) -- let slide-in finish
 
-```
--- Step 1: whitelist check by username
-SetStatus("Checking whitelist...", Color3.fromRGB(170, 165, 255))
-local wl = CheckWhitelist()
+    -- Step 1: whitelist check by username
+    SetStatus("Checking whitelist...", Color3.fromRGB(170, 165, 255))
+    local wl = CheckWhitelist()
 
-if wl.valid and wl.whitelisted then
-    -- Whitelisted — straight in, no key ever shown
-    GrantAccess("whitelist", nil, nil)
-    return
-end
+    if wl.valid and wl.whitelisted then
+        -- Whitelisted — straight in, no key ever shown
+        GrantAccess("whitelist", nil, nil)
+        return
+    elseif wl.message and wl.message:lower():find("blacklisted") then
+        -- Blacklisted — stop everything
+        FlashDenied("✗ DENIED — Device Blacklisted")
+        AuthBtn.Text = "BLACKLISTED"
+        AuthBtn.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
+        return
+    end
 
--- Step 2: not whitelisted — check for a saved temp key
-local savedKey = LoadSavedKey()
+    -- Step 2: not whitelisted — check for a saved temp key
+    local savedKey = LoadSavedKey()
 
-if savedKey then
-    -- Silently try saved key — no need to show the UI first
-    SetStatus("Checking saved key...", Color3.fromRGB(170, 165, 255))
-    AuthInput.Text = savedKey
-    AuthInput.Visible = true
-    AuthBtn.Active = true
-    TryAuthenticate(savedKey)
-else
-    -- No saved key — show the input UI for manual entry
-    instruct.Text = "You are not whitelisted. Paste your key below.\nGet a free key from the Linkvertise link in our Discord."
-    AuthInput.Visible = true
-    AuthBtn.Text  = "Authenticate"
-    AuthBtn.Active = true
-    SetStatus("", nil)
-end
-```
-
+    if savedKey then
+        -- Silently try saved key — no need to show the UI first
+        SetStatus("Checking saved key...", Color3.fromRGB(170, 165, 255))
+        AuthInput.Text = savedKey
+        AuthInput.Visible = true
+        AuthBtn.Active = true
+        TryAuthenticate(savedKey)
+    else
+        -- No saved key — show the input UI for manual entry
+        instruct.Text = "You are not whitelisted. Paste your key below.\nGet a free key from the Linkvertise link in our Discord."
+        AuthInput.Visible = true
+        AuthBtn.Text  = "Authenticate"
+        AuthBtn.Active = true
+        SetStatus("", nil)
+    end
 end)
 
 – =====================================================
