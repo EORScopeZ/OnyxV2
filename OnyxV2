@@ -2591,6 +2591,7 @@ end)
 
 -- Update mic icon status in real-time
 RunService.Heartbeat:Connect(function()
+    if not UserInputService.WindowFocused then return end
     if (AntiVCWindow.Visible or ScreenMicIndicator.Visible) and VoiceChatInternal then
         local success, isPaused = pcall(function() 
             return VoiceChatInternal:IsPublishPaused() 
@@ -4407,8 +4408,9 @@ ESPButton.MouseButton1Click:Connect(function()
 end)
 
 -- ESP Update Loop
-RunService.RenderStepped:Connect(function()
+RunService.Heartbeat:Connect(function()
     if not ESPEnabled then return end
+    if not game:GetService("GuiService"):IsTenFootInterface() and not UserInputService.WindowFocused then return end
     
     for _, player in pairs(Players:GetPlayers()) do
         if player ~= plr and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
@@ -4565,8 +4567,9 @@ AimlockButton.MouseButton1Click:Connect(function()
 end)
 
 -- Aimlock Update Loop
-RunService.RenderStepped:Connect(function()
+RunService.Heartbeat:Connect(function()
     if not AimlockEnabled then return end
+    if not UserInputService.WindowFocused then return end
     
     -- Update FOV circle position
     local mousePos = UserInputService:GetMouseLocation()
@@ -4633,6 +4636,7 @@ end)
 -- Record position history
 RunService.Heartbeat:Connect(function()
     if not TimeReverseEnabled or isReversing then return end
+    if not UserInputService.WindowFocused then return end
     
     if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
         local hrp = plr.Character.HumanoidRootPart
@@ -4667,6 +4671,7 @@ end)
 -- Apply time reverse
 RunService.Heartbeat:Connect(function()
     if not isReversing or not TimeReverseEnabled then return end
+    if not UserInputService.WindowFocused then return end
     
     if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and #positionHistory > 0 then
         local hrp = plr.Character.HumanoidRootPart
@@ -5032,7 +5037,8 @@ local function buildNametag(player)
 
         -- Each frame: project head world position → screen position → move frame
         local renderConn
-        renderConn = RunService.RenderStepped:Connect(function()
+        renderConn = RunService.Heartbeat:Connect(function()
+            if not UserInputService.WindowFocused then return end
             if not selfGui or not selfGui.Parent then
                 renderConn:Disconnect()
                 return
