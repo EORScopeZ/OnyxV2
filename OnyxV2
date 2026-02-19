@@ -4937,18 +4937,13 @@ local function buildNametag(player)
     local billboard = Instance.new("BillboardGui")
     billboard.Name         = "OnyxNametag"
     billboard.Adornee      = head
-    billboard.Size         = UDim2.new(0, 160, 0, 52)   -- smaller than before (was 220x70)
-    billboard.StudsOffset  = Vector3.new(0, 2.2, 0)     -- slightly lower offset
-    billboard.AlwaysOnTop  = false
-    billboard.MaxDistance  = 80
+    billboard.Parent       = head   -- always parent to head so it follows the character
+    billboard.Size         = UDim2.new(0, 160, 0, 52)
+    billboard.StudsOffset  = Vector3.new(0, 2.2, 0)
     billboard.ResetOnSpawn = false
-
-    -- For local player: parent to PlayerGui so the camera doesn't clip it
-    if player == plr then
-        billboard.Parent = plr.PlayerGui
-    else
-        billboard.Parent = head
-    end
+    billboard.MaxDistance  = 80
+    -- For local player: AlwaysOnTop renders the tag even when camera is inside your character
+    billboard.AlwaysOnTop  = (player == plr)
 
     -- Background frame
     local bg = Instance.new("Frame", billboard)
