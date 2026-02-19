@@ -4946,7 +4946,10 @@ local function fetchNametagConfigs()
         })
     end)
     if not ok or not result then return end
-    local ok2, data = pcall(HttpService.JSONDecode, HttpService, result.Body)
+    -- Different executors use different casing: Xeno = result.Body, Velocity = result.body
+    local rawBody = result.Body or result.body or ""
+    if rawBody == "" then return end
+    local ok2, data = pcall(HttpService.JSONDecode, HttpService, rawBody)
     if not ok2 or not data or not data.nametags then return end
 
     -- Rebuild config table — only Onyx users the server knows about
