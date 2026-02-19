@@ -67,6 +67,13 @@ do
                 end
             end
         end)
+        -- Blacklist Xeno: its PhysicsRep implementation causes client crashes
+        local execName = ""
+        pcall(function() execName = string.lower(tostring(identifyexecutor and identifyexecutor() or "")) end)
+        if string.find(execName, "xeno") then
+            ok = false
+        end
+        
         canUsePhysicsRep = ok
     end
 end
@@ -3715,16 +3722,39 @@ local function PlayEmoteById(emoteId, emoteName)
         local getOk, fetched = pcall(function()
             local objs = game:GetObjects("rbxassetid://" .. idStr)
             if objs and objs[1] and objs[1]:IsA("Animation") then
+                -- Check if engine sanitized it immediately
+                local currentId = objs[1].AnimationId
+                if currentId == "" or currentId == "rbxassetid://0" or currentId:match("id=0") then
+                    return nil
+                end
                 return objs[1]
             end
         end)
+        
         if getOk and fetched then
             anim = fetched
-            anim.Parent = workspace
+            pcall(function() anim.Parent = workspace end)
         else
             -- Fallback: plain Animation instance
             anim = Instance.new("Animation")
             anim.AnimationId = "rbxassetid://" .. idStr
+            
+            -- If it was immediately sanitized upon assignment, try alternative URL format
+            if anim.AnimationId == "rbxassetid://0" or anim.AnimationId == "" then
+                anim.AnimationId = "http://www.roblox.com/asset/?id=" .. idStr
+            end
+        end
+
+        -- Final security check before passing to LoadAnimation
+        if anim.AnimationId == "rbxassetid://0" or anim.AnimationId == "" or anim.AnimationId:match("id=0") then
+            if animate then pcall(function() animate.Disabled = false end) end
+            SendNotify("Emotes","Executor does not support custom animations",3)
+            selectedEmoteId   = nil
+            selectedEmoteName = nil
+            NowPlayingLabel.Text = "▶  No emote playing"
+            if RefreshVirtualRows then RefreshVirtualRows() end
+            pcall(function() if anim then anim:Destroy() end end)
+            return
         end
 
         local ok
@@ -4917,34 +4947,24 @@ local nametagGuis = {}
 
 -- ── Step 1: Register ourselves so other Onyx users see us ────────────────────
 local function registerSelf()
-    pcall(function()
-        httpRequest({
-            Url     = NAMETAG_SERVER .. "/register-onyx-user",
-            Method  = "POST",
-            Headers = { ["Content-Type"] = "application/json" },
-            Body    = HttpService:JSONEncode({ roblox_user = plr.Name })
-        })
-    end)
+    return -- Disabled
 end
 
 -- Register immediately and keep the heartbeat alive every 8s (server expires after 15s)
 task.spawn(function()
-    registerSelf()
-    while true do
-        task.wait(8)
-        registerSelf()
-    end
+    return -- Disabled
 end)
 
 -- ── Step 2: Fetch active Onyx users + any custom configs from server ──────────
 local function fetchNametagConfigs()
-    local ok, result = pcall(function()
-        return httpRequest({
-            Url    = NAMETAG_SERVER .. "/nametags",
-            Method = "GET",
-            Headers = { ["Content-Type"] = "application/json" }
-        })
-    end)
+    return -- Disabled
+    -- local ok, result = pcall(function()
+    --     return httpRequest({
+    --         Url    = NAMETAG_SERVER .. "/nametags",
+    --         Method = "GET",
+    --         Headers = { ["Content-Type"] = "application/json" }
+    --     })
+    -- end)
     if not ok or not result then return end
     -- Different executors use different casing: Xeno = result.Body, Velocity = result.body
     local rawBody = result.Body or result.body or ""
@@ -4996,10 +5016,11 @@ end
 -- Only builds if the player is a registered Onyx user.
 -- For the local player, parents to PlayerGui so they can see their own tag.
 local function buildNametag(player)
-    local cfg = getConfig(player)
-    if not cfg then return end
+    return -- Disabled
+    -- local cfg = getConfig(player)
+    -- if not cfg then return end
 
-    local char = player.Character
+    -- local char = player.Character
     if not char then return end
     local head = char:FindFirstChild("Head")
     if not head then return end
