@@ -1669,8 +1669,7 @@ local function StartFaceBang(targetPlayer)
 
         while FaceBangEnabled do
             RunService.Heartbeat:Wait()
-
-            -- Re-validate everything each frame
+            if not UserInputService.WindowFocused then continue end
             local localChar = plr.Character
             if not localChar then break end
             local localHRP = localChar:FindFirstChild("HumanoidRootPart")
@@ -2150,6 +2149,8 @@ local function StartZeroDelay(targetPlayer, mode)
 
         while ZeroDelayEnabled do
             frameCount = frameCount + 1
+            RunService.Heartbeat:Wait()
+            if not UserInputService.WindowFocused then continue end
 
             local shouldContinue = false
 
@@ -2239,8 +2240,6 @@ local function StartZeroDelay(targetPlayer, mode)
                     end
                 end
             end
-
-            RunService.Heartbeat:Wait() -- syncs to game physics tick, prevents drift/stutter
         end
 
         -- Only cleanup on natural break (character lost, target left, etc.)
@@ -4184,9 +4183,6 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         teleportEffect.Transparency = 0.5
         teleportEffect.Parent = workspace
         
-        local teleportCorner = Instance.new("CornerWedgePart")
-        teleportCorner.Parent = teleportEffect
-        
         -- Fade out effect
         task.spawn(function()
             for i = 1, 10 do
@@ -4348,12 +4344,18 @@ InfiniteBaseplateButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- Update baseplates continuously
-RunService.Heartbeat:Connect(function()
-    if InfiniteBaseplateEnabled then
+-- Update baseplates continuously (throttled - no need to run every frame)
+do
+    local lastBaseplateUpdate = 0
+    RunService.Heartbeat:Connect(function()
+        if not InfiniteBaseplateEnabled then return end
+        if not UserInputService.WindowFocused then return end
+        local now = tick()
+        if now - lastBaseplateUpdate < 0.5 then return end
+        lastBaseplateUpdate = now
         UpdateBaseplates()
-    end
-end)
+    end)
+end
 
 -- =====================================================
 -- SHADERS SYSTEM (via loadstring)
@@ -4907,7 +4909,9 @@ task.spawn(function()
     registerSelf()
     while true do
         task.wait(8)
-        registerSelf()
+        if UserInputService.WindowFocused then
+            registerSelf()
+        end
     end
 end)
 
@@ -5195,8 +5199,10 @@ end)
 -- ── Poll server for Onyx user list + config updates every POLL_INTERVAL secs ─
 task.spawn(function()
     while true do
-        fetchNametagConfigs()
-        rebuildAllNametags()
+        if UserInputService.WindowFocused then
+            pcall(fetchNametagConfigs)
+            pcall(rebuildAllNametags)
+        end
         task.wait(POLL_INTERVAL)
     end
 end)
@@ -5205,6 +5211,8 @@ end)
 task.spawn(function()
     local t = 0
     while true do
+        task.wait(GLITCH_INTERVAL)
+        if not UserInputService.WindowFocused then continue end
         t = t + GLITCH_INTERVAL
         for player, data in pairs(nametagGuis) do
             -- Check aliveness differently for self-tag vs billboard tags
@@ -5243,7 +5251,6 @@ task.spawn(function()
                 end
             end
         end
-        task.wait(GLITCH_INTERVAL)
     end
 end)
 
