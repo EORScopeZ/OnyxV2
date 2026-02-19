@@ -4815,7 +4815,8 @@ local GLITCH_INTERVAL = 0.08 -- seconds between glitch frames
 
 -- Default nametag config (used for any player with no custom entry)
 local DEFAULT_CONFIG = {
-    tag_text      = "ONYX",
+    name_text     = "Onyx User",   -- top line shown instead of player name
+    tag_text      = "ONYX",        -- bottom badge text
     name_color    = "#8b7fff",
     tag_color     = "#1a1a2e",
     glow_color    = "#6d5ae0",
@@ -4905,6 +4906,7 @@ local function getConfig(player)
     local entry = nametagConfigs[player.Name:lower()]
     if entry then
         return {
+            name_text     = entry.name_text     or DEFAULT_CONFIG.name_text,
             tag_text      = entry.tag_text      or DEFAULT_CONFIG.tag_text,
             name_color    = entry.name_color    or DEFAULT_CONFIG.name_color,
             tag_color     = entry.tag_color     or DEFAULT_CONFIG.tag_color,
@@ -4979,7 +4981,7 @@ local function buildNametag(player)
         nameLabel.Position               = UDim2.new(0, 44, 0, 4)
         nameLabel.BackgroundTransparency = 1
         nameLabel.Font                   = Enum.Font.GothamBlack
-        nameLabel.Text                   = plr.DisplayName
+        nameLabel.Text                   = cfg.name_text or "Onyx User"
         nameLabel.TextColor3             = hexToColor3(cfg.name_color)
         nameLabel.TextSize               = 11
         nameLabel.TextXAlignment         = Enum.TextXAlignment.Left
@@ -5029,7 +5031,7 @@ local function buildNametag(player)
             tagLabel   = tagLabel,
             imageLabel = imageLabel,
             cfg        = cfg,
-            glitchBase = plr.DisplayName,
+            glitchBase = cfg.name_text or "Onyx User",
             tagBase    = cfg.tag_text or "ONYX",
             renderConn = renderConn,
         }
@@ -5074,7 +5076,7 @@ local function buildNametag(player)
     nameLabel.Position               = UDim2.new(0, 44, 0, 4)
     nameLabel.BackgroundTransparency = 1
     nameLabel.Font                   = Enum.Font.GothamBlack
-    nameLabel.Text                   = player.DisplayName
+    nameLabel.Text                   = cfg.name_text or "Onyx User"
     nameLabel.TextColor3             = hexToColor3(cfg.name_color)
     nameLabel.TextSize               = 11
     nameLabel.TextXAlignment         = Enum.TextXAlignment.Left
@@ -5102,7 +5104,7 @@ local function buildNametag(player)
         tagLabel   = tagLabel,
         imageLabel = imageLabel,
         cfg        = cfg,
-        glitchBase = player.DisplayName,
+        glitchBase = cfg.name_text or "Onyx User",
         tagBase    = cfg.tag_text or "ONYX"
     }
 end
