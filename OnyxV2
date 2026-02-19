@@ -4898,54 +4898,155 @@ local function fetchNametagConfigs()
     nametagConfigs = newConfigs
 end
 
--- Get the effective config for a player (custom or default)
--- Returns nil if the player is NOT a registered Onyx user.
+-- Get the effective config for a player (custom or default).
+-- LOCAL player: always returns a config (DEFAULT if not yet confirmed by server).
+-- OTHER players: returns nil if not a registered Onyx user.
 local function getConfig(player)
     local entry = nametagConfigs[player.Name:lower()]
-    if not entry then return nil end  -- not an Onyx user → no tag
-    -- entry may just be {roblox_user=...} if no custom config; merge with DEFAULT
-    return {
-        tag_text      = entry.tag_text      or DEFAULT_CONFIG.tag_text,
-        name_color    = entry.name_color    or DEFAULT_CONFIG.name_color,
-        tag_color     = entry.tag_color     or DEFAULT_CONFIG.tag_color,
-        glow_color    = entry.glow_color    or DEFAULT_CONFIG.glow_color,
-        outline_color = entry.outline_color or DEFAULT_CONFIG.outline_color,
-        image_url     = entry.image_url     or DEFAULT_CONFIG.image_url,
-    }
+    if entry then
+        return {
+            tag_text      = entry.tag_text      or DEFAULT_CONFIG.tag_text,
+            name_color    = entry.name_color    or DEFAULT_CONFIG.name_color,
+            tag_color     = entry.tag_color     or DEFAULT_CONFIG.tag_color,
+            glow_color    = entry.glow_color    or DEFAULT_CONFIG.glow_color,
+            outline_color = entry.outline_color or DEFAULT_CONFIG.outline_color,
+            image_url     = entry.image_url     or DEFAULT_CONFIG.image_url,
+        }
+    end
+    if player == plr then
+        return DEFAULT_CONFIG  -- local player always gets a tag
+    end
+    return nil
 end
 
 -- ── Step 3: Build a nametag ───────────────────────────────────────────────────
 -- Only builds if the player is a registered Onyx user.
 -- For the local player, parents to PlayerGui so they can see their own tag.
 local function buildNametag(player)
-    -- Guard: only build for Onyx users
     local cfg = getConfig(player)
-    if not cfg then return end  -- not registered → skip
+    if not cfg then return end
 
     local char = player.Character
     if not char then return end
     local head = char:FindFirstChild("Head")
     if not head then return end
 
-    -- Remove old tag if exists
+    -- Remove old tag + any existing self-gui
     local existing = nametagGuis[player]
-    if existing and existing.billboard and existing.billboard.Parent then
-        existing.billboard:Destroy()
+    if existing then
+        if existing.billboard and existing.billboard.Parent then existing.billboard:Destroy() end
+        if existing.selfGui   and existing.selfGui.Parent   then existing.selfGui:Destroy()   end
+        if existing.renderConn then existing.renderConn:Disconnect() end
     end
 
-    -- BillboardGui — smaller size
+    -- ── LOCAL PLAYER: ScreenGui + RenderStepped positioning ──────────────────
+    -- BillboardGui on your own Head is hidden by Roblox's character transparency.
+    -- Instead we project the head's world position to screen space each frame.
+    if player == plr then
+        local camera = workspace.CurrentCamera
+
+        local selfGui = Instance.new("ScreenGui")
+        selfGui.Name           = "OnyxSelfTag"
+        selfGui.ResetOnSpawn   = false
+        selfGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        selfGui.DisplayOrder   = 50
+        selfGui.Parent         = plr.PlayerGui
+
+        local frame = Instance.new("Frame", selfGui)
+        frame.Size                   = UDim2.new(0, 160, 0, 52)
+        frame.AnchorPoint            = Vector2.new(0.5, 1)   -- anchor bottom-center
+        frame.Position               = UDim2.new(0.5, 0, 0, -999)  -- offscreen until first update
+        frame.BackgroundColor3       = hexToColor3(cfg.tag_color)
+        frame.BackgroundTransparency = 0.15
+        frame.BorderSizePixel        = 0
+        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
+
+        local stroke = Instance.new("UIStroke", frame)
+        stroke.Color        = hexToColor3(cfg.glow_color)
+        stroke.Thickness    = 1.5
+        stroke.Transparency = 0.3
+
+        local imageLabel = Instance.new("ImageLabel", frame)
+        imageLabel.Size                   = UDim2.new(0, 32, 0, 32)
+        imageLabel.Position               = UDim2.new(0, 6, 0.5, -16)
+        imageLabel.BackgroundTransparency = 1
+        imageLabel.Image                  = (cfg.image_url and cfg.image_url ~= "") and cfg.image_url or ONYX_LOGO_URL
+        imageLabel.ScaleType              = Enum.ScaleType.Fit
+        Instance.new("UICorner", imageLabel).CornerRadius = UDim.new(0, 5)
+
+        local nameLabel = Instance.new("TextLabel", frame)
+        nameLabel.Size                   = UDim2.new(1, -50, 0, 22)
+        nameLabel.Position               = UDim2.new(0, 44, 0, 4)
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.Font                   = Enum.Font.GothamBlack
+        nameLabel.Text                   = plr.DisplayName
+        nameLabel.TextColor3             = hexToColor3(cfg.name_color)
+        nameLabel.TextSize               = 11
+        nameLabel.TextXAlignment         = Enum.TextXAlignment.Left
+        nameLabel.TextStrokeTransparency = 0.6
+        nameLabel.TextStrokeColor3       = hexToColor3(cfg.outline_color)
+        nameLabel.ClipsDescendants       = true
+
+        local tagLabel = Instance.new("TextLabel", frame)
+        tagLabel.Size                   = UDim2.new(1, -50, 0, 18)
+        tagLabel.Position               = UDim2.new(0, 44, 0, 28)
+        tagLabel.BackgroundTransparency = 1
+        tagLabel.Font                   = Enum.Font.GothamBold
+        tagLabel.Text                   = cfg.tag_text or "ONYX"
+        tagLabel.TextColor3             = hexToColor3(cfg.glow_color)
+        tagLabel.TextSize               = 9
+        tagLabel.TextXAlignment         = Enum.TextXAlignment.Left
+        tagLabel.TextStrokeTransparency = 0.7
+        tagLabel.TextStrokeColor3       = hexToColor3(cfg.outline_color)
+        tagLabel.ClipsDescendants       = true
+
+        -- Each frame: project head world position → screen position → move frame
+        local renderConn
+        renderConn = RunService.RenderStepped:Connect(function()
+            if not selfGui or not selfGui.Parent then
+                renderConn:Disconnect()
+                return
+            end
+            local curChar = plr.Character
+            local curHead = curChar and curChar:FindFirstChild("Head")
+            if not curHead then
+                frame.Visible = false
+                return
+            end
+            local worldPos = curHead.Position + Vector3.new(0, 3.2, 0)
+            local screenPos, onScreen = camera:WorldToViewportPoint(worldPos)
+            if onScreen and screenPos.Z > 0 then
+                frame.Visible  = true
+                frame.Position = UDim2.fromOffset(screenPos.X, screenPos.Y)
+            else
+                frame.Visible = false
+            end
+        end)
+
+        nametagGuis[player] = {
+            selfGui    = selfGui,
+            nameLabel  = nameLabel,
+            tagLabel   = tagLabel,
+            imageLabel = imageLabel,
+            cfg        = cfg,
+            glitchBase = plr.DisplayName,
+            tagBase    = cfg.tag_text or "ONYX",
+            renderConn = renderConn,
+        }
+        return
+    end
+
+    -- ── OTHER PLAYERS: standard BillboardGui ──────────────────────────────────
     local billboard = Instance.new("BillboardGui")
     billboard.Name         = "OnyxNametag"
     billboard.Adornee      = head
-    billboard.Parent       = head   -- always parent to head so it follows the character
+    billboard.Parent       = head
     billboard.Size         = UDim2.new(0, 160, 0, 52)
     billboard.StudsOffset  = Vector3.new(0, 2.2, 0)
     billboard.ResetOnSpawn = false
     billboard.MaxDistance  = 80
-    -- For local player: AlwaysOnTop renders the tag even when camera is inside your character
-    billboard.AlwaysOnTop  = (player == plr)
+    billboard.AlwaysOnTop  = false
 
-    -- Background frame
     local bg = Instance.new("Frame", billboard)
     bg.Size                   = UDim2.new(1, 0, 1, 0)
     bg.BackgroundColor3       = hexToColor3(cfg.tag_color)
@@ -4953,23 +5054,20 @@ local function buildNametag(player)
     bg.BorderSizePixel        = 0
     Instance.new("UICorner", bg).CornerRadius = UDim.new(0, 8)
 
-    -- Glow stroke
     local stroke = Instance.new("UIStroke", bg)
     stroke.Color        = hexToColor3(cfg.glow_color)
     stroke.Thickness    = 1.5
     stroke.Transparency = 0.3
 
-    -- Image (left side) — smaller
     local imageLabel = Instance.new("ImageLabel", bg)
     imageLabel.Name                   = "OnyxImage"
-    imageLabel.Size                   = UDim2.new(0, 32, 0, 32)   -- was 44x44
+    imageLabel.Size                   = UDim2.new(0, 32, 0, 32)
     imageLabel.Position               = UDim2.new(0, 6, 0.5, -16)
     imageLabel.BackgroundTransparency = 1
     imageLabel.Image                  = (cfg.image_url and cfg.image_url ~= "") and cfg.image_url or ONYX_LOGO_URL
     imageLabel.ScaleType              = Enum.ScaleType.Fit
     Instance.new("UICorner", imageLabel).CornerRadius = UDim.new(0, 5)
 
-    -- Player name label — smaller text
     local nameLabel = Instance.new("TextLabel", bg)
     nameLabel.Name                   = "OnyxName"
     nameLabel.Size                   = UDim2.new(1, -50, 0, 22)
@@ -4978,13 +5076,12 @@ local function buildNametag(player)
     nameLabel.Font                   = Enum.Font.GothamBlack
     nameLabel.Text                   = player.DisplayName
     nameLabel.TextColor3             = hexToColor3(cfg.name_color)
-    nameLabel.TextSize               = 11   -- was 14
+    nameLabel.TextSize               = 11
     nameLabel.TextXAlignment         = Enum.TextXAlignment.Left
     nameLabel.TextStrokeTransparency = 0.6
     nameLabel.TextStrokeColor3       = hexToColor3(cfg.outline_color)
     nameLabel.ClipsDescendants       = true
 
-    -- Tag badge label — smaller text
     local tagLabel = Instance.new("TextLabel", bg)
     tagLabel.Name                   = "OnyxTag"
     tagLabel.Size                   = UDim2.new(1, -50, 0, 18)
@@ -4993,7 +5090,7 @@ local function buildNametag(player)
     tagLabel.Font                   = Enum.Font.GothamBold
     tagLabel.Text                   = cfg.tag_text or "ONYX"
     tagLabel.TextColor3             = hexToColor3(cfg.glow_color)
-    tagLabel.TextSize               = 9    -- was 11
+    tagLabel.TextSize               = 9
     tagLabel.TextXAlignment         = Enum.TextXAlignment.Left
     tagLabel.TextStrokeTransparency = 0.7
     tagLabel.TextStrokeColor3       = hexToColor3(cfg.outline_color)
@@ -5010,11 +5107,13 @@ local function buildNametag(player)
     }
 end
 
--- Remove a player's nametag
+-- Remove a player's nametag and disconnect any render loop
 local function removeNametag(player)
     local data = nametagGuis[player]
-    if data and data.billboard and data.billboard.Parent then
-        data.billboard:Destroy()
+    if data then
+        if data.billboard  and data.billboard.Parent  then data.billboard:Destroy()      end
+        if data.selfGui    and data.selfGui.Parent    then data.selfGui:Destroy()        end
+        if data.renderConn                            then data.renderConn:Disconnect()  end
     end
     nametagGuis[player] = nil
 end
@@ -5072,12 +5171,18 @@ task.spawn(function()
     while true do
         t = t + GLITCH_INTERVAL
         for player, data in pairs(nametagGuis) do
-            if not data.billboard or not data.billboard.Parent then
+            -- Check aliveness differently for self-tag vs billboard tags
+            local alive = false
+            if data.selfGui then
+                alive = data.selfGui.Parent ~= nil
+            elseif data.billboard then
+                alive = data.billboard.Parent ~= nil
+            end
+
+            if not alive then
                 nametagGuis[player] = nil
             else
-                -- Pulse: sine wave drives glitch intensity (peaks every ~2s)
                 local intensity = math.max(0, math.sin(t * math.pi) * 0.22)
-                -- Random occasional hard glitch spike
                 if math.random() < 0.04 then intensity = math.random() * 0.6 end
 
                 if data.nameLabel and data.nameLabel.Parent then
@@ -5087,15 +5192,17 @@ task.spawn(function()
                     data.tagLabel.Text = glitchText(data.tagBase, intensity * 0.5)
                 end
 
-                -- Glow pulse on the stroke
-                local gInfo = nametagGuis[player]
-                if gInfo and gInfo.billboard and gInfo.billboard.Parent then
-                    local bg2 = gInfo.billboard:FindFirstChildOfClass("Frame")
-                    if bg2 then
-                        local st = bg2:FindFirstChildOfClass("UIStroke")
-                        if st then
-                            st.Transparency = 0.3 + math.sin(t * 3) * 0.25
-                        end
+                -- Glow pulse on stroke — works for both billboard and self-tag frames
+                local container = nil
+                if data.billboard and data.billboard.Parent then
+                    container = data.billboard:FindFirstChildOfClass("Frame")
+                elseif data.selfGui and data.selfGui.Parent then
+                    container = data.selfGui:FindFirstChildOfClass("Frame")
+                end
+                if container then
+                    local st = container:FindFirstChildOfClass("UIStroke")
+                    if st then
+                        st.Transparency = 0.3 + math.sin(t * 3) * 0.25
                     end
                 end
             end
