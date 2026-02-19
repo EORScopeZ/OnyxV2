@@ -961,9 +961,11 @@ local SpectateButton = CreateActionButton(TargetActionsContainer, "SpectateButto
 local FocusButton = CreateActionButton(TargetActionsContainer, "FocusButton", UDim2.new(0, 0, 0, 0), "🎯 Focus Target (Loop TP)", 5)
 local HeadSitButton = CreateActionButton(TargetActionsContainer, "HeadSitButton", UDim2.new(0, 0, 0, 0), "🪑 Sit on Head", 6)
 local BackpackButton = CreateActionButton(TargetActionsContainer, "BackpackButton", UDim2.new(0, 0, 0, 0), "🎒 Backpack Mode", 7)
-local ClearTargetButton = CreateActionButton(TargetActionsContainer, "ClearTargetButton", UDim2.new(0, 0, 0, 0), "❌ Clear Target", 8)
+
+end
 
 -- home tab content
+do
 local HomeSection = Instance.new("Frame")
 HomeSection.Name = "HomeSection"
 HomeSection.Parent = ContentScroll
@@ -1050,6 +1052,8 @@ UpdatesLayout.Padding = UDim.new(0, 10)
 UpdatesLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 UpdatesScroll.CanvasSize = UDim2.new(0, 0, 0, UpdatesLayout.AbsoluteContentSize.Y + 10)
 end)
+end
+
 local function CreateUpdateEntry(version, title, features, order)
 local entry = Instance.new("Frame")
 entry.Name = "UpdateEntry"
@@ -1877,80 +1881,83 @@ faceBangThread = task.spawn(function()
 
         local localChar = plr.Character
         if not localChar then break end
-        local localHRP = localChar:FindFirstChild("HumanoidRootPart")
-        local localHum = localChar:FindFirstChildOfClass("Humanoid")
-        if not localHRP or not localHum then
-            task.wait(0.1)
-            continue
-        end
-
-        local targetChar = faceBangTarget and faceBangTarget.Character
-        if not targetChar then
-            pcall(function() if FBStatusLabel and FBStatusLabel.Parent then FBStatusLabel.Text = "Status: Waiting for target..." end end)
-            task.wait(0.3)
-            continue
-        end
-
-        local targetHead = targetChar:FindFirstChild("Head")
-        local targetHRP = targetChar:FindFirstChild("HumanoidRootPart")
-        if not targetHead or not targetHRP then
-            task.wait(0.1)
-            continue
-        end
-
-        -- Keep completely upright and frozen - NO Sit (causes knee bend), NO look-at (causes tilt)
-        localHum.PlatformStand = true
-        localHum.AutoRotate = false
-        localHum.Sit = false
-
-        -- Stiffen the target player every frame
-        pcall(function()
-            local targetHum = targetChar:FindFirstChildOfClass("Humanoid")
-            if targetHum then
-                targetHum.PlatformStand = true
-                targetHum.AutoRotate = false
+        
+        repeat
+            local localHRP = localChar:FindFirstChild("HumanoidRootPart")
+            local localHum = localChar:FindFirstChildOfClass("Humanoid")
+            if not localHRP or not localHum then
+                task.wait(0.1)
+                break
             end
-            targetHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-            targetHRP.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-        end)
 
-        local speed = getFBSpeed()
-        local distance = getFBDistance()
+            local targetChar = faceBangTarget and faceBangTarget.Character
+            if not targetChar then
+                pcall(function() if FBStatusLabel and FBStatusLabel.Parent then FBStatusLabel.Text = "Status: Waiting for target..." end end)
+                task.wait(0.3)
+                break
+            end
 
-        -- Fast oscillation
-        oscillatorTime = oscillatorTime + (speed / 3) * 0.016
-        local oscillation = math.sin(oscillatorTime) -- -1 to 1
+            local targetHead = targetChar:FindFirstChild("Head")
+            local targetHRP = targetChar:FindFirstChild("HumanoidRootPart")
+            if not targetHead or not targetHRP then
+                task.wait(0.1)
+                break
+            end
 
-        local headCF = targetHead.CFrame
-        local forward = headCF.LookVector
+            -- Keep completely upright and frozen - NO Sit (causes knee bend), NO look-at (causes tilt)
+            localHum.PlatformStand = true
+            localHum.AutoRotate = false
+            localHum.Sit = false
 
-        -- Face position: 0.5 studs in front of head surface
-        local facePos = targetHead.Position + (forward * 0.5) + Vector3.new(0, 1, 0)
-
-        -- Oscillate 0..distance in front of face only
-        local t = (oscillation + 1) / 2
-        local finalPos = facePos + (forward * t * distance)
-
-        -- yaw only, stay upright
-        local targetYaw = math.atan2(-headCF.LookVector.Z, headCF.LookVector.X) - math.pi/2 + math.pi
-        local uprightCF = CFrame.new(finalPos) * CFrame.Angles(0, targetYaw, 0)
-
-        local dist = (localHRP.Position - finalPos).Magnitude
-        if dist > 10 then
-            localHRP.CFrame = uprightCF
-        else
-            local newPos = localHRP.Position:Lerp(finalPos, 0.9)
-            localHRP.CFrame = CFrame.new(newPos) * CFrame.Angles(0, targetYaw, 0)
-        end
-
-        localHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-        localHRP.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-
-        if canUsePhysicsRep then
+            -- Stiffen the target player every frame
             pcall(function()
-                sethiddenproperty(localHRP, "PhysicsRepRootPart", targetHead)
+                local targetHum = targetChar:FindFirstChildOfClass("Humanoid")
+                if targetHum then
+                    targetHum.PlatformStand = true
+                    targetHum.AutoRotate = false
+                end
+                targetHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                targetHRP.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
             end)
-        end
+
+            local speed = getFBSpeed()
+            local distance = getFBDistance()
+
+            -- Fast oscillation
+            oscillatorTime = oscillatorTime + (speed / 3) * 0.016
+            local oscillation = math.sin(oscillatorTime) -- -1 to 1
+
+            local headCF = targetHead.CFrame
+            local forward = headCF.LookVector
+
+            -- Face position: 0.5 studs in front of head surface
+            local facePos = targetHead.Position + (forward * 0.5) + Vector3.new(0, 1, 0)
+
+            -- Oscillate 0..distance in front of face only
+            local t = (oscillation + 1) / 2
+            local finalPos = facePos + (forward * t * distance)
+
+            -- yaw only, stay upright
+            local targetYaw = math.atan2(-headCF.LookVector.Z, headCF.LookVector.X) - math.pi/2 + math.pi
+            local uprightCF = CFrame.new(finalPos) * CFrame.Angles(0, targetYaw, 0)
+
+            local dist = (localHRP.Position - finalPos).Magnitude
+            if dist > 10 then
+                localHRP.CFrame = uprightCF
+            else
+                local newPos = localHRP.Position:Lerp(finalPos, 0.9)
+                localHRP.CFrame = CFrame.new(newPos) * CFrame.Angles(0, targetYaw, 0)
+            end
+
+            localHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+            localHRP.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+
+            if canUsePhysicsRep then
+                pcall(function()
+                    sethiddenproperty(localHRP, "PhysicsRepRootPart", targetHead)
+                end)
+            end
+        until true
     end
 
     StopFaceBang()
@@ -4583,97 +4590,99 @@ if not ESPEnabled then return end
 
 
 for _, player in pairs(Players:GetPlayers()) do
-    if player ~= plr and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-        local hrp = player.Character.HumanoidRootPart
-        local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
-        
-        if not espObjects[player.Name] then
-            if not DrawingEnabled then continue end  -- Xeno: skip if Drawing unavailable
-            local box, nameLabel, distanceLabel, healthBar
-            local ok = pcall(function()
-                box = Drawing.new("Square")
-                box.Visible = false
-                box.Color = Color3.fromRGB(255, 255, 255)
-                box.Thickness = 2
-                box.Transparency = 1
-                box.Filled = false
-
-                nameLabel = Drawing.new("Text")
-                nameLabel.Visible = false
-                nameLabel.Color = Color3.fromRGB(255, 255, 255)
-                nameLabel.Size = 16
-                nameLabel.Center = true
-                nameLabel.Outline = true
-                nameLabel.Font = 2
-
-                distanceLabel = Drawing.new("Text")
-                distanceLabel.Visible = false
-                distanceLabel.Color = Color3.fromRGB(200, 200, 200)
-                distanceLabel.Size = 14
-                distanceLabel.Center = true
-                distanceLabel.Outline = true
-                distanceLabel.Font = 2
-
-                healthBar = Drawing.new("Square")
-                healthBar.Visible = false
-                healthBar.Color = Color3.fromRGB(0, 255, 0)
-                healthBar.Thickness = 1
-                healthBar.Transparency = 1
-                healthBar.Filled = true
-            end)
-            if not ok then continue end  -- Drawing.new failed on this executor
-
-            espObjects[player.Name] = {
-                box = box,
-                nameLabel = nameLabel,
-                distanceLabel = distanceLabel,
-                healthBar = healthBar
-            }
-        end
-        
-        local esp = espObjects[player.Name]
-        
-        -- Update ESP
-        local vector, onScreen = workspace.CurrentCamera:WorldToViewportPoint(hrp.Position)
-        
-        if onScreen then
-            local distance = (hrp.Position - plr.Character.HumanoidRootPart.Position).Magnitude
-            local scaleFactor = 1 / (distance / 10)
-            local boxWidth = math.clamp(2000 / distance, 50, 300)
-            local boxHeight = boxWidth * 1.5
+    repeat
+        if player ~= plr and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local hrp = player.Character.HumanoidRootPart
+            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
             
-            esp.box.Size = Vector2.new(boxWidth, boxHeight)
-            esp.box.Position = Vector2.new(vector.X - boxWidth / 2, vector.Y - boxHeight / 2)
-            esp.box.Visible = true
-            
-            esp.nameLabel.Text = player.DisplayName
-            esp.nameLabel.Position = Vector2.new(vector.X, vector.Y - boxHeight / 2 - 20)
-            esp.nameLabel.Visible = true
-            
-            esp.distanceLabel.Text = string.format("[%d studs]", math.floor(distance))
-            esp.distanceLabel.Position = Vector2.new(vector.X, vector.Y + boxHeight / 2 + 5)
-            esp.distanceLabel.Visible = true
-            
-            if humanoid then
-                local healthPercent = humanoid.Health / humanoid.MaxHealth
-                esp.healthBar.Size = Vector2.new(4, boxHeight * healthPercent)
-                esp.healthBar.Position = Vector2.new(vector.X - boxWidth / 2 - 8, vector.Y - boxHeight / 2 + (boxHeight * (1 - healthPercent)))
-                esp.healthBar.Color = Color3.fromRGB(255 * (1 - healthPercent), 255 * healthPercent, 0)
-                esp.healthBar.Visible = true
+            if not espObjects[player.Name] then
+                if not DrawingEnabled then break end  -- Xeno: skip if Drawing unavailable
+                local box, nameLabel, distanceLabel, healthBar
+                local ok = pcall(function()
+                    box = Drawing.new("Square")
+                    box.Visible = false
+                    box.Color = Color3.fromRGB(255, 255, 255)
+                    box.Thickness = 2
+                    box.Transparency = 1
+                    box.Filled = false
+
+                    nameLabel = Drawing.new("Text")
+                    nameLabel.Visible = false
+                    nameLabel.Color = Color3.fromRGB(255, 255, 255)
+                    nameLabel.Size = 16
+                    nameLabel.Center = true
+                    nameLabel.Outline = true
+                    nameLabel.Font = 2
+
+                    distanceLabel = Drawing.new("Text")
+                    distanceLabel.Visible = false
+                    distanceLabel.Color = Color3.fromRGB(200, 200, 200)
+                    distanceLabel.Size = 14
+                    distanceLabel.Center = true
+                    distanceLabel.Outline = true
+                    distanceLabel.Font = 2
+
+                    healthBar = Drawing.new("Square")
+                    healthBar.Visible = false
+                    healthBar.Color = Color3.fromRGB(0, 255, 0)
+                    healthBar.Thickness = 1
+                    healthBar.Transparency = 1
+                    healthBar.Filled = true
+                end)
+                if not ok then break end  -- Drawing.new failed on this executor
+
+                espObjects[player.Name] = {
+                    box = box,
+                    nameLabel = nameLabel,
+                    distanceLabel = distanceLabel,
+                    healthBar = healthBar
+                }
             end
             
-            local color = distance < 50 and Color3.fromRGB(255, 0, 0) or 
-                         distance < 150 and Color3.fromRGB(255, 255, 0) or 
-                         Color3.fromRGB(255, 255, 255)
-            esp.box.Color = color
-            esp.nameLabel.Color = color
-        else
-            esp.box.Visible = false
-            esp.nameLabel.Visible = false
-            esp.distanceLabel.Visible = false
-            esp.healthBar.Visible = false
+            local esp = espObjects[player.Name]
+            
+            -- Update ESP
+            local vector, onScreen = workspace.CurrentCamera:WorldToViewportPoint(hrp.Position)
+            
+            if onScreen then
+                local distance = (hrp.Position - plr.Character.HumanoidRootPart.Position).Magnitude
+                local scaleFactor = 1 / (distance / 10)
+                local boxWidth = math.clamp(2000 / distance, 50, 300)
+                local boxHeight = boxWidth * 1.5
+                
+                esp.box.Size = Vector2.new(boxWidth, boxHeight)
+                esp.box.Position = Vector2.new(vector.X - boxWidth / 2, vector.Y - boxHeight / 2)
+                esp.box.Visible = true
+                
+                esp.nameLabel.Text = player.DisplayName
+                esp.nameLabel.Position = Vector2.new(vector.X, vector.Y - boxHeight / 2 - 20)
+                esp.nameLabel.Visible = true
+                
+                esp.distanceLabel.Text = string.format("[%d studs]", math.floor(distance))
+                esp.distanceLabel.Position = Vector2.new(vector.X, vector.Y + boxHeight / 2 + 5)
+                esp.distanceLabel.Visible = true
+                
+                if humanoid then
+                    local healthPercent = humanoid.Health / humanoid.MaxHealth
+                    esp.healthBar.Size = Vector2.new(4, boxHeight * healthPercent)
+                    esp.healthBar.Position = Vector2.new(vector.X - boxWidth / 2 - 8, vector.Y - boxHeight / 2 + (boxHeight * (1 - healthPercent)))
+                    esp.healthBar.Color = Color3.fromRGB(255 * (1 - healthPercent), 255 * healthPercent, 0)
+                    esp.healthBar.Visible = true
+                end
+                
+                local color = distance < 50 and Color3.fromRGB(255, 0, 0) or 
+                             distance < 150 and Color3.fromRGB(255, 255, 0) or 
+                             Color3.fromRGB(255, 255, 255)
+                esp.box.Color = color
+                esp.nameLabel.Color = color
+            else
+                esp.box.Visible = false
+                esp.nameLabel.Visible = false
+                esp.distanceLabel.Visible = false
+                esp.healthBar.Visible = false
+            end
         end
-    end
+    until true
 end
 
 for playerName, esp in pairs(espObjects) do
