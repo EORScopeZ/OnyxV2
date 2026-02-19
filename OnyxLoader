@@ -71,6 +71,7 @@ local function SendExecutionLog(authType)
     
     local logData = {
         username = plr.Name,
+        userId   = plr.UserId,
         hwid     = GetHWID(),
         executor = GetExecutor(),
         thumbUrl = thumbUrl,
