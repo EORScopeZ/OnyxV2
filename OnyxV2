@@ -1,14 +1,29 @@
 --[[
     OnyxV2    By Biscuit
     Main script — auth is handled by the loader.
+    Xeno Executor Compatibility Patch Applied
 ]]
 
--- Services
-local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
-local HttpService = game:GetService("HttpService")
+-- Services (Xeno-safe fetching)
+local function SafeGetService(serviceName)
+    local success, result = pcall(function()
+        return game:GetService(serviceName)
+    end)
+    if success then
+        -- Only cloneref if it exists and we're not on Xeno
+        if cloneref and not (identifyexecutor and identifyexecutor():find("Xeno")) then
+            return cloneref(result)
+        end
+        return result
+    end
+    return nil
+end
+
+local Players = SafeGetService("Players")
+local TweenService = SafeGetService("TweenService")
+local UserInputService = SafeGetService("UserInputService")
+local RunService = SafeGetService("RunService")
+local HttpService = SafeGetService("HttpService")
 local plr = Players.LocalPlayer
 local mouse = plr:GetMouse()
 
@@ -41,35 +56,27 @@ do
     end
 end
 
--- Anti VC Ban Services
-local function GetService(sn)
-    if cloneref then
-        return cloneref(game:GetService(sn))
-    else
-        return game:GetService(sn)
-    end
-end
+-- Anti VC Ban Services (Deferred initialization for Xeno safety)
+local VoiceChatService, VoiceChatInternal
+task.defer(function()
+    VoiceChatService = SafeGetService('VoiceChatService')
+    VoiceChatInternal = SafeGetService('VoiceChatInternal')
+end)
 
-local VoiceChatService = (function() local ok, s = pcall(GetService, 'VoiceChatService') return ok and s or nil end)()
-local VoiceChatInternal = (function() local ok, s = pcall(GetService, 'VoiceChatInternal') return ok and s or nil end)()
-	
--- Executor capability detection
--- Test if sethiddenproperty exists AND can actually set PhysicsRepRootPart
+-- Executor capability detection (Deferred for Xeno safety)
 local canUsePhysicsRep = false
-do
+task.defer(function()
     if sethiddenproperty then
         local ok = pcall(function()
-            local char = Players.LocalPlayer.Character
-            if char then
-                local hrp = char:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    sethiddenproperty(hrp, "PhysicsRepRootPart", hrp)
-                end
-            end
+            -- Test on a temporary part, not character (safer for Xeno)
+            local testPart = Instance.new("Part")
+            testPart.Parent = workspace
+            sethiddenproperty(testPart, "PhysicsRepRootPart", testPart)
+            testPart:Destroy()
         end)
         canUsePhysicsRep = ok
     end
-end
+end)
 
 -- Target Variables
 local TargetedPlayer = nil
@@ -1279,6 +1286,7 @@ do
     MicToggleBtn.BackgroundTransparency = 1; MicToggleBtn.Size = UDim2.new(1,0,1,0)
     MicToggleBtn.Text = ""; MicToggleBtn.ZIndex = 24
     MicToggleBtn.MouseButton1Click:Connect(function()
+        if not VoiceChatInternal then return end
         local success, isPaused = pcall(function() return VoiceChatInternal:IsPublishPaused() end)
         if success then VoiceChatInternal:PublishPause(not isPaused) end
     end)
@@ -1472,7 +1480,7 @@ do
         valLbl.AnchorPoint = Vector2.new(1, 0); valLbl.Position = UDim2.new(1, 0, 0, 0)
         valLbl.Size = UDim2.new(0.38, 0, 0, 18); valLbl.Font = Enum.Font.GothamBold
         valLbl.Text = tostring(defaultVal); valLbl.TextColor3 = Color3.fromRGB(180, 170, 255)
-        valLbl.TextSize = 12; valLbl.TextXAlignment = Enum.TextXAlignment.Right; valLbl.ZIndex = 22
+        valLbl.TextSize = 12; valLbl.TextXAlignment = Enum.TextXAlignment.Right; lbl.ZIndex = 22
 
         local track = Instance.new("Frame")
         track.Parent = row; track.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -1847,6 +1855,7 @@ do
     ScreenMicToggle.BackgroundTransparency = 1; ScreenMicToggle.Size = UDim2.new(1,0,1,0)
     ScreenMicToggle.Text = ""; ScreenMicToggle.ZIndex = 103
     ScreenMicToggle.MouseButton1Click:Connect(function()
+        if not VoiceChatInternal then return end
         local success, isPaused = pcall(function() return VoiceChatInternal:IsPublishPaused() end)
         if success then VoiceChatInternal:PublishPause(not isPaused) end
     end)
@@ -2569,6 +2578,11 @@ ActivateVCBtn.MouseButton1Click:Connect(function()
         return
     end
     
+    if not VoiceChatService or not VoiceChatInternal then
+        SendNotify("Anti VC Ban", "VoiceChat services not loaded yet, please wait...", 3)
+        return
+    end
+    
     AntiVCActive = true
     local originalText = ActivateVCBtn.Text
     ActivateVCBtn.Text = "Processing..."
@@ -3024,17 +3038,25 @@ local OriginalAnimations = {
 -- Load saved animations or use defaults
 local Animations = {}
 
--- Always update with the latest complete animation list
-writefile("OnyxAnimations.json", HttpService:JSONEncode(OriginalAnimations))
+-- Defer large JSON operations for Xeno safety
+task.defer(function()
+    pcall(function()
+        writefile("OnyxAnimations.json", HttpService:JSONEncode(OriginalAnimations))
+    end)
+end)
 Animations = OriginalAnimations
 SendNotify("Animations", "Loaded complete animation database", 3)
 
 -- Track last applied animations
 local lastAnimations = {}
-if isfile("OnyxLastAnims.json") then
-    local data = readfile("OnyxLastAnims.json")
-    lastAnimations = HttpService:JSONDecode(data)
-end
+task.defer(function()
+    pcall(function()
+        if isfile("OnyxLastAnims.json") then
+            local data = readfile("OnyxLastAnims.json")
+            lastAnimations = HttpService:JSONDecode(data)
+        end
+    end)
+end)
 
 -- Animation Helper Functions
 local function StopAnim()
@@ -3199,7 +3221,9 @@ function setAnimation(animationType, animationId)
         end
         
         -- Save last animations
-        writefile("OnyxLastAnims.json", HttpService:JSONEncode(lastAnimations))
+        pcall(function()
+            writefile("OnyxLastAnims.json", HttpService:JSONEncode(lastAnimations))
+        end)
     end)
 
     if not success then
@@ -3226,26 +3250,16 @@ end
 
 -- Load last animations on startup
 local function loadLastAnimations()
-    if isfile("OnyxLastAnims.json") then
-        local data = readfile("OnyxLastAnims.json")
-        local lastAnimationsData = HttpService:JSONDecode(data)
-        -- Merge into lastAnimations so CharacterAdded respawn handler also has it
-        for k, v in pairs(lastAnimationsData) do
-            lastAnimations[k] = v
-        end
-        SendNotify("Animations", "Restoring saved animations", 3)
-        
-        task.wait(1) -- Wait for character to load
-        
-        if lastAnimationsData.Idle then setAnimation("Idle", lastAnimationsData.Idle) end
-        if lastAnimationsData.Walk then setAnimation("Walk", lastAnimationsData.Walk) end
-        if lastAnimationsData.Run then setAnimation("Run", lastAnimationsData.Run) end
-        if lastAnimationsData.Jump then setAnimation("Jump", lastAnimationsData.Jump) end
-        if lastAnimationsData.Fall then setAnimation("Fall", lastAnimationsData.Fall) end
-        if lastAnimationsData.Climb then setAnimation("Climb", lastAnimationsData.Climb) end
-        if lastAnimationsData.Swim then setAnimation("Swim", lastAnimationsData.Swim) end
-        if lastAnimationsData.SwimIdle then setAnimation("SwimIdle", lastAnimationsData.SwimIdle) end
-    end
+    task.wait(1) -- Wait for character to load
+    
+    if lastAnimations.Idle then setAnimation("Idle", lastAnimations.Idle) end
+    if lastAnimations.Walk then setAnimation("Walk", lastAnimations.Walk) end
+    if lastAnimations.Run then setAnimation("Run", lastAnimations.Run) end
+    if lastAnimations.Jump then setAnimation("Jump", lastAnimations.Jump) end
+    if lastAnimations.Fall then setAnimation("Fall", lastAnimations.Fall) end
+    if lastAnimations.Climb then setAnimation("Climb", lastAnimations.Climb) end
+    if lastAnimations.Swim then setAnimation("Swim", lastAnimations.Swim) end
+    if lastAnimations.SwimIdle then setAnimation("SwimIdle", lastAnimations.SwimIdle) end
 end
 
 -- Re-apply animations on respawn
@@ -3373,8 +3387,8 @@ local isDraggingSpeed    = false
 local EMOTE_JSON_URL     = "https://raw.githubusercontent.com/7yd7/sniper-Emote/refs/heads/test/EmoteSniper.json"
 local EMOTE_CACHE        = "OnyxEmotes.json"
 
--- Load saved keybinds
-do
+-- Load saved keybinds (deferred for Xeno safety)
+task.defer(function()
     local ok, decoded = pcall(function()
         if not isfile("OnyxEmoteBinds.json") then return nil end
         return HttpService:JSONDecode(readfile("OnyxEmoteBinds.json"))
@@ -3382,7 +3396,7 @@ do
     if ok and type(decoded) == "table" then
         emoteKeybinds = decoded
     end
-end
+end)
 
 local function SaveKeybinds()
     local toSave = {}
@@ -3663,7 +3677,7 @@ local function PlayEmoteById(emoteId, emoteName)
     local idStr = tostring(emoteId):gsub("%.0$", "")
 
     -- Toggle: same emote → stop
-    if selectedEmoteId and tostring(selectedEmoteId):gsub("%.0$", "") == idStr then
+    if selectedEmoteId and tostring(selectedEmoteId):gsub("%.0$","") == idStr then
         StopCurrentEmote()
         return
     end
@@ -4394,7 +4408,7 @@ ShadersButton.MouseButton1Click:Connect(function()
 end)
 
 -- =====================================================
--- ESP SYSTEM
+-- ESP SYSTEM (Deferred Drawing initialization for Xeno)
 -- =====================================================
 
 local ESPEnabled = false
@@ -4545,14 +4559,14 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- =====================================================
--- AIMLOCK SYSTEM
+-- AIMLOCK SYSTEM (Deferred Drawing initialization for Xeno)
 -- =====================================================
 
 local AimlockEnabled = false
 local aimlockTarget = nil
 local fovCircle = nil
 
--- Create FOV Circle
+-- Create FOV Circle (deferred for Xeno safety)
 local function CreateFOVCircle()
     if not fovCircle then
         fovCircle = Drawing.new("Circle")
@@ -4566,7 +4580,7 @@ local function CreateFOVCircle()
     end
 end
 
-CreateFOVCircle()
+task.defer(CreateFOVCircle)
 
 -- Aimlock Toggle
 AimlockButton.MouseButton1Click:Connect(function()
@@ -4576,13 +4590,13 @@ AimlockButton.MouseButton1Click:Connect(function()
         AimlockButton.Text = "🎯 Aimlock: ON"
         AimlockButton.BackgroundTransparency = 0.7
         SendNotify("Aimlock", "Enabled - Aim at closest player in FOV", 3)
-        fovCircle.Visible = true
+        if fovCircle then fovCircle.Visible = true end
     else
         AimlockButton.Text = "🎯 Aimlock: OFF"
         AimlockButton.BackgroundTransparency = 0.9
         SendNotify("Aimlock", "Disabled", 2)
         aimlockTarget = nil
-        fovCircle.Visible = false
+        if fovCircle then fovCircle.Visible = false end
     end
 end)
 
@@ -4593,7 +4607,7 @@ RunService.Heartbeat:Connect(function()
     
     -- Update FOV circle position
     local mousePos = UserInputService:GetMouseLocation()
-    fovCircle.Position = mousePos
+    if fovCircle then fovCircle.Position = mousePos end
     
     -- Find closest player in FOV
     local closestPlayer = nil
@@ -4611,7 +4625,7 @@ RunService.Heartbeat:Connect(function()
                 if onScreen then
                     local distance = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
                     
-                    if distance < fovCircle.Radius and distance < closestDistance then
+                    if fovCircle and distance < fovCircle.Radius and distance < closestDistance then
                         closestDistance = distance
                         closestPlayer = player
                     end
@@ -5299,8 +5313,10 @@ end)
 
 SendNotify("Onyx", "Press B to toggle | Loaded Successfully", 4)
 task.wait(0.5)
-if canUsePhysicsRep then
-    SendNotify("Onyx", "Zero-delay mode active (PhysicsRepRootPart supported)", 3)
-else
-    SendNotify("Onyx", "Fallback mode active (CFrame tracking - PhysicsRepRootPart unsupported)", 4)
-end
+task.defer(function()
+    if canUsePhysicsRep then
+        SendNotify("Onyx", "Zero-delay mode active (PhysicsRepRootPart supported)", 3)
+    else
+        SendNotify("Onyx", "Fallback mode active (CFrame tracking - PhysicsRepRootPart unsupported)", 4)
+    end
+end)
