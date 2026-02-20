@@ -5019,10 +5019,11 @@ local function fetchNametagConfig(username, callback)
                 end)
                 
                 if ok and parsed then
-                    if parsed.found and parsed.config then
-                        print("[Onyx Debug] Config found for " .. username)
-                        local cfg = parsed.config
-                        -- Map worker fields (name_text, name_color, etc.) to Lua fields
+                    -- If ACTIVE or has a CUSTOM CONFIG, show the tag
+                    if parsed.found and (parsed.active or parsed.config) then
+                        print("[Onyx Debug] Valid user found: " .. username .. " (Active: " .. tostring(parsed.active) .. ")")
+                        local cfg = parsed.config or {}
+                        
                         resolved = {
                             displayName            = cfg.name_text or cfg.displayName or "Onyx User",
                             font                   = cfg.font or "GothamBlack",
@@ -5037,11 +5038,10 @@ local function fetchNametagConfig(username, callback)
                             topTextSize            = 18,
                             botTextSize            = 13,
                         }
-                        -- Smooth width calculation
-                        resolved.width = math.clamp(4.5 + (#resolved.displayName * 0.28), 4.5, 8.5)
                         nametagConfigs[username] = resolved
                     else
-                        warn("[Onyx Debug] API returned found=false for " .. username)
+                        warn("[Onyx Debug] User not active/no config: " .. username)
+                        nametagConfigs[username] = "inactive"
                     end
                 else
                     warn("[Onyx Debug] JSON Decode failed for " .. username)
@@ -5054,9 +5054,12 @@ local function fetchNametagConfig(username, callback)
         end
 
         if not resolved then
-            print("[Onyx Debug] Falling back to default for " .. username)
-            nametagConfigs[username] = "default"
-            resolved = getDefaultConfig()
+            -- Only fallback to default for SELF. For others, we just don't show the tag if not active.
+            if username:lower() == plr.Name:lower() then
+                print("[Onyx Debug] Falling back to default for SELF")
+                resolved = getDefaultConfig()
+                nametagConfigs[username] = resolved
+            end
         end
 
         -- Fire all pending callbacks
@@ -5429,3 +5432,18 @@ plr.CharacterAdded:Connect(function()
 end)
 
 SendNotify("Onyx", "Nametag system active", 3)
+
+-- ── Heartbeat System: Let others know we are running the script ───────────
+task.spawn(function()
+    while true do
+        pcall(function()
+            httpRequest({
+                Url    = WORKER_BASE .. "/register-onyx-user",
+                Method = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body   = game:GetService("HttpService"):JSONEncode({ roblox_user = plr.Name })
+            })
+        end)
+        task.wait(10) -- Ping every 10 seconds
+    end
+end)
