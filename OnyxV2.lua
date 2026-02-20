@@ -1523,7 +1523,7 @@ do
         return function() return val end
     end
 
-    getFBSpeed    = BuildSlider(72,  "🏃 Speed",    1, 20, 12)
+    getFBSpeed    = BuildSlider(72,  "🏃 Speed",    1, 40, 20)
     getFBDistance = BuildSlider(132, "📏 Distance",  1, 10, 3)
 
     -- ── Toggle button ─────────────────────────────────────────────────────────
@@ -1720,7 +1720,7 @@ local function StartFaceBang(targetPlayer)
             local distance = getFBDistance()
 
             -- Fast oscillation
-            oscillatorTime = oscillatorTime + (speed / 3) * 0.016
+            oscillatorTime = oscillatorTime + (speed / 1.5) * 0.016
             local oscillation = math.sin(oscillatorTime) -- -1 to 1
 
             local headCF = targetHead.CFrame
@@ -5078,8 +5078,11 @@ local fetchQueueRunning = false
 
 local function enqueueFetch(username, callback)
     -- Already cached (or loading) — bypass the queue
-    if nametagConfigs[username] and nametagConfigs[username] ~= "loading" then
-        callback(nametagConfigs[username] == "default" and getDefaultConfig() or nametagConfigs[username])
+    -- NOTE: "inactive" is NOT treated as a valid cache hit so we always recheck
+    -- players who haven't executed yet (they may have executed since last check)
+    local cached = nametagConfigs[username]
+    if cached and cached ~= "loading" and cached ~= "inactive" then
+        callback(cached == "default" and getDefaultConfig() or cached)
         return
     end
 
@@ -5437,6 +5440,27 @@ end)
 -- ── Watch new players that join ────────────────────────────────────────────────
 Players.PlayerAdded:Connect(function(newPlayer)
     watchPlayer(newPlayer)
+end)
+
+-- ── Recheck inactive players every 15 seconds ─────────────────────────────────
+-- If a player executes the script after you've already loaded in, their heartbeat
+-- will register them server-side. This loop catches that and shows their tag.
+task.spawn(function()
+    while true do
+        task.wait(15)
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= plr then
+                local cached = nametagConfigs[p.Name]
+                -- Only recheck players currently marked as inactive
+                if cached == "inactive" then
+                    nametagConfigs[p.Name] = nil -- clear so fetchNametagConfig runs fresh
+                    if not nametagObjects[p.UserId] then
+                        applyNametag(p)
+                    end
+                end
+            end
+        end
+    end
 end)
 
 -- ── Clean up nametags when players leave ───────────────────────────────────────
