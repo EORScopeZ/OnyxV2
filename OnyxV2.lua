@@ -4756,31 +4756,33 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     
     if input.KeyCode == Enum.KeyCode.T and TripEnabled then
-        if plr.Character and plr.Character:FindFirstChild("Humanoid") then
-            local humanoid = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
-            if not humanoid then return end
-            local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
-            
-            -- Make character trip/ragdoll
-            humanoid:ChangeState(Enum.HumanoidStateType.Ragdoll)
-            
-            -- Apply a tumbling force using AssemblyVelocity (modern API)
-            if hrp then
-                hrp.AssemblyLinearVelocity = hrp.CFrame.LookVector * 20 + Vector3.new(0, 5, 0)
-                hrp.AssemblyAngularVelocity = Vector3.new(
-                    math.random(-10, 10),
-                    math.random(-10, 10),
-                    math.random(-10, 10)
-                )
-                
-                -- Recover from ragdoll after delay
-                task.delay(0.5, function()
-                    if humanoid and humanoid.Parent then
-                        humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-                    end
+        local char = plr.Character
+        if not char then return end
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if not humanoid or not hrp then return end
+
+        -- Lock the humanoid completely so the avatar goes stiff
+        humanoid.PlatformStand = true
+        humanoid.AutoRotate = false
+        humanoid.WalkSpeed = 0
+        humanoid.JumpPower = 0
+
+        -- Kill all velocity so they just drop straight down
+        hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+        hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+
+        -- Freeze joints so the whole body stays rigid
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") and part ~= hrp then
+                pcall(function()
+                    part.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                    part.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
                 end)
             end
         end
+
+        SendNotify("Trip", "Stiff!", 1)
     end
 end)
 
