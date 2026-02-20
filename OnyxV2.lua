@@ -3032,16 +3032,18 @@ local OriginalAnimations = {
 local Animations = {}
 
 -- Always update with the latest complete animation list
-writefile("OnyxAnimations.json", HttpService:JSONEncode(OriginalAnimations))
+pcall(function() writefile("OnyxAnimations.json", HttpService:JSONEncode(OriginalAnimations)) end)
 Animations = OriginalAnimations
 SendNotify("Animations", "Loaded complete animation database", 3)
 
 -- Track last applied animations
 local lastAnimations = {}
-if isfile("OnyxLastAnims.json") then
-    local data = readfile("OnyxLastAnims.json")
-    lastAnimations = HttpService:JSONDecode(data)
-end
+pcall(function()
+    if isfile("OnyxLastAnims.json") then
+        local data = readfile("OnyxLastAnims.json")
+        lastAnimations = HttpService:JSONDecode(data)
+    end
+end)
 
 -- Animation Helper Functions
 local function StopAnim()
@@ -3206,7 +3208,7 @@ function setAnimation(animationType, animationId)
         end
         
         -- Save last animations
-        writefile("OnyxLastAnims.json", HttpService:JSONEncode(lastAnimations))
+        pcall(function() writefile("OnyxLastAnims.json", HttpService:JSONEncode(lastAnimations)) end)
     end)
 
     if not success then
@@ -3233,8 +3235,10 @@ end
 
 -- Load last animations on startup
 local function loadLastAnimations()
+    if not pcall(function() return isfile end) then return end
     if isfile("OnyxLastAnims.json") then
-        local data = readfile("OnyxLastAnims.json")
+        local ok, data = pcall(readfile, "OnyxLastAnims.json")
+        if not ok or not data then return end
         local lastAnimationsData = HttpService:JSONDecode(data)
         -- Merge into lastAnimations so CharacterAdded respawn handler also has it
         for k, v in pairs(lastAnimationsData) do
