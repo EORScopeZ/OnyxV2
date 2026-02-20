@@ -54,10 +54,17 @@ local VoiceChatService = (function() local ok, s = pcall(GetService, 'VoiceChatS
 local VoiceChatInternal = (function() local ok, s = pcall(GetService, 'VoiceChatInternal') return ok and s or nil end)()
 	
 -- Executor capability detection
--- Test if sethiddenproperty exists AND can actually set PhysicsRepRootPart
+-- CRITICAL FIX: Check Xeno FIRST before touching sethiddenproperty
 local canUsePhysicsRep = false
 do
-    if sethiddenproperty then
+    -- Blacklist Xeno: its PhysicsRep implementation causes client crashes
+    local execName = ""
+    pcall(function() execName = string.lower(tostring(identifyexecutor and identifyexecutor() or "")) end)
+    
+    if string.find(execName, "xeno") then
+        canUsePhysicsRep = false
+    elseif sethiddenproperty then
+        -- Only test if not Xeno
         local ok = pcall(function()
             local char = Players.LocalPlayer.Character
             if char then
@@ -67,13 +74,6 @@ do
                 end
             end
         end)
-        -- Blacklist Xeno: its PhysicsRep implementation causes client crashes
-        local execName = ""
-        pcall(function() execName = string.lower(tostring(identifyexecutor and identifyexecutor() or "")) end)
-        if string.find(execName, "xeno") then
-            ok = false
-        end
-        
         canUsePhysicsRep = ok
     end
 end
@@ -4066,10 +4066,29 @@ local function PopulateEmoteList(emoteList)
     emoteKeybinds = restoredBinds
     -- Build the fixed pool of widgets (fast, only ~22 instances)
     BuildRowPool()
-    -- Show all emotes
-    RebuildVisible("")
-    emotesLoaded = true
-    SendNotify("Emotes", tostring(#allEmotes) .. " emotes loaded!", 3)
+    -- CRITICAL FIX: Load emotes in chunks to prevent lag
+    task.spawn(function()
+        local total = #allEmotes
+        local chunkSize = 50
+        visibleEmotes = {}
+        
+        for i = 1, total, chunkSize do
+            local endIdx = math.min(i + chunkSize - 1, total)
+            for j = i, endIdx do
+                table.insert(visibleEmotes, allEmotes[j])
+            end
+            -- Update UI every chunk
+            if i == 1 then
+                local totalH = VPAD * 2 + #visibleEmotes * VROW_H
+                EmoteListFrame.CanvasSize = UDim2.new(0, 0, 0, totalH)
+                RefreshVirtualRows()
+            end
+            task.wait(0.05) -- Small delay between chunks
+        end
+        
+        emotesLoaded = true
+        SendNotify("Emotes", tostring(#allEmotes) .. " emotes loaded!", 3)
+    end)
 end
 
 local function LoadEmoteDatabase()
@@ -4991,20 +5010,26 @@ local function fetchNametagConfig(username, callback)
             end)
             if ok and parsed and parsed.config then
                 local cfg = parsed.config
+                -- CRITICAL FIX: Map bot field names to Lua field names
+                -- Bot saves: name_text, tag_text, name_color, tag_color, glow_color, outline_color, image_url
+                -- Lua uses: displayName, font, textColor, outlineColor, backgroundColor, backgroundImage, iconImage
+                
                 resolved = {
-                    displayName            = cfg.displayName or "Onyx User",
+                    displayName            = cfg.name_text or cfg.displayName or "Onyx User",
                     font                   = cfg.font or "GothamBlack",
-                    textColor              = hexToColor3(cfg.textColor)        or Color3.fromRGB(255,255,255),
-                    outlineColor           = hexToColor3(cfg.outlineColor)     or Color3.fromRGB(255,255,255),
-                    backgroundColor        = hexToColor3(cfg.backgroundColor) or Color3.fromRGB(10,10,10),
+                    textColor              = hexToColor3(cfg.name_color) or hexToColor3(cfg.textColor) or Color3.fromRGB(139, 127, 255),
+                    outlineColor           = hexToColor3(cfg.outline_color) or hexToColor3(cfg.outlineColor) or Color3.fromRGB(0, 0, 0),
+                    backgroundColor        = hexToColor3(cfg.tag_color) or hexToColor3(cfg.backgroundColor) or Color3.fromRGB(26, 26, 46),
                     backgroundTransparency = 0.25,
-                    backgroundImage        = cfg.backgroundImage or nil,
+                    backgroundImage        = (cfg.image_url and cfg.image_url ~= "") and cfg.image_url or cfg.backgroundImage or nil,
                     iconImage              = cfg.iconImage or nil,
                     glitchAnim             = cfg.glitchAnim == true,
-                    width                  = (cfg.sizePreset == "large" and 7) or (cfg.sizePreset == "small" and 3.5) or 5,
-                    topTextSize            = (cfg.sizePreset == "large" and 22) or (cfg.sizePreset == "small" and 15) or 18,
-                    botTextSize            = (cfg.sizePreset == "large" and 16) or (cfg.sizePreset == "small" and 11) or 13,
+                    width                  = 5,
+                    topTextSize            = 18,
+                    botTextSize            = 13,
                 }
+                -- Calculate width based on name length
+                resolved.width = math.clamp(4 + (#resolved.displayName * 0.3), 4, 8)
                 nametagConfigs[username] = resolved
             end
         end
