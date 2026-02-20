@@ -5119,73 +5119,61 @@ local function buildNametag(targetPlayer, cfg)
     local billboard = Instance.new("BillboardGui")
     billboard.Name            = "OnyxNametag"
     billboard.Adornee         = attachTo
-    -- Use a fixed base size (AutomaticSize is not supported on BillboardGui in some environments)
-    billboard.Size            = UDim2.new(0, 200, 0, 100) 
-    billboard.StudsOffset     = Vector3.new(0, 2.8, 0)
+    billboard.Size            = UDim2.new(0, 300, 0, 100) -- Large enough to contain the pill
+    billboard.StudsOffset     = Vector3.new(0, 3.2, 0)
     billboard.AlwaysOnTop     = false
     billboard.LightInfluence  = 0
     billboard.ClipsDescendants = false
 
-    -- Parent inside CoreGui for local only visibility
     local ok, coreGui = pcall(function() return game:GetService("CoreGui") end)
     billboard.Parent = ok and coreGui or plr.PlayerGui
 
-    -- Background frame
+    -- Background frame (The Pill)
     local bg = Instance.new("Frame")
     bg.Name                  = "Background"
     bg.AnchorPoint           = Vector2.new(0.5, 0.5)
     bg.Position              = UDim2.new(0.5, 0, 0.5, 0)
-    bg.Size                  = UDim2.new(0, 100, 0, 40) -- Base size
     bg.AutomaticSize         = Enum.AutomaticSize.XY
     bg.BackgroundColor3      = cfg.backgroundColor
     bg.BackgroundTransparency = cfg.backgroundTransparency
     bg.BorderSizePixel       = 0
     bg.Parent                = billboard
 
-    -- Optional background image
-    if cfg.backgroundImage and cfg.backgroundImage ~= "" then
-        local bgImg = Instance.new("ImageLabel")
-        bgImg.Name                  = "BgImage"
-        bgImg.Size                  = UDim2.new(1, 0, 1, 0)
-        bgImg.BackgroundTransparency = 1
-        bgImg.Image                 = resolveAsset(cfg.backgroundImage)
-        bgImg.ScaleType             = Enum.ScaleType.Crop
-        bgImg.Parent                = bg
-    end
-
-    -- Rounded corners (Increased for smoother look)
+    -- Rounded corners (Maximum for Pill shape)
     local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 12)
+    corner.CornerRadius = UDim.new(0, 100) -- Force pill shape
     corner.Parent = bg
 
-    -- Outer stroke
+    -- Glowing Stroke
     local stroke = Instance.new("UIStroke")
     stroke.Color     = cfg.outlineColor
-    stroke.Thickness = 2
+    stroke.Thickness = 2.5
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     stroke.Parent    = bg
 
-    -- Layout (Add padding to sides)
-    local layout = Instance.new("UIListLayout")
-    layout.FillDirection       = Enum.FillDirection.Vertical
-    layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    layout.VerticalAlignment   = Enum.VerticalAlignment.Center
-    layout.SortOrder           = Enum.SortOrder.LayoutOrder
-    layout.Padding             = UDim.new(0, 2)
-    layout.Parent              = bg
+    -- Main Horizontal Layout
+    local mainLayout = Instance.new("UIListLayout")
+    mainLayout.FillDirection       = Enum.FillDirection.Horizontal
+    mainLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    mainLayout.VerticalAlignment   = Enum.VerticalAlignment.Center
+    mainLayout.SortOrder           = Enum.SortOrder.LayoutOrder
+    mainLayout.Padding             = UDim.new(0, 10) -- Space between icon and text
+    mainLayout.Parent              = bg
 
-    -- Padding for content
+    -- Padding for the pill
     local uiPadding = Instance.new("UIPadding")
-    uiPadding.PaddingLeft   = UDim.new(0, 15)
-    uiPadding.PaddingRight  = UDim.new(0, 15)
-    uiPadding.PaddingTop    = UDim.new(0, 8)
-    uiPadding.PaddingBottom = UDim.new(0, 8)
-    uiPadding.Parent        = bg
+    uiPadding.PaddingLeft   = UDim.new(0, 12)
+    uiPadding.PaddingRight  = UDim.new(0, 20) -- Extra room on right for text
+    uiPadding.PaddingTop    = UDim.new(0, 6)
+    uiPadding.PaddingBottom = UDim.new(0, 6)
+    uiPadding.ParentContent = bg
+    uiPadding.Parent = bg
 
-    -- Optional icon
+    -- Optional icon (on the left)
     if cfg.iconImage and cfg.iconImage ~= "" then
         local icon = Instance.new("ImageLabel")
         icon.Name                   = "Icon"
-        icon.Size                   = UDim2.new(0, 32, 0, 32)
+        icon.Size                   = UDim2.new(0, 42, 0, 42) -- Large premium icon
         icon.BackgroundTransparency = 1
         icon.Image                  = resolveAsset(cfg.iconImage)
         icon.ScaleType              = Enum.ScaleType.Fit
@@ -5193,21 +5181,36 @@ local function buildNametag(targetPlayer, cfg)
         icon.Parent                 = bg
     end
 
+    -- Text Container (Vertical stack on the right)
+    local textContainer = Instance.new("Frame")
+    textContainer.Name = "TextContainer"
+    textContainer.BackgroundTransparency = 1
+    textContainer.AutomaticSize = Enum.AutomaticSize.XY
+    textContainer.LayoutOrder = 1
+    textContainer.Parent = bg
+
+    local textLayout = Instance.new("UIListLayout")
+    textLayout.FillDirection = Enum.FillDirection.Vertical
+    textLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+    textLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+    textLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    textLayout.Padding = UDim.new(0, -2) -- Tighter stacking
+    textLayout.Parent = textContainer
+
     -- Display name (top text)
     local topLabel = Instance.new("TextLabel")
     topLabel.Name                 = "DisplayName"
-    topLabel.Size                 = UDim2.new(0, 0, 0, cfg.topTextSize + 4)
-    topLabel.AutomaticSize         = Enum.AutomaticSize.X
+    topLabel.AutomaticSize         = Enum.AutomaticSize.XY
     topLabel.BackgroundTransparency = 1
     topLabel.Text                 = cfg.displayName
     topLabel.Font                 = NAMETAG_FONT_MAP[cfg.font] or Enum.Font.GothamBlack
     topLabel.TextSize             = cfg.topTextSize
     topLabel.TextColor3           = cfg.textColor
     topLabel.TextStrokeColor3     = cfg.outlineColor
-    topLabel.TextStrokeTransparency = 0.5
-    topLabel.TextXAlignment       = Enum.TextXAlignment.Center
-    topLabel.LayoutOrder          = 1
-    topLabel.Parent               = bg
+    topLabel.TextStrokeTransparency = 0.8
+    topLabel.TextXAlignment       = Enum.TextXAlignment.Left
+    topLabel.LayoutOrder          = 0
+    topLabel.Parent               = textContainer
     
     -- Store original color for glitch restoration
     billboard:SetAttribute("OriginalStrokeColor", cfg.outlineColor)
