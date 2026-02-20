@@ -354,7 +354,7 @@ MinimizeButton.AnchorPoint = Vector2.new(1, 0.5)
 MinimizeButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 MinimizeButton.BackgroundTransparency = 0.88
 MinimizeButton.BorderSizePixel = 0
-MinimizeButton.Position = UDim2.new(1, -42, 0.5, 0)
+MinimizeButton.Position = UDim2.new(1, -10, 0.5, 0)
 MinimizeButton.Size = UDim2.new(0, 26, 0, 26)
 MinimizeButton.Font = Enum.Font.GothamBold
 MinimizeButton.Text = "−"
@@ -369,26 +369,7 @@ do
 end
 
 -- Close Button
-local CloseButton = Instance.new("TextButton")
-CloseButton.Name = "CloseButton"
-CloseButton.Parent = TitleBar
-CloseButton.AnchorPoint = Vector2.new(1, 0.5)
-CloseButton.BackgroundColor3 = Color3.fromRGB(255, 65, 65)
-CloseButton.BackgroundTransparency = 0.15
-CloseButton.BorderSizePixel = 0
-CloseButton.Position = UDim2.new(1, -10, 0.5, 0)
-CloseButton.Size = UDim2.new(0, 26, 0, 26)
-CloseButton.Font = Enum.Font.GothamBold
-CloseButton.Text = "×"
-CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseButton.TextSize = 20
-CloseButton.ZIndex = 3
-CloseButton.AutoButtonColor = false
-do
-    local CloseCorner = Instance.new("UICorner")
-    CloseCorner.CornerRadius = UDim.new(0, 7)
-    CloseCorner.Parent = CloseButton
-end
+
 
 -- Content Container
 local ContentContainer = Instance.new("Frame")
@@ -1975,17 +1956,6 @@ do
 end -- end minimize do
 
 -- Close Button Functionality
-CloseButton.MouseButton1Click:Connect(function()
-    local tweenInfo = TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-    local fadeTween = TweenService:Create(MainFrame, tweenInfo, {BackgroundTransparency = 1})
-    
-    fadeTween:Play()
-    
-    fadeTween.Completed:Connect(function()
-        OnyxUI:Destroy()
-    end)
-end)
-
 do
 -- Button Hover Effects
 local function createHoverEffect(button, hoverTransparency, normalTransparency)
@@ -1998,7 +1968,6 @@ local function createHoverEffect(button, hoverTransparency, normalTransparency)
 end
 
 createHoverEffect(MinimizeButton, 0.65, 0.88)
-createHoverEffect(CloseButton, 0.0, 0.15)
 
 -- Special hover effect for toggle button
 ToggleButton.MouseEnter:Connect(function()
