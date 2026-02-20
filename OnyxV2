@@ -5166,7 +5166,6 @@ local function buildNametag(targetPlayer, cfg)
     uiPadding.PaddingRight  = UDim.new(0, 20) -- Extra room on right for text
     uiPadding.PaddingTop    = UDim.new(0, 6)
     uiPadding.PaddingBottom = UDim.new(0, 6)
-    uiPadding.ParentContent = bg
     uiPadding.Parent = bg
 
     -- Optional icon (on the left)
