@@ -4924,7 +4924,7 @@ plr:SetAttribute("OnyxExecuted", true)
 -- Runtime state
 local nametagObjects = {}   -- [userId] = BillboardGui instance
 local nametagConfigs = {}   -- [username] = config or "default" or table
-local WORKER_BASE = "https://onyx-worker.onyxv2.workers.dev"
+local WORKER_BASE = "https://onyx-key-system.onyxv2.workers.dev"
 
 -- ── CUSTOMIZE DEFAULTS HERE ──────────────────────────
 local DEFAULT_BG_IMAGE   = "" -- Set to "" for solid color only
@@ -5000,10 +5000,11 @@ local function fetchNametagConfig(username, callback)
     table.insert(fetchPending[username], callback)
 
     task.spawn(function()
-        warn("[Onyx Debug] Fetching nametag for: " .. username)
+        local fullUrl = WORKER_BASE .. "/get-nametag/" .. username
+        warn("[Onyx Debug] Fetching nametag from: " .. fullUrl)
         local ok, result = pcall(function()
             return httpRequest({
-                Url    = WORKER_BASE .. "/get-nametag/" .. username,
+                Url    = fullUrl,
                 Method = "GET",
             })
         end)
