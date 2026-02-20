@@ -5246,35 +5246,40 @@ local function buildNametag(targetPlayer, cfg)
             if billboard.Enabled and textContainer.Visible then
                 local p = Instance.new("Frame")
                 p.Name = "Particle"
-                p.Parent = bg
+                -- Parent to Billboard so it doesn't stretch the BG pill or get caught in the ListLayout
+                p.Parent = billboard 
                 p.Size = UDim2.new(0, rng:NextInteger(2, 4), 0, rng:NextInteger(2, 4))
                 p.BackgroundColor3 = cfg.outlineColor
                 p.BackgroundTransparency = 0.2
                 p.BorderSizePixel = 0
                 p.ZIndex = 4
-                -- Spawn randomly within the background area
-                p.Position = UDim2.new(rng:NextNumber(0, 1), 0, rng:NextNumber(0, 1), 0)
+                
+                -- Center on the billboard (which centers on the player)
+                -- We offset randomly around the center 0.5, 0.5
+                local offsetX = rng:NextNumber(-0.25, 0.25)
+                local offsetY = rng:NextNumber(-0.1, 0.1)
+                p.Position = UDim2.new(0.5, (offsetX * 100), 0.5, (offsetY * 40))
                 
                 local pCorner = Instance.new("UICorner")
                 pCorner.CornerRadius = UDim.new(1, 0)
                 pCorner.Parent = p
 
                 task.spawn(function()
-                    local driftX = rng:NextNumber(-0.15, 0.15)
-                    local driftY = rng:NextNumber(-0.25, -0.05) -- Drift upwards
+                    local driftX = rng:NextNumber(-15, 15)
+                    local driftY = rng:NextNumber(-25, -5) -- Drift upwards
                     local duration = rng:NextNumber(1.2, 2.5)
                     
                     local tween = TweenService:Create(p, TweenInfo.new(duration, Enum.EasingStyle.QuadOut), {
-                        Position = p.Position + UDim2.new(driftX, 0, driftY, 0),
+                        Position = p.Position + UDim2.new(0, driftX, 0, driftY),
                         BackgroundTransparency = 1,
                         Size = UDim2.new(0, 0, 0, 0)
                     })
                     tween:Play()
                     tween.Completed:Wait()
-                    p:Destroy()
+                    if p and p.Parent then p:Destroy() end
                 end)
             end
-            task.wait(rng:NextNumber(0.15, 0.4)) -- Adjusted spawn rate for performance
+            task.wait(rng:NextNumber(0.1, 0.35))
         end
     end)
 
