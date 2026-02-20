@@ -5141,9 +5141,9 @@ local function buildNametag(targetPlayer, cfg)
     bg.BorderSizePixel       = 0
     bg.Parent                = billboard
 
-    -- Rounded corners (Maximum for Pill shape)
+    -- Rounded corners (Consistent Rounded Square Look)
     local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 100) -- Force pill shape
+    corner.CornerRadius = UDim.new(0, 14) -- Stylish rounded square
     corner.Parent = bg
 
     -- Glowing Stroke
@@ -5238,39 +5238,9 @@ local function buildNametag(targetPlayer, cfg)
     botLabel.LayoutOrder          = 1
     botLabel.Parent               = textContainer
 
-    -- Premium "Aura" Effect (Using 3D ParticleEmitter for stability)
-    task.spawn(function()
-        local head = character:FindFirstChild("Head")
-        if not head then return end
-        
-        local attachment = Instance.new("Attachment")
-        attachment.Name = "OnyxAuraAttachment"
-        attachment.Parent = head
-        
-        local emitter = Instance.new("ParticleEmitter")
-        emitter.Name = "OnyxAura"
-        emitter.Color = ColorSequence.new(cfg.outlineColor)
-        emitter.LightEmission = 1
-        emitter.LightInfluence = 0
-        emitter.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.4), NumberSequenceKeypoint.new(1, 0)})
-        emitter.Texture = "rbxassetid://6071575925" -- Soft glow circle
-        emitter.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 1)})
-        emitter.Lifetime = NumberRange.new(0.8, 1.5)
-        emitter.Rate = 12
-        emitter.Speed = NumberRange.new(0.5, 1.5)
-        emitter.SpreadAngle = Vector2.new(180, 180)
-        emitter.Parent = attachment
-
-        -- Clean up emitter if the nametag is destroyed
-        billboard.Destroying:Connect(function()
-            attachment:Destroy()
-        end)
-
-        while billboard and billboard.Parent do
-            emitter.Enabled = billboard.Enabled and textContainer.Visible
-            task.wait(1)
-        end
-        attachment:Destroy()
+    -- Clean up mechanism (Now just for memory safety)
+    billboard.Destroying:Connect(function()
+        -- Objects auto-destroy with parent
     end)
 
     -- Dynamic Shrinking Logic (LOD)
@@ -5288,19 +5258,19 @@ local function buildNametag(targetPlayer, cfg)
                     
                     -- Dynamic Shape, Padding & Icon Size
                     if shouldShowText then
-                        corner.CornerRadius = UDim.new(0, 100) -- Pill when large
+                        corner.CornerRadius = UDim.new(0, 14) -- Normal Rounded Square
                         uiPadding.PaddingLeft = UDim.new(0, 12)
                         uiPadding.PaddingRight = UDim.new(0, 20)
                         uiPadding.PaddingTop = UDim.new(0, 6)
                         uiPadding.PaddingBottom = UDim.new(0, 6)
                         if icon then icon.Size = UDim2.new(0, 52, 0, 52) end
                     else
-                        corner.CornerRadius = UDim.new(0, 10) -- Rounded square when shrunken
-                        uiPadding.PaddingLeft = UDim.new(0, 3) 
-                        uiPadding.PaddingRight = UDim.new(0, 3)
-                        uiPadding.PaddingTop = UDim.new(0, 3)
-                        uiPadding.PaddingBottom = UDim.new(0, 3)
-                        if icon then icon.Size = UDim2.new(0, 38, 0, 38) end -- Shrink icon too!
+                        corner.CornerRadius = UDim.new(0, 10) -- Compact Rounded Square
+                        uiPadding.PaddingLeft = UDim.new(0, 4) 
+                        uiPadding.PaddingRight = UDim.new(0, 4)
+                        uiPadding.PaddingTop = UDim.new(0, 4)
+                        uiPadding.PaddingBottom = UDim.new(0, 4)
+                        if icon then icon.Size = UDim2.new(0, 38, 0, 38) end
                     end
                 end
             end
