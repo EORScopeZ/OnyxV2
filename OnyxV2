@@ -5054,11 +5054,13 @@ local function fetchNametagConfig(username, callback)
         end
 
         if not resolved then
-            -- Only fallback to default for SELF. For others, we just don't show the tag if not active.
+            -- Only fallback to default for SELF. For others, we just don't show the tag.
             if username:lower() == plr.Name:lower() then
                 print("[Onyx Debug] Falling back to default for SELF")
                 resolved = getDefaultConfig()
                 nametagConfigs[username] = resolved
+            else
+                nametagConfigs[username] = "inactive"
             end
         end
 
@@ -5106,11 +5108,9 @@ end
 
 -- Build and return a BillboardGui nametag attached to a part
 local function buildNametag(targetPlayer, cfg)
+    if not cfg or type(cfg) ~= "table" then return nil end
+    
     local character = targetPlayer.Character
-    if not character then return nil end
-
-    local attachTo = character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
-    if not attachTo then return nil end
 
     -- Format asset URLs for Decals/IDs
     local function resolveAsset(url)
@@ -5176,16 +5176,16 @@ local function buildNametag(targetPlayer, cfg)
     if cfg.iconImage and cfg.iconImage ~= "" then
         icon = Instance.new("ImageLabel")
         icon.Name                   = "Icon"
-        icon.Size                   = UDim2.new(0, 44, 0, 44) -- Bigger Icon
+        icon.Size                   = UDim2.new(0, 64, 0, 64) -- Bigger 64x64
         icon.BackgroundTransparency = 1
         icon.Image                  = resolveAsset(cfg.iconImage)
-        icon.ScaleType              = Enum.ScaleType.Fit
+        icon.ScaleType              = Enum.ScaleType.Crop
         icon.LayoutOrder            = 0
         icon.ZIndex                 = 5
         icon.Parent                 = bg
 
         local iconCorner = Instance.new("UICorner")
-        iconCorner.CornerRadius = UDim.new(0, 100)
+        iconCorner.CornerRadius = UDim.new(0, 12) -- Less round, stylish corner
         iconCorner.Parent = icon
     end
 
@@ -5250,7 +5250,21 @@ local function buildNametag(targetPlayer, cfg)
                 if shouldShowText ~= lastState then
                     lastState = shouldShowText
                     textContainer.Visible = shouldShowText
-                    uiPadding.PaddingRight = shouldShowText and UDim.new(0, 24) or UDim.new(0, 14)
+                    
+                    -- Dynamic Shape & Padding
+                    if shouldShowText then
+                        corner.CornerRadius = UDim.new(0, 100) -- Pill when large
+                        uiPadding.PaddingLeft = UDim.new(0, 14)
+                        uiPadding.PaddingRight = UDim.new(0, 24)
+                        uiPadding.PaddingTop = UDim.new(0, 7)
+                        uiPadding.PaddingBottom = UDim.new(0, 7)
+                    else
+                        corner.CornerRadius = UDim.new(0, 12) -- Rounded square when shrunken
+                        uiPadding.PaddingLeft = UDim.new(0, 3) -- Super tight
+                        uiPadding.PaddingRight = UDim.new(0, 3)
+                        uiPadding.PaddingTop = UDim.new(0, 3)
+                        uiPadding.PaddingBottom = UDim.new(0, 3)
+                    end
                 end
             end
             task.wait(0.2)
@@ -5278,38 +5292,43 @@ local function startGlitchAnimation(billboard)
             task.wait(rng:NextNumber(6.0, 15.0))
             if not billboard or not billboard.Parent then break end
 
-            -- Brief glitch burst
-            for _ = 1, rng:NextInteger(2, 4) do
+            -- Brief intense glitch burst
+            for _ = 1, rng:NextInteger(3, 5) do
                 if not billboard or not billboard.Parent then break end
 
-                -- Shift top text slightly
-                local offsetX = rng:NextInteger(-2, 2)
-                local offsetY = rng:NextInteger(-1, 1)
+                -- Aggressive jitter
+                local offsetX = rng:NextInteger(-5, 5)
+                local offsetY = rng:NextInteger(-3, 3)
                 topLabel.Position = UDim2.new(0, offsetX, 0, offsetY)
+                if icon then icon.Position = UDim2.new(0, offsetX/2, 0, offsetY/2) end
 
-                -- Flicker transparency
-                local flicker = rng:NextNumber(0.1, 0.4)
+                -- Hyper flicker
+                local flicker = rng:NextNumber(0, 0.6)
                 topLabel.TextTransparency = flicker
-                if botLabel then botLabel.TextTransparency = flicker * 0.5 end
+                if botLabel then botLabel.TextTransparency = flicker + 0.2 end
+                if icon then icon.ImageTransparency = flicker end
 
-                -- Briefly change stroke to a "glitch color"
-                local glitchColor = Color3.fromRGB(
-                    rng:NextInteger(150, 255),
-                    rng:NextInteger(50, 100),
-                    rng:NextInteger(150, 255)
-                )
-                topLabel.TextStrokeColor3 = glitchColor
+                -- Flash electric glitch colors
+                local glitchColors = {
+                    Color3.fromRGB(255, 0, 80),  -- Cyber Pink
+                    Color3.fromRGB(0, 255, 255), -- Electric Cyan
+                    Color3.fromRGB(255, 255, 255) -- White flash
+                }
+                topLabel.TextStrokeColor3 = glitchColors[rng:NextInteger(1, #glitchColors)]
+                stroke.Color = glitchColors[rng:NextInteger(1, #glitchColors)]
                 
-                -- Slower flicker for stability
-                task.wait(0.08)
+                task.wait(0.04)
             end
 
             -- Restore to normal
             if billboard and billboard.Parent then
                 topLabel.Position         = UDim2.new(0, 0, 0, 0)
+                if icon then icon.Position = UDim2.new(0, 0, 0, 0) end
                 topLabel.TextTransparency = 0
+                if icon then icon.ImageTransparency = 0 end
                 if botLabel then botLabel.TextTransparency = 0 end
                 topLabel.TextStrokeColor3 = billboard:GetAttribute("OriginalStrokeColor") or Color3.new(0,0,0)
+                stroke.Color = billboard:GetAttribute("OriginalStrokeColor") or Color3.new(0,0,0)
             end
         end
     end)
