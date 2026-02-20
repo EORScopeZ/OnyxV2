@@ -4904,8 +4904,9 @@ plr:SetAttribute("OnyxExecuted", true)
 
 -- Runtime state
 local nametagObjects = {}   -- [userId] = BillboardGui instance
-local nametagConfigs = {}   -- [username] = config or "default" or "loading"
-local WORKER_BASE = "https://onyx-worker.onyxv2.workers.dev" -- Change to your actual worker URL
+local nametagConfigs = {}   -- [username] = config or "default" or table
+local WORKER_BASE = "https://onyx-worker.onyxv2.workers.dev"
+
 local NAMETAG_FONT_MAP = {
     ["GothamBlack"]  = Enum.Font.GothamBlack,
     ["Arcade"]       = Enum.Font.Arcade,
@@ -4914,21 +4915,21 @@ local NAMETAG_FONT_MAP = {
     ["Creepster"]    = Enum.Font.Creepster,
 }
 
--- Default nametag config used when player has no custom config
+-- Default nametag config (solid colour background, "Onyx User" display name)
 local function getDefaultConfig()
     return {
-        displayName     = "Onyx User",
-        font            = "GothamBlack",
-        textColor       = Color3.fromRGB(255, 255, 255),
-        outlineColor    = Color3.fromRGB(255, 255, 255),
-        backgroundColor = Color3.fromRGB(10, 10, 10),
+        displayName            = "Onyx User",
+        font                   = "GothamBlack",
+        textColor              = Color3.fromRGB(255, 255, 255),
+        outlineColor           = Color3.fromRGB(255, 255, 255),
+        backgroundColor        = Color3.fromRGB(10, 10, 10),
         backgroundTransparency = 0.25,
-        backgroundImage = nil,
-        iconImage       = nil,
-        glitchAnim      = false,
-        width           = 5,
-        topTextSize     = 18,
-        botTextSize     = 13,
+        backgroundImage        = nil,  -- no image, colour only
+        iconImage              = nil,
+        glitchAnim             = false,
+        width                  = 5,
+        topTextSize            = 18,
+        botTextSize            = 13,
     }
 end
 
@@ -4949,15 +4950,30 @@ local function hexToColor3(hex)
     return nil
 end
 
+-- Pending callbacks for configs still being fetched
+local fetchPending = {} -- [username] = {callback, ...}
+
 -- Fetch nametag config from Cloudflare, non-blocking
 local function fetchNametagConfig(username, callback)
-    -- Already have it?
-    if nametagConfigs[username] then
-        callback(nametagConfigs[username])
+    local cached = nametagConfigs[username]
+
+    -- Fully resolved already
+    if cached and cached ~= "loading" then
+        callback(cached == "default" and getDefaultConfig() or cached)
         return
     end
 
+    -- Already in-flight: queue the callback
+    if cached == "loading" then
+        fetchPending[username] = fetchPending[username] or {}
+        table.insert(fetchPending[username], callback)
+        return
+    end
+
+    -- Fresh fetch
     nametagConfigs[username] = "loading"
+    fetchPending[username] = fetchPending[username] or {}
+    table.insert(fetchPending[username], callback)
 
     task.spawn(function()
         local ok, result = pcall(function()
@@ -4967,16 +4983,20 @@ local function fetchNametagConfig(username, callback)
             })
         end)
 
+        local resolved
         if ok and result and result.StatusCode == 200 then
-            local parsed = ok and game:GetService("HttpService"):JSONDecode(result.Body)
-            if parsed and parsed.config then
+            local parsed
+            ok, parsed = pcall(function()
+                return game:GetService("HttpService"):JSONDecode(result.Body)
+            end)
+            if ok and parsed and parsed.config then
                 local cfg = parsed.config
-                local resolved = {
+                resolved = {
                     displayName            = cfg.displayName or "Onyx User",
                     font                   = cfg.font or "GothamBlack",
-                    textColor              = hexToColor3(cfg.textColor)       or Color3.fromRGB(255,255,255),
-                    outlineColor           = hexToColor3(cfg.outlineColor)    or Color3.fromRGB(255,255,255),
-                    backgroundColor        = Color3.fromRGB(10,10,10),
+                    textColor              = hexToColor3(cfg.textColor)        or Color3.fromRGB(255,255,255),
+                    outlineColor           = hexToColor3(cfg.outlineColor)     or Color3.fromRGB(255,255,255),
+                    backgroundColor        = hexToColor3(cfg.backgroundColor) or Color3.fromRGB(10,10,10),
                     backgroundTransparency = 0.25,
                     backgroundImage        = cfg.backgroundImage or nil,
                     iconImage              = cfg.iconImage or nil,
@@ -4986,14 +5006,19 @@ local function fetchNametagConfig(username, callback)
                     botTextSize            = (cfg.sizePreset == "large" and 16) or (cfg.sizePreset == "small" and 11) or 13,
                 }
                 nametagConfigs[username] = resolved
-                callback(resolved)
-            else
-                nametagConfigs[username] = "default"
-                callback(getDefaultConfig())
             end
-        else
+        end
+
+        if not resolved then
             nametagConfigs[username] = "default"
-            callback(getDefaultConfig())
+            resolved = getDefaultConfig()
+        end
+
+        -- Fire all pending callbacks
+        local pending = fetchPending[username] or {}
+        fetchPending[username] = nil
+        for _, cb in ipairs(pending) do
+            task.spawn(cb, resolved)
         end
     end)
 end
@@ -5163,17 +5188,19 @@ end
 
 -- Create (or recreate) the nametag for a target player
 local function applyNametag(targetPlayer)
-    -- Visibility check: both must have OnyxExecuted = true
+    -- Visibility check: local player must have executed
     if not plr:GetAttribute("OnyxExecuted") then return end
-    if not targetPlayer:GetAttribute("OnyxExecuted") then return end
-    if targetPlayer == plr then return end
+    -- Other players must also have executed (or it's ourselves)
+    if targetPlayer ~= plr and not targetPlayer:GetAttribute("OnyxExecuted") then return end
 
     local userId = targetPlayer.UserId
-    removeNametag(userId)  -- clean up old one before creating new
+    removeNametag(userId)
 
     fetchNametagConfig(targetPlayer.Name, function(cfg)
         -- Re-check after async fetch in case player left
-        if not targetPlayer or not targetPlayer.Parent then return end
+        if targetPlayer ~= plr then
+            if not targetPlayer or not targetPlayer.Parent then return end
+        end
         if not targetPlayer.Character then return end
 
         local billboard = buildNametag(targetPlayer, cfg)
@@ -5185,6 +5212,12 @@ local function applyNametag(targetPlayer)
             startGlitchAnimation(billboard)
         end
     end)
+end
+
+-- Apply self-nametag immediately (so you can see your own tag)
+local function applySelfNametag()
+    if not plr.Character then return end
+    applyNametag(plr)
 end
 
 -- Serial fetch queue: ensures only one HTTP request fires at a time
@@ -5252,8 +5285,10 @@ local function watchPlayer(targetPlayer)
     end)
 end
 
--- ── Bootstrap existing players (staggered to avoid overwhelming the executor)
+-- ── Bootstrap: self nametag + existing players (staggered)
 task.spawn(function()
+    task.wait(1) -- brief wait so character is ready
+    applySelfNametag()  -- show your own tag immediately
     for _, existingPlayer in ipairs(Players:GetPlayers()) do
         if existingPlayer ~= plr then
             watchPlayer(existingPlayer)
@@ -5273,11 +5308,12 @@ Players.PlayerRemoving:Connect(function(leavingPlayer)
     nametagConfigs[leavingPlayer.Name] = nil  -- clear cache so fresh data on rejoin
 end)
 
--- ── Re-apply our own nametag to others when WE respawn ─────────────────────────
+-- ── Re-apply after respawn ─────────────────────────────────────────────────────
 plr.CharacterAdded:Connect(function()
     task.wait(0.8)
     plr:SetAttribute("OnyxExecuted", true)
-    -- Re-apply staggered so we don't spike on respawn
+    applySelfNametag()  -- re-show our own tag after respawn
+    -- Re-apply to others, staggered
     task.spawn(function()
         for _, otherPlayer in ipairs(Players:GetPlayers()) do
             if otherPlayer ~= plr and otherPlayer:GetAttribute("OnyxExecuted") then
