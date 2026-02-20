@@ -5249,29 +5249,31 @@ local function buildNametag(targetPlayer, cfg)
             local cam = workspace.CurrentCamera
             if cam and billboard.Adornee then
                 local dist = (cam.CFrame.Position - billboard.Adornee.Position).Magnitude
-                local shouldShowText = dist < 45 -- Shrink at 45 studs
+                local shouldShowText = dist < 60 -- Shrink at 60 studs for better feel
                 
                 if shouldShowText ~= lastState then
                     lastState = shouldShowText
                     textContainer.Visible = shouldShowText
                     
-                    -- Dynamic Shape & Padding
+                    -- Dynamic Shape, Padding & Icon Size
                     if shouldShowText then
                         corner.CornerRadius = UDim.new(0, 100) -- Pill when large
                         uiPadding.PaddingLeft = UDim.new(0, 14)
                         uiPadding.PaddingRight = UDim.new(0, 24)
                         uiPadding.PaddingTop = UDim.new(0, 7)
                         uiPadding.PaddingBottom = UDim.new(0, 7)
+                        if icon then icon.Size = UDim2.new(0, 64, 0, 64) end
                     else
                         corner.CornerRadius = UDim.new(0, 12) -- Rounded square when shrunken
-                        uiPadding.PaddingLeft = UDim.new(0, 3) -- Super tight
+                        uiPadding.PaddingLeft = UDim.new(0, 3) 
                         uiPadding.PaddingRight = UDim.new(0, 3)
                         uiPadding.PaddingTop = UDim.new(0, 3)
                         uiPadding.PaddingBottom = UDim.new(0, 3)
+                        if icon then icon.Size = UDim2.new(0, 48, 0, 48) end -- Shrink icon too!
                     end
                 end
             end
-            task.wait(0.2)
+            task.wait(0.25)
         end
     end)
 
@@ -5282,9 +5284,14 @@ end
 local function startGlitchAnimation(billboard)
     task.spawn(function()
         local bg        = billboard:FindFirstChild("Background")
-        local topLabel  = bg and bg:FindFirstChild("DisplayName")
-        local botLabel  = bg and bg:FindFirstChild("Username")
-        if not bg or not topLabel then return end
+        if not bg then return end
+        
+        local topLabel  = bg:FindFirstChild("DisplayName")
+        local botLabel  = bg:FindFirstChild("Username")
+        local icon      = bg:FindFirstChild("Icon")
+        local stroke    = bg:FindFirstChildOfClass("UIStroke")
+        
+        if not topLabel or not stroke then return end
 
         local rng = Random.new()
 
@@ -5318,8 +5325,9 @@ local function startGlitchAnimation(billboard)
                     Color3.fromRGB(0, 255, 255), -- Electric Cyan
                     Color3.fromRGB(255, 255, 255) -- White flash
                 }
-                topLabel.TextStrokeColor3 = glitchColors[rng:NextInteger(1, #glitchColors)]
-                stroke.Color = glitchColors[rng:NextInteger(1, #glitchColors)]
+                local chosenColor = glitchColors[rng:NextInteger(1, #glitchColors)]
+                topLabel.TextStrokeColor3 = chosenColor
+                stroke.Color = chosenColor
                 
                 task.wait(0.04)
             end
@@ -5331,8 +5339,9 @@ local function startGlitchAnimation(billboard)
                 topLabel.TextTransparency = 0
                 if icon then icon.ImageTransparency = 0 end
                 if botLabel then botLabel.TextTransparency = 0 end
-                topLabel.TextStrokeColor3 = billboard:GetAttribute("OriginalStrokeColor") or Color3.new(0,0,0)
-                stroke.Color = billboard:GetAttribute("OriginalStrokeColor") or Color3.new(0,0,0)
+                local origColor = billboard:GetAttribute("OriginalStrokeColor") or Color3.new(0,0,0)
+                topLabel.TextStrokeColor3 = origColor
+                stroke.Color = origColor
             end
         end
     end)
