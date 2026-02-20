@@ -4077,13 +4077,13 @@ local function PopulateEmoteList(emoteList)
             for j = i, endIdx do
                 table.insert(visibleEmotes, allEmotes[j])
             end
-            -- Update UI every chunk
-            if i == 1 then
-                local totalH = VPAD * 2 + #visibleEmotes * VROW_H
-                EmoteListFrame.CanvasSize = UDim2.new(0, 0, 0, totalH)
-                RefreshVirtualRows()
-            end
-            task.wait(0.05) -- Small delay between chunks
+            
+            -- Update UI every chunk so users can scroll as it loads
+            local totalH = VPAD * 2 + #visibleEmotes * VROW_H
+            EmoteListFrame.CanvasSize = UDim2.new(0, 0, 0, totalH)
+            RefreshVirtualRows()
+            
+            task.wait(0.05) -- Small delay between chunks to prevent frame drops
         end
         
         emotesLoaded = true
