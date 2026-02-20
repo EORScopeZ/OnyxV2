@@ -5157,22 +5157,23 @@ local function buildNametag(targetPlayer, cfg)
     mainLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
     mainLayout.VerticalAlignment   = Enum.VerticalAlignment.Center
     mainLayout.SortOrder           = Enum.SortOrder.LayoutOrder
-    mainLayout.Padding             = UDim.new(0, 8) -- Tighter space
+    mainLayout.Padding             = UDim.new(0, 10) -- Space between icon and text
     mainLayout.Parent              = bg
 
-    -- Padding for the pill (Slightly longer horizontally)
+    -- Padding for the pill (Larger padding for bigger tag)
     local uiPadding = Instance.new("UIPadding")
-    uiPadding.PaddingLeft   = UDim.new(0, 12)
-    uiPadding.PaddingRight  = UDim.new(0, 22)
-    uiPadding.PaddingTop    = UDim.new(0, 5)
-    uiPadding.PaddingBottom = UDim.new(0, 5)
+    uiPadding.PaddingLeft   = UDim.new(0, 14)
+    uiPadding.PaddingRight  = UDim.new(0, 24)
+    uiPadding.PaddingTop    = UDim.new(0, 7)
+    uiPadding.PaddingBottom = UDim.new(0, 7)
     uiPadding.Parent = bg
 
     -- Optional icon (on the left)
+    local icon
     if cfg.iconImage and cfg.iconImage ~= "" then
-        local icon = Instance.new("ImageLabel")
+        icon = Instance.new("ImageLabel")
         icon.Name                   = "Icon"
-        icon.Size                   = UDim2.new(0, 32, 0, 32) -- A bit smaller
+        icon.Size                   = UDim2.new(0, 44, 0, 44) -- Bigger Icon
         icon.BackgroundTransparency = 1
         icon.Image                  = resolveAsset(cfg.iconImage)
         icon.ScaleType              = Enum.ScaleType.Fit
@@ -5180,7 +5181,6 @@ local function buildNametag(targetPlayer, cfg)
         icon.ZIndex                 = 5
         icon.Parent                 = bg
 
-        -- Add rounding to the icon itself
         local iconCorner = Instance.new("UICorner")
         iconCorner.CornerRadius = UDim.new(0, 100)
         iconCorner.Parent = icon
@@ -5200,7 +5200,7 @@ local function buildNametag(targetPlayer, cfg)
     textLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
     textLayout.VerticalAlignment = Enum.VerticalAlignment.Center
     textLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    textLayout.Padding = UDim.new(0, -1) -- Very tight stacking
+    textLayout.Padding = UDim.new(0, -1)
     textLayout.Parent = textContainer
 
     -- Display name (top text)
@@ -5210,7 +5210,7 @@ local function buildNametag(targetPlayer, cfg)
     topLabel.BackgroundTransparency = 1
     topLabel.Text                 = cfg.displayName
     topLabel.Font                 = NAMETAG_FONT_MAP[cfg.font] or Enum.Font.GothamBlack
-    topLabel.TextSize             = cfg.topTextSize
+    topLabel.TextSize             = cfg.topTextSize + 4 -- Scale up!
     topLabel.TextColor3           = cfg.textColor
     topLabel.TextStrokeColor3     = cfg.outlineColor
     topLabel.TextStrokeTransparency = 0.8
@@ -5228,12 +5228,31 @@ local function buildNametag(targetPlayer, cfg)
     botLabel.BackgroundTransparency = 1
     botLabel.Text                 = "@" .. targetPlayer.Name
     botLabel.Font                 = Enum.Font.Gotham
-    botLabel.TextSize             = cfg.botTextSize
+    botLabel.TextSize             = cfg.botTextSize + 3 -- Scale up!
     botLabel.TextColor3           = Color3.fromRGB(190, 190, 190)
     botLabel.TextStrokeTransparency = 1
-    botLabel.TextXAlignment       = Enum.TextXAlignment.Left -- Align with Display Name
+    botLabel.TextXAlignment       = Enum.TextXAlignment.Left
     botLabel.LayoutOrder          = 1
     botLabel.Parent               = textContainer
+
+    -- Dynamic Shrinking Logic (LOD)
+    task.spawn(function()
+        local lastState = true
+        while billboard and billboard.Parent do
+            local cam = workspace.CurrentCamera
+            if cam and billboard.Adornee then
+                local dist = (cam.CFrame.Position - billboard.Adornee.Position).Magnitude
+                local shouldShowText = dist < 45 -- Shrink at 45 studs
+                
+                if shouldShowText ~= lastState then
+                    lastState = shouldShowText
+                    textContainer.Visible = shouldShowText
+                    uiPadding.PaddingRight = shouldShowText and UDim.new(0, 24) or UDim.new(0, 14)
+                end
+            end
+            task.wait(0.2)
+        end
+    end)
 
     return billboard
 end
@@ -5304,10 +5323,11 @@ end
 
 -- Create (or recreate) the nametag for a target player
 local function applyNametag(targetPlayer)
-    -- Visibility check: local player must have executed
+    -- Local player must have executed to see anything
     if not plr:GetAttribute("OnyxExecuted") then return end
-    -- Other players must also have executed (or it's ourselves)
-    if targetPlayer ~= plr and not targetPlayer:GetAttribute("OnyxExecuted") then return end
+    
+    -- Removed the attribute check for targetPlayer because client-side attributes 
+    -- don't replicate to others. Now you'll see tags for everyone!
 
     local userId = targetPlayer.UserId
     removeNametag(userId)
