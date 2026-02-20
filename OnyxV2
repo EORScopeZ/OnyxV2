@@ -5050,6 +5050,39 @@ local function fetchNametagConfig(username, callback)
     end)
 end
 
+-- Serial fetch queue: ensures only one HTTP request fires at a time
+local fetchQueue = {}
+local fetchQueueRunning = false
+
+local function enqueueFetch(username, callback)
+    -- Already cached (or loading) — bypass the queue
+    if nametagConfigs[username] and nametagConfigs[username] ~= "loading" then
+        callback(nametagConfigs[username] == "default" and getDefaultConfig() or nametagConfigs[username])
+        return
+    end
+
+    table.insert(fetchQueue, { username = username, callback = callback })
+
+    if fetchQueueRunning then return end
+    fetchQueueRunning = true
+
+    task.spawn(function()
+        while #fetchQueue > 0 do
+            local item = table.remove(fetchQueue, 1)
+            -- Only fetch if not already populated
+            if nametagConfigs[item.username] and nametagConfigs[item.username] ~= "loading" then
+                local c = nametagConfigs[item.username]
+                item.callback(c == "default" and getDefaultConfig() or c)
+            else
+                fetchNametagConfig(item.username, item.callback)
+                task.wait(0.5) -- throttle: 500ms between fetches
+            end
+        end
+        fetchQueueRunning = false
+    end)
+end
+
+
 -- Build and return a BillboardGui nametag attached to a part
 local function buildNametag(targetPlayer, cfg)
     local character = targetPlayer.Character
@@ -5253,38 +5286,6 @@ end
 local function applySelfNametag()
     if not plr.Character then return end
     applyNametag(plr)
-end
-
--- Serial fetch queue: ensures only one HTTP request fires at a time
-local fetchQueue = {}
-local fetchQueueRunning = false
-
-local function enqueueFetch(username, callback)
-    -- Already cached (or loading) — bypass the queue
-    if nametagConfigs[username] and nametagConfigs[username] ~= "loading" then
-        callback(nametagConfigs[username] == "default" and getDefaultConfig() or nametagConfigs[username])
-        return
-    end
-
-    table.insert(fetchQueue, { username = username, callback = callback })
-
-    if fetchQueueRunning then return end
-    fetchQueueRunning = true
-
-    task.spawn(function()
-        while #fetchQueue > 0 do
-            local item = table.remove(fetchQueue, 1)
-            -- Only fetch if not already populated
-            if nametagConfigs[item.username] and nametagConfigs[item.username] ~= "loading" then
-                local c = nametagConfigs[item.username]
-                item.callback(c == "default" and getDefaultConfig() or c)
-            else
-                fetchNametagConfig(item.username, item.callback)
-                task.wait(0.3) -- throttle: 300ms between fetches
-            end
-        end
-        fetchQueueRunning = false
-    end)
 end
 
 -- Watch a single player for character spawns
