@@ -5160,10 +5160,10 @@ local function buildNametag(targetPlayer, cfg)
     mainLayout.Padding             = UDim.new(0, 8) -- Tighter space
     mainLayout.Parent              = bg
 
-    -- Padding for the pill (Reduce sides for better fit)
+    -- Padding for the pill (Slightly longer horizontally)
     local uiPadding = Instance.new("UIPadding")
-    uiPadding.PaddingLeft   = UDim.new(0, 10)
-    uiPadding.PaddingRight  = UDim.new(0, 15)
+    uiPadding.PaddingLeft   = UDim.new(0, 12)
+    uiPadding.PaddingRight  = UDim.new(0, 22)
     uiPadding.PaddingTop    = UDim.new(0, 5)
     uiPadding.PaddingBottom = UDim.new(0, 5)
     uiPadding.Parent = bg
@@ -5172,13 +5172,18 @@ local function buildNametag(targetPlayer, cfg)
     if cfg.iconImage and cfg.iconImage ~= "" then
         local icon = Instance.new("ImageLabel")
         icon.Name                   = "Icon"
-        icon.Size                   = UDim2.new(0, 36, 0, 36)
+        icon.Size                   = UDim2.new(0, 32, 0, 32) -- A bit smaller
         icon.BackgroundTransparency = 1
         icon.Image                  = resolveAsset(cfg.iconImage)
         icon.ScaleType              = Enum.ScaleType.Fit
         icon.LayoutOrder            = 0
-        icon.ZIndex                 = 5 -- Ensure it's on top
+        icon.ZIndex                 = 5
         icon.Parent                 = bg
+
+        -- Add rounding to the icon itself
+        local iconCorner = Instance.new("UICorner")
+        iconCorner.CornerRadius = UDim.new(0, 100)
+        iconCorner.Parent = icon
     end
 
     -- Text Container (Vertical stack on the right)
