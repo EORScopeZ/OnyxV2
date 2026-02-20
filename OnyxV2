@@ -4928,7 +4928,7 @@ local WORKER_BASE = "https://onyx-key-system.onyxv2.workers.dev"
 
 -- ── CUSTOMIZE DEFAULTS HERE ──────────────────────────
 local DEFAULT_BG_IMAGE   = "" -- Set to "" for solid color only
-local DEFAULT_ICON_IMAGE = "" -- Set to "rbxassetid://..." for a default icon
+local DEFAULT_ICON_IMAGE = "rbxassetid://138249935932599"
 -- ───────────────────────────────────────────────────
 
 local NAMETAG_FONT_MAP = {
