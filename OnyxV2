@@ -5109,23 +5109,34 @@ local function buildNametag(targetPlayer, cfg)
     local attachTo = character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
     if not attachTo then return nil end
 
+    -- Format asset URLs for Decals/IDs
+    local function resolveAsset(url)
+        if not url or url == "" then return nil end
+        local id = url:match("%d+")
+        return id and "rbxthumb://type=Asset&id="..id.."&w=420&h=420" or url
+    end
+
     local billboard = Instance.new("BillboardGui")
     billboard.Name            = "OnyxNametag"
     billboard.Adornee         = attachTo
-    billboard.Size            = UDim2.new(cfg.width, 0, 1.5, 0)
+    -- Use automatic sizing so the tag fits the name length/images perfectly
+    billboard.Size            = UDim2.new(0, 0, 0, 0) 
+    billboard.AutomaticSize   = Enum.AutomaticSize.XY
     billboard.StudsOffset     = Vector3.new(0, 2.8, 0)
     billboard.AlwaysOnTop     = false
-    billboard.MaxDistance     = 80
-    billboard.ResetOnSpawn    = false
+    billboard.LightInfluence  = 0
     billboard.ClipsDescendants = false
-    -- Parent inside CoreGui for local only visibility (other clients won't see it)
+
+    -- Parent inside CoreGui for local only visibility
     local ok, coreGui = pcall(function() return game:GetService("CoreGui") end)
     billboard.Parent = ok and coreGui or plr.PlayerGui
 
     -- Background frame
     local bg = Instance.new("Frame")
     bg.Name                  = "Background"
-    bg.Size                  = UDim2.new(1, 0, 1, 0)
+    -- Minimal width, expanded by content
+    bg.Size                  = UDim2.new(0, 100, 0, 0)
+    bg.AutomaticSize         = Enum.AutomaticSize.XY
     bg.BackgroundColor3      = cfg.backgroundColor
     bg.BackgroundTransparency = cfg.backgroundTransparency
     bg.BorderSizePixel       = 0
@@ -5137,23 +5148,23 @@ local function buildNametag(targetPlayer, cfg)
         bgImg.Name                  = "BgImage"
         bgImg.Size                  = UDim2.new(1, 0, 1, 0)
         bgImg.BackgroundTransparency = 1
-        bgImg.Image                 = cfg.backgroundImage
+        bgImg.Image                 = resolveAsset(cfg.backgroundImage)
         bgImg.ScaleType             = Enum.ScaleType.Crop
         bgImg.Parent                = bg
     end
 
-    -- Rounded corners
+    -- Rounded corners (Increased for smoother look)
     local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 6)
+    corner.CornerRadius = UDim.new(0, 12)
     corner.Parent = bg
 
-    -- Outer white stroke
+    -- Outer stroke
     local stroke = Instance.new("UIStroke")
     stroke.Color     = cfg.outlineColor
-    stroke.Thickness = 1.5
+    stroke.Thickness = 2
     stroke.Parent    = bg
 
-    -- Layout
+    -- Layout (Add padding to sides)
     local layout = Instance.new("UIListLayout")
     layout.FillDirection       = Enum.FillDirection.Vertical
     layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
@@ -5162,13 +5173,22 @@ local function buildNametag(targetPlayer, cfg)
     layout.Padding             = UDim.new(0, 2)
     layout.Parent              = bg
 
+    -- Padding for content
+    local uiPadding = Instance.new("UIPadding")
+    uiPadding.PaddingLeft   = UDim.new(0, 15)
+    uiPadding.PaddingRight  = UDim.new(0, 15)
+    uiPadding.PaddingTop    = UDim.new(0, 8)
+    uiPadding.PaddingBottom = UDim.new(0, 8)
+    uiPadding.Parent        = bg
+
     -- Optional icon
     if cfg.iconImage and cfg.iconImage ~= "" then
         local icon = Instance.new("ImageLabel")
         icon.Name                   = "Icon"
-        icon.Size                   = UDim2.new(0, 28, 0, 28)
+        icon.Size                   = UDim2.new(0, 32, 0, 32) -- Slightly larger
         icon.BackgroundTransparency = 1
-        icon.Image                  = cfg.iconImage
+        icon.Image                  = resolveAsset(cfg.iconImage)
+        icon.ScaleType              = Enum.ScaleType.Fit
         icon.LayoutOrder            = 0
         icon.Parent                 = bg
     end
@@ -5176,14 +5196,15 @@ local function buildNametag(targetPlayer, cfg)
     -- Display name (top text)
     local topLabel = Instance.new("TextLabel")
     topLabel.Name                 = "DisplayName"
-    topLabel.Size                 = UDim2.new(1, -8, 0, cfg.topTextSize + 4)
+    topLabel.Size                 = UDim2.new(0, 0, 0, cfg.topTextSize + 4)
+    topLabel.AutomaticSize         = Enum.AutomaticSize.X
     topLabel.BackgroundTransparency = 1
     topLabel.Text                 = cfg.displayName
     topLabel.Font                 = NAMETAG_FONT_MAP[cfg.font] or Enum.Font.GothamBlack
     topLabel.TextSize             = cfg.topTextSize
     topLabel.TextColor3           = cfg.textColor
     topLabel.TextStrokeColor3     = cfg.outlineColor
-    topLabel.TextStrokeTransparency = 0.6
+    topLabel.TextStrokeTransparency = 0.5
     topLabel.TextXAlignment       = Enum.TextXAlignment.Center
     topLabel.LayoutOrder          = 1
     topLabel.Parent               = bg
