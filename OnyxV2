@@ -5163,12 +5163,12 @@ local function buildNametag(targetPlayer, cfg)
     mainLayout.Padding             = UDim.new(0, 10) -- Space between icon and text
     mainLayout.Parent              = bg
 
-    -- Padding for the pill (Larger padding for bigger tag)
+    -- Padding for the pill (Balanced for the new square look)
     local uiPadding = Instance.new("UIPadding")
-    uiPadding.PaddingLeft   = UDim.new(0, 14)
-    uiPadding.PaddingRight  = UDim.new(0, 24)
-    uiPadding.PaddingTop    = UDim.new(0, 7)
-    uiPadding.PaddingBottom = UDim.new(0, 7)
+    uiPadding.PaddingLeft   = UDim.new(0, 8) -- Less space to the left
+    uiPadding.PaddingRight  = UDim.new(0, 20)
+    uiPadding.PaddingTop    = UDim.new(0, 6)
+    uiPadding.PaddingBottom = UDim.new(0, 6)
     uiPadding.Parent = bg
 
     -- Optional icon (on the left)
@@ -5176,7 +5176,7 @@ local function buildNametag(targetPlayer, cfg)
     if cfg.iconImage and cfg.iconImage ~= "" then
         icon = Instance.new("ImageLabel")
         icon.Name                   = "Icon"
-        icon.Size                   = UDim2.new(0, 52, 0, 52) -- Reduced from 64
+        icon.Size                   = UDim2.new(0, 46, 0, 46) -- Smaller to feel less 'stretched'
         icon.BackgroundTransparency = 1
         icon.Image                  = resolveAsset(cfg.iconImage)
         icon.ScaleType              = Enum.ScaleType.Crop
@@ -5258,19 +5258,19 @@ local function buildNametag(targetPlayer, cfg)
                     
                     -- Dynamic Shape, Padding & Icon Size
                     if shouldShowText then
-                        corner.CornerRadius = UDim.new(0, 14) -- Normal Rounded Square
-                        uiPadding.PaddingLeft = UDim.new(0, 12)
+                        corner.CornerRadius = UDim.new(0, 14) 
+                        uiPadding.PaddingLeft = UDim.new(0, 8) -- Match initial
                         uiPadding.PaddingRight = UDim.new(0, 20)
                         uiPadding.PaddingTop = UDim.new(0, 6)
                         uiPadding.PaddingBottom = UDim.new(0, 6)
-                        if icon then icon.Size = UDim2.new(0, 52, 0, 52) end
+                        if icon then icon.Size = UDim2.new(0, 46, 0, 46) end
                     else
-                        corner.CornerRadius = UDim.new(0, 10) -- Compact Rounded Square
+                        corner.CornerRadius = UDim.new(0, 10) 
                         uiPadding.PaddingLeft = UDim.new(0, 4) 
                         uiPadding.PaddingRight = UDim.new(0, 4)
                         uiPadding.PaddingTop = UDim.new(0, 4)
                         uiPadding.PaddingBottom = UDim.new(0, 4)
-                        if icon then icon.Size = UDim2.new(0, 38, 0, 38) end
+                        if icon then icon.Size = UDim2.new(0, 36, 0, 36) end
                     end
                 end
             end
