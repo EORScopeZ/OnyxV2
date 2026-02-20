@@ -1724,26 +1724,26 @@ local function StartFaceBang(targetPlayer)
             local oscillation = math.sin(oscillatorTime) -- -1 to 1
 
             local headCF = targetHead.CFrame
-            local forward = headCF.LookVector
 
-            -- Face position: 0.5 studs in front of head surface
-            local facePos = targetHead.Position + (forward * 0.5) + Vector3.new(0, 1, 0)
-
-            -- Oscillate 0..distance in front of face only
+            -- t oscillates 0..1..0 (in front of face, then pull back)
             local t = (oscillation + 1) / 2
-            local finalPos = facePos + (forward * t * distance)
 
-            -- Use target's Y rotation only so we face them but stay perfectly upright
-            -- Extract just the yaw from the target head so we face the right direction
-            local targetYaw = math.atan2(-headCF.LookVector.Z, headCF.LookVector.X) - math.pi/2 + math.pi
-            local uprightCF = CFrame.new(finalPos) * CFrame.Angles(0, targetYaw, 0)
+            -- Position is purely relative to the head's CFrame so it always
+            -- moves along the direction the head is actually facing.
+            -- Offset: start 0.5 studs in front, oscillate outward by distance
+            local relativeOffset = Vector3.new(0, 0, -(0.5 + t * distance))
+            local finalPos = headCF:PointToWorldSpace(relativeOffset)
+
+            -- Face back toward the target head (opposite of head's look direction)
+            local lookBack = headCF.LookVector * -1
+            local finalCF = CFrame.lookAt(finalPos, finalPos + lookBack, Vector3.new(0, 1, 0))
 
             local dist = (localHRP.Position - finalPos).Magnitude
             if dist > 10 then
-                localHRP.CFrame = uprightCF
+                localHRP.CFrame = finalCF
             else
                 local newPos = localHRP.Position:Lerp(finalPos, 0.9)
-                localHRP.CFrame = CFrame.new(newPos) * CFrame.Angles(0, targetYaw, 0)
+                localHRP.CFrame = CFrame.lookAt(newPos, newPos + lookBack, Vector3.new(0, 1, 0))
             end
 
             localHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
@@ -5447,7 +5447,7 @@ end)
 -- will register them server-side. This loop catches that and shows their tag.
 task.spawn(function()
     while true do
-        task.wait(15)
+        task.wait(5)
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= plr then
                 local cached = nametagConfigs[p.Name]
