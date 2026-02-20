@@ -4924,7 +4924,7 @@ plr:SetAttribute("OnyxExecuted", true)
 -- Runtime state
 local nametagObjects = {}   -- [userId] = BillboardGui instance
 local nametagConfigs = {}   -- [username] = config or "default" or table
-local WORKER_BASE = "https://onyx-key-system.onyxv2.workers.dev"
+local WORKER_BASE = "https://onyx-vercel-omega.vercel.app"
 
 -- ── CUSTOMIZE DEFAULTS HERE ──────────────────────────
 local DEFAULT_BG_IMAGE   = "" -- Set to "" for solid color only
