@@ -5111,6 +5111,10 @@ local function buildNametag(targetPlayer, cfg)
     if not cfg or type(cfg) ~= "table" then return nil end
     
     local character = targetPlayer.Character
+    if not character then return nil end
+
+    local attachTo = character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
+    if not attachTo then return nil end
 
     -- Format asset URLs for Decals/IDs
     local function resolveAsset(url)
@@ -5397,17 +5401,10 @@ local function watchPlayer(targetPlayer)
         safeApply()
     end
 
-    -- Re-apply on every respawn
+    -- Watch for when they respawn
     targetPlayer.CharacterAdded:Connect(function()
-        task.wait(0.8) -- give character time to fully replicate
+        task.wait(1.0) -- give character time to fully replicate
         safeApply()
-    end)
-
-    -- Watch for when they execute the script later
-    targetPlayer.AttributeChanged:Connect(function(attr)
-        if attr == "OnyxExecuted" and targetPlayer:GetAttribute("OnyxExecuted") then
-            task.spawn(safeApply)
-        end
     end)
 end
 
@@ -5434,17 +5431,18 @@ Players.PlayerRemoving:Connect(function(leavingPlayer)
     nametagConfigs[leavingPlayer.Name] = nil  -- clear cache so fresh data on rejoin
 end)
 
--- ── Re-apply after respawn ─────────────────────────────────────────────────────
+-- ── Re-apply after local respawn ──────────────────────────────────────────────────
 plr.CharacterAdded:Connect(function()
-    task.wait(0.8)
+    task.wait(1.0)
     plr:SetAttribute("OnyxExecuted", true)
-    applySelfNametag()  -- re-show our own tag after respawn
-    -- Re-apply to others, staggered
+    applySelfNametag() 
+    
+    -- Re-apply to everyone else to ensure they stay visible
     task.spawn(function()
         for _, otherPlayer in ipairs(Players:GetPlayers()) do
-            if otherPlayer ~= plr and otherPlayer:GetAttribute("OnyxExecuted") then
+            if otherPlayer ~= plr then
                 applyNametag(otherPlayer)
-                task.wait(0.5) -- staggered for stability
+                task.wait(0.3) 
             end
         end
     end)
