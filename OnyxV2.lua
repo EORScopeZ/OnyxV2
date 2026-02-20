@@ -4976,7 +4976,6 @@ local function fetchNametagConfig(username, callback)
 
     task.spawn(function()
         local fullUrl = WORKER_BASE .. "/get-nametag/" .. username
-        warn("[Onyx Debug] Fetching nametag from: " .. fullUrl)
         local ok, result = pcall(function()
             return httpRequest({
                 Url    = fullUrl,
@@ -4986,7 +4985,6 @@ local function fetchNametagConfig(username, callback)
 
         local resolved
         if ok and result then
-            print("[Onyx Debug] Status: " .. tostring(result.StatusCode))
             if result.StatusCode == 200 then
                 local parsed
                 ok, parsed = pcall(function()
@@ -4996,7 +4994,6 @@ local function fetchNametagConfig(username, callback)
                 if ok and parsed then
                     -- If ACTIVE or has a CUSTOM CONFIG, show the tag
                     if parsed.found and (parsed.active or parsed.config) then
-                        print("[Onyx Debug] Valid user found: " .. username .. " (Active: " .. tostring(parsed.active) .. ")")
                         local cfg = parsed.config or {}
                         
                         resolved = {
@@ -5010,23 +5007,18 @@ local function fetchNametagConfig(username, callback)
                         }
                         nametagConfigs[username] = resolved
                     else
-                        warn("[Onyx Debug] User not active/no config: " .. username)
                         nametagConfigs[username] = "inactive"
                     end
                 else
-                    warn("[Onyx Debug] JSON Decode failed for " .. username)
                 end
             else
-                warn("[Onyx Debug] HTTP error: " .. tostring(result.StatusCode) .. " body: " .. tostring(result.Body))
             end
         else
-            warn("[Onyx Debug] HTTP request failed for " .. username .. ": " .. tostring(result))
         end
 
         if not resolved then
             -- Only fallback to default for SELF. For others, we just don't show the tag.
             if username:lower() == plr.Name:lower() then
-                print("[Onyx Debug] Falling back to default for SELF")
                 resolved = getDefaultConfig()
                 nametagConfigs[username] = resolved
             else
@@ -5396,41 +5388,81 @@ local function watchPlayer(targetPlayer)
     end)
 end
 
--- ── Bootstrap: self nametag + existing players (staggered)
-task.spawn(function()
-    task.wait(1.5) -- wait longer for UI/Env to settle
-    applySelfNametag()  -- show your own tag immediately
-    for _, existingPlayer in ipairs(Players:GetPlayers()) do
-        if existingPlayer ~= plr then
-            watchPlayer(existingPlayer)
-            task.wait(0.8) -- heavy stagger for mobile/Xeno stability
+-- ── Fetch active user list from server (single request) ──────────────────────
+local function fetchActiveUsers(callback)
+    task.spawn(function()
+        local ok, result = pcall(function()
+            return httpRequest({
+                Url    = WORKER_BASE .. "/nametags",
+                Method = "GET",
+            })
+        end)
+        if not ok or not result or result.StatusCode ~= 200 then callback({}) return end
+        local parsed
+        ok, parsed = pcall(function() return game:GetService("HttpService"):JSONDecode(result.Body) end)
+        if not ok or not parsed or not parsed.nametags then callback({}) return end
+        -- Build a set of lowercase usernames that are active
+        local activeSet = {}
+        for _, entry in ipairs(parsed.nametags) do
+            if entry and entry.roblox_user then
+                activeSet[entry.roblox_user:lower()] = entry
+            end
         end
-    end
-end)
+        callback(activeSet)
+    end)
+end
 
--- ── Watch new players that join ────────────────────────────────────────────────
-Players.PlayerAdded:Connect(function(newPlayer)
-    watchPlayer(newPlayer)
-end)
-
--- ── Recheck inactive players every 15 seconds ─────────────────────────────────
--- If a player executes the script after you've already loaded in, their heartbeat
--- will register them server-side. This loop catches that and shows their tag.
+-- ── Bootstrap: self nametag + only active players ─────────────────────────────
 task.spawn(function()
-    while true do
-        task.wait(5)
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= plr then
-                local cached = nametagConfigs[p.Name]
-                -- Only recheck players currently marked as inactive
-                if cached == "inactive" then
-                    nametagConfigs[p.Name] = nil -- clear so fetchNametagConfig runs fresh
-                    if not nametagObjects[p.UserId] then
-                        applyNametag(p)
-                    end
+    task.wait(1.5)
+    applySelfNametag()
+    fetchActiveUsers(function(activeSet)
+        for _, existingPlayer in ipairs(Players:GetPlayers()) do
+            if existingPlayer ~= plr then
+                if activeSet[existingPlayer.Name:lower()] then
+                    watchPlayer(existingPlayer)
+                else
+                    nametagConfigs[existingPlayer.Name] = "inactive" -- skip without fetching
                 end
             end
         end
+    end)
+end)
+
+-- ── Watch new players that join — only show tag if they're active ──────────────
+Players.PlayerAdded:Connect(function(newPlayer)
+    -- Give them a moment to register their heartbeat
+    task.wait(3)
+    fetchActiveUsers(function(activeSet)
+        if activeSet[newPlayer.Name:lower()] then
+            watchPlayer(newPlayer)
+        else
+            nametagConfigs[newPlayer.Name] = "inactive"
+        end
+    end)
+end)
+
+-- ── Poll active list every 5 seconds and apply new tags ───────────────────────
+task.spawn(function()
+    while true do
+        task.wait(5)
+        fetchActiveUsers(function(activeSet)
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= plr then
+                    local isActive = activeSet[p.Name:lower()] ~= nil
+                    local cached = nametagConfigs[p.Name]
+                    if isActive and not nametagObjects[p.UserId] then
+                        -- Newly active player, show their tag
+                        nametagConfigs[p.Name] = nil -- clear inactive cache
+                        applyNametag(p)
+                    elseif not isActive and cached ~= "inactive" then
+                        -- Was active, now gone — remove tag and mark inactive
+                        removeNametag(p.UserId)
+                        nametagConfigs[p.Name] = "inactive"
+                    end
+                end
+            end
+        end)
     end
 end)
 
