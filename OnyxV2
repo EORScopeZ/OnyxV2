@@ -5026,17 +5026,12 @@ local function fetchNametagConfig(username, callback)
                         
                         resolved = {
                             displayName            = cfg.name_text or cfg.displayName or "Onyx User",
-                            font                   = cfg.font or "GothamBlack",
-                            textColor              = hexToColor3(cfg.name_color or cfg.textColor) or Color3.fromRGB(139, 127, 255),
-                            outlineColor           = hexToColor3(cfg.outline_color or cfg.glow_color or cfg.outlineColor) or Color3.fromRGB(0, 0, 0),
-                            backgroundColor        = hexToColor3(cfg.tag_color or cfg.backgroundColor) or Color3.fromRGB(26, 26, 46),
-                            backgroundTransparency = 0.25,
-                            backgroundImage        = (cfg.image_url and cfg.image_url ~= "") and cfg.image_url or ((DEFAULT_BG_IMAGE ~= "") and DEFAULT_BG_IMAGE or nil),
+                            textColor              = hexToColor3(cfg.name_color or cfg.textColor) or Color3.fromRGB(240, 240, 240),
+                            outlineColor           = hexToColor3(cfg.outline_color or cfg.glow_color or cfg.outlineColor) or Color3.fromRGB(139, 127, 255),
+                            backgroundColor        = hexToColor3(cfg.tag_color or cfg.backgroundColor) or Color3.fromRGB(15, 15, 15),
+                            backgroundTransparency = 0.35,
                             iconImage              = (cfg.icon_image and cfg.icon_image ~= "") and cfg.icon_image or ((DEFAULT_ICON_IMAGE ~= "") and DEFAULT_ICON_IMAGE or nil),
                             glitchAnim             = (cfg.glitch_anim == true) or (cfg.glitchAnim == true),
-                            width                  = 5,
-                            topTextSize            = 18,
-                            botTextSize            = 13,
                         }
                         nametagConfigs[username] = resolved
                     else
@@ -5154,7 +5149,8 @@ local function buildNametag(targetPlayer, cfg)
     -- Glowing Stroke
     local stroke = Instance.new("UIStroke")
     stroke.Color     = cfg.outlineColor
-    stroke.Thickness = 2.5
+    stroke.Thickness = 2
+    stroke.Transparency = 0.4
     stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     stroke.Parent    = bg
 
@@ -5180,7 +5176,7 @@ local function buildNametag(targetPlayer, cfg)
     if cfg.iconImage and cfg.iconImage ~= "" then
         icon = Instance.new("ImageLabel")
         icon.Name                   = "Icon"
-        icon.Size                   = UDim2.new(0, 64, 0, 64) -- Bigger 64x64
+        icon.Size                   = UDim2.new(0, 52, 0, 52) -- Reduced from 64
         icon.BackgroundTransparency = 1
         icon.Image                  = resolveAsset(cfg.iconImage)
         icon.ScaleType              = Enum.ScaleType.Crop
@@ -5189,7 +5185,7 @@ local function buildNametag(targetPlayer, cfg)
         icon.Parent                 = bg
 
         local iconCorner = Instance.new("UICorner")
-        iconCorner.CornerRadius = UDim.new(0, 12) -- Less round, stylish corner
+        iconCorner.CornerRadius = UDim.new(0, 10) -- Slightly smaller corner for smaller icon
         iconCorner.Parent = icon
     end
 
@@ -5216,11 +5212,11 @@ local function buildNametag(targetPlayer, cfg)
     topLabel.AutomaticSize         = Enum.AutomaticSize.XY
     topLabel.BackgroundTransparency = 1
     topLabel.Text                 = cfg.displayName
-    topLabel.Font                 = NAMETAG_FONT_MAP[cfg.font] or Enum.Font.GothamBlack
-    topLabel.TextSize             = cfg.topTextSize + 4 -- Scale up!
+    topLabel.Font                 = Enum.Font.GothamBold
+    topLabel.TextSize             = 16
     topLabel.TextColor3           = cfg.textColor
     topLabel.TextStrokeColor3     = cfg.outlineColor
-    topLabel.TextStrokeTransparency = 0.8
+    topLabel.TextStrokeTransparency = 0.85
     topLabel.TextXAlignment       = Enum.TextXAlignment.Left
     topLabel.LayoutOrder          = 0
     topLabel.Parent               = textContainer
@@ -5235,12 +5231,52 @@ local function buildNametag(targetPlayer, cfg)
     botLabel.BackgroundTransparency = 1
     botLabel.Text                 = "@" .. targetPlayer.Name
     botLabel.Font                 = Enum.Font.Gotham
-    botLabel.TextSize             = cfg.botTextSize + 3 -- Scale up!
-    botLabel.TextColor3           = Color3.fromRGB(190, 190, 190)
+    botLabel.TextSize             = 12
+    botLabel.TextColor3           = Color3.fromRGB(200, 200, 200)
     botLabel.TextStrokeTransparency = 1
     botLabel.TextXAlignment       = Enum.TextXAlignment.Left
     botLabel.LayoutOrder          = 1
     botLabel.Parent               = textContainer
+
+    -- Dynamic Particle System (Premium "Aura" Effect)
+    task.spawn(function()
+        local rng = Random.new()
+        while billboard and billboard.Parent do
+            -- Only spawn if visible and not at extreme distance
+            if billboard.Enabled and textContainer.Visible then
+                local p = Instance.new("Frame")
+                p.Name = "Particle"
+                p.Parent = bg
+                p.Size = UDim2.new(0, rng:NextInteger(2, 4), 0, rng:NextInteger(2, 4))
+                p.BackgroundColor3 = cfg.outlineColor
+                p.BackgroundTransparency = 0.2
+                p.BorderSizePixel = 0
+                p.ZIndex = 4
+                -- Spawn randomly within the background area
+                p.Position = UDim2.new(rng:NextNumber(0, 1), 0, rng:NextNumber(0, 1), 0)
+                
+                local pCorner = Instance.new("UICorner")
+                pCorner.CornerRadius = UDim.new(1, 0)
+                pCorner.Parent = p
+
+                task.spawn(function()
+                    local driftX = rng:NextNumber(-0.15, 0.15)
+                    local driftY = rng:NextNumber(-0.25, -0.05) -- Drift upwards
+                    local duration = rng:NextNumber(1.2, 2.5)
+                    
+                    local tween = TweenService:Create(p, TweenInfo.new(duration, Enum.EasingStyle.QuadOut), {
+                        Position = p.Position + UDim2.new(driftX, 0, driftY, 0),
+                        BackgroundTransparency = 1,
+                        Size = UDim2.new(0, 0, 0, 0)
+                    })
+                    tween:Play()
+                    tween.Completed:Wait()
+                    p:Destroy()
+                end)
+            end
+            task.wait(rng:NextNumber(0.15, 0.4)) -- Adjusted spawn rate for performance
+        end
+    end)
 
     -- Dynamic Shrinking Logic (LOD)
     task.spawn(function()
@@ -5258,18 +5294,18 @@ local function buildNametag(targetPlayer, cfg)
                     -- Dynamic Shape, Padding & Icon Size
                     if shouldShowText then
                         corner.CornerRadius = UDim.new(0, 100) -- Pill when large
-                        uiPadding.PaddingLeft = UDim.new(0, 14)
-                        uiPadding.PaddingRight = UDim.new(0, 24)
-                        uiPadding.PaddingTop = UDim.new(0, 7)
-                        uiPadding.PaddingBottom = UDim.new(0, 7)
-                        if icon then icon.Size = UDim2.new(0, 64, 0, 64) end
+                        uiPadding.PaddingLeft = UDim.new(0, 12)
+                        uiPadding.PaddingRight = UDim.new(0, 20)
+                        uiPadding.PaddingTop = UDim.new(0, 6)
+                        uiPadding.PaddingBottom = UDim.new(0, 6)
+                        if icon then icon.Size = UDim2.new(0, 52, 0, 52) end
                     else
-                        corner.CornerRadius = UDim.new(0, 12) -- Rounded square when shrunken
+                        corner.CornerRadius = UDim.new(0, 10) -- Rounded square when shrunken
                         uiPadding.PaddingLeft = UDim.new(0, 3) 
                         uiPadding.PaddingRight = UDim.new(0, 3)
                         uiPadding.PaddingTop = UDim.new(0, 3)
                         uiPadding.PaddingBottom = UDim.new(0, 3)
-                        if icon then icon.Size = UDim2.new(0, 48, 0, 48) end -- Shrink icon too!
+                        if icon then icon.Size = UDim2.new(0, 38, 0, 38) end -- Shrink icon too!
                     end
                 end
             end
