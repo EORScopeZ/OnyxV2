@@ -5238,49 +5238,39 @@ local function buildNametag(targetPlayer, cfg)
     botLabel.LayoutOrder          = 1
     botLabel.Parent               = textContainer
 
-    -- Dynamic Particle System (Premium "Aura" Effect)
+    -- Premium "Aura" Effect (Using 3D ParticleEmitter for stability)
     task.spawn(function()
-        local rng = Random.new()
-        while billboard and billboard.Parent do
-            -- Only spawn if visible and not at extreme distance
-            if billboard.Enabled and textContainer.Visible then
-                local p = Instance.new("Frame")
-                p.Name = "Particle"
-                -- Parent to Billboard so it doesn't stretch the BG pill or get caught in the ListLayout
-                p.Parent = billboard 
-                p.Size = UDim2.new(0, rng:NextInteger(2, 4), 0, rng:NextInteger(2, 4))
-                p.BackgroundColor3 = cfg.outlineColor
-                p.BackgroundTransparency = 0.2
-                p.BorderSizePixel = 0
-                p.ZIndex = 4
-                
-                -- Center on the billboard (which centers on the player)
-                -- We offset randomly around the center 0.5, 0.5
-                local offsetX = rng:NextNumber(-0.25, 0.25)
-                local offsetY = rng:NextNumber(-0.1, 0.1)
-                p.Position = UDim2.new(0.5, (offsetX * 100), 0.5, (offsetY * 40))
-                
-                local pCorner = Instance.new("UICorner")
-                pCorner.CornerRadius = UDim.new(1, 0)
-                pCorner.Parent = p
+        local head = character:FindFirstChild("Head")
+        if not head then return end
+        
+        local attachment = Instance.new("Attachment")
+        attachment.Name = "OnyxAuraAttachment"
+        attachment.Parent = head
+        
+        local emitter = Instance.new("ParticleEmitter")
+        emitter.Name = "OnyxAura"
+        emitter.Color = ColorSequence.new(cfg.outlineColor)
+        emitter.LightEmission = 1
+        emitter.LightInfluence = 0
+        emitter.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.4), NumberSequenceKeypoint.new(1, 0)})
+        emitter.Texture = "rbxassetid://6071575925" -- Soft glow circle
+        emitter.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 1)})
+        emitter.Lifetime = NumberRange.new(0.8, 1.5)
+        emitter.Rate = 12
+        emitter.Speed = NumberRange.new(0.5, 1.5)
+        emitter.SpreadAngle = Vector2.new(180, 180)
+        emitter.Parent = attachment
 
-                task.spawn(function()
-                    local driftX = rng:NextNumber(-15, 15)
-                    local driftY = rng:NextNumber(-25, -5) -- Drift upwards
-                    local duration = rng:NextNumber(1.2, 2.5)
-                    
-                    local tween = TweenService:Create(p, TweenInfo.new(duration, Enum.EasingStyle.QuadOut), {
-                        Position = p.Position + UDim2.new(0, driftX, 0, driftY),
-                        BackgroundTransparency = 1,
-                        Size = UDim2.new(0, 0, 0, 0)
-                    })
-                    tween:Play()
-                    tween.Completed:Wait()
-                    if p and p.Parent then p:Destroy() end
-                end)
-            end
-            task.wait(rng:NextNumber(0.1, 0.35))
+        -- Clean up emitter if the nametag is destroyed
+        billboard.Destroying:Connect(function()
+            attachment:Destroy()
+        end)
+
+        while billboard and billboard.Parent do
+            emitter.Enabled = billboard.Enabled and textContainer.Visible
+            task.wait(1)
         end
+        attachment:Destroy()
     end)
 
     -- Dynamic Shrinking Logic (LOD)
