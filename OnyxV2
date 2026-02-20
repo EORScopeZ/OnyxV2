@@ -5157,26 +5157,27 @@ local function buildNametag(targetPlayer, cfg)
     mainLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
     mainLayout.VerticalAlignment   = Enum.VerticalAlignment.Center
     mainLayout.SortOrder           = Enum.SortOrder.LayoutOrder
-    mainLayout.Padding             = UDim.new(0, 10) -- Space between icon and text
+    mainLayout.Padding             = UDim.new(0, 8) -- Tighter space
     mainLayout.Parent              = bg
 
-    -- Padding for the pill
+    -- Padding for the pill (Reduce sides for better fit)
     local uiPadding = Instance.new("UIPadding")
-    uiPadding.PaddingLeft   = UDim.new(0, 12)
-    uiPadding.PaddingRight  = UDim.new(0, 20) -- Extra room on right for text
-    uiPadding.PaddingTop    = UDim.new(0, 6)
-    uiPadding.PaddingBottom = UDim.new(0, 6)
+    uiPadding.PaddingLeft   = UDim.new(0, 10)
+    uiPadding.PaddingRight  = UDim.new(0, 15)
+    uiPadding.PaddingTop    = UDim.new(0, 5)
+    uiPadding.PaddingBottom = UDim.new(0, 5)
     uiPadding.Parent = bg
 
     -- Optional icon (on the left)
     if cfg.iconImage and cfg.iconImage ~= "" then
         local icon = Instance.new("ImageLabel")
         icon.Name                   = "Icon"
-        icon.Size                   = UDim2.new(0, 42, 0, 42) -- Large premium icon
+        icon.Size                   = UDim2.new(0, 36, 0, 36)
         icon.BackgroundTransparency = 1
         icon.Image                  = resolveAsset(cfg.iconImage)
         icon.ScaleType              = Enum.ScaleType.Fit
         icon.LayoutOrder            = 0
+        icon.ZIndex                 = 5 -- Ensure it's on top
         icon.Parent                 = bg
     end
 
@@ -5184,6 +5185,7 @@ local function buildNametag(targetPlayer, cfg)
     local textContainer = Instance.new("Frame")
     textContainer.Name = "TextContainer"
     textContainer.BackgroundTransparency = 1
+    textContainer.Size = UDim2.new(0, 0, 0, 0)
     textContainer.AutomaticSize = Enum.AutomaticSize.XY
     textContainer.LayoutOrder = 1
     textContainer.Parent = bg
@@ -5193,7 +5195,7 @@ local function buildNametag(targetPlayer, cfg)
     textLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
     textLayout.VerticalAlignment = Enum.VerticalAlignment.Center
     textLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    textLayout.Padding = UDim.new(0, -2) -- Tighter stacking
+    textLayout.Padding = UDim.new(0, -1) -- Very tight stacking
     textLayout.Parent = textContainer
 
     -- Display name (top text)
@@ -5214,19 +5216,19 @@ local function buildNametag(targetPlayer, cfg)
     -- Store original color for glitch restoration
     billboard:SetAttribute("OriginalStrokeColor", cfg.outlineColor)
 
-    -- Roblox username (bottom text, always shown)
+    -- Roblox username (bottom text)
     local botLabel = Instance.new("TextLabel")
     botLabel.Name                 = "Username"
-    botLabel.Size                 = UDim2.new(1, -8, 0, cfg.botTextSize + 4)
+    botLabel.AutomaticSize         = Enum.AutomaticSize.XY
     botLabel.BackgroundTransparency = 1
     botLabel.Text                 = "@" .. targetPlayer.Name
     botLabel.Font                 = Enum.Font.Gotham
     botLabel.TextSize             = cfg.botTextSize
     botLabel.TextColor3           = Color3.fromRGB(190, 190, 190)
     botLabel.TextStrokeTransparency = 1
-    botLabel.TextXAlignment       = Enum.TextXAlignment.Center
-    botLabel.LayoutOrder          = 2
-    botLabel.Parent               = bg
+    botLabel.TextXAlignment       = Enum.TextXAlignment.Left -- Align with Display Name
+    botLabel.LayoutOrder          = 1
+    botLabel.Parent               = textContainer
 
     return billboard
 end
