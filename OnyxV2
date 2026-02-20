@@ -5119,9 +5119,8 @@ local function buildNametag(targetPlayer, cfg)
     local billboard = Instance.new("BillboardGui")
     billboard.Name            = "OnyxNametag"
     billboard.Adornee         = attachTo
-    -- Use automatic sizing so the tag fits the name length/images perfectly
-    billboard.Size            = UDim2.new(0, 0, 0, 0) 
-    billboard.AutomaticSize   = Enum.AutomaticSize.XY
+    -- Use a fixed base size (AutomaticSize is not supported on BillboardGui in some environments)
+    billboard.Size            = UDim2.new(0, 200, 0, 100) 
     billboard.StudsOffset     = Vector3.new(0, 2.8, 0)
     billboard.AlwaysOnTop     = false
     billboard.LightInfluence  = 0
@@ -5134,8 +5133,9 @@ local function buildNametag(targetPlayer, cfg)
     -- Background frame
     local bg = Instance.new("Frame")
     bg.Name                  = "Background"
-    -- Minimal width, expanded by content
-    bg.Size                  = UDim2.new(0, 100, 0, 0)
+    bg.AnchorPoint           = Vector2.new(0.5, 0.5)
+    bg.Position              = UDim2.new(0.5, 0, 0.5, 0)
+    bg.Size                  = UDim2.new(0, 100, 0, 40) -- Base size
     bg.AutomaticSize         = Enum.AutomaticSize.XY
     bg.BackgroundColor3      = cfg.backgroundColor
     bg.BackgroundTransparency = cfg.backgroundTransparency
@@ -5185,7 +5185,7 @@ local function buildNametag(targetPlayer, cfg)
     if cfg.iconImage and cfg.iconImage ~= "" then
         local icon = Instance.new("ImageLabel")
         icon.Name                   = "Icon"
-        icon.Size                   = UDim2.new(0, 32, 0, 32) -- Slightly larger
+        icon.Size                   = UDim2.new(0, 32, 0, 32)
         icon.BackgroundTransparency = 1
         icon.Image                  = resolveAsset(cfg.iconImage)
         icon.ScaleType              = Enum.ScaleType.Fit
