@@ -5593,82 +5593,29 @@ local function watchPlayer(targetPlayer)
     end)
 end
 
--- ── Fetch active user list from server (single request) ──────────────────────
-local function fetchActiveUsers(callback)
-    task.spawn(function()
-        local ok, result = pcall(function()
-            return httpRequest({
-                Url    = WORKER_BASE .. "/nametags",
-                Method = "GET",
-            })
-        end)
-        if not ok or not result or result.StatusCode ~= 200 then callback({}) return end
-        local parsed
-        ok, parsed = pcall(function() return game:GetService("HttpService"):JSONDecode(result.Body) end)
-        if not ok or not parsed or not parsed.nametags then callback({}) return end
-        -- Build a set of lowercase usernames that are active
-        local activeSet = {}
-        for _, entry in ipairs(parsed.nametags) do
-            if entry and entry.roblox_user then
-                activeSet[entry.roblox_user:lower()] = entry
+-- ── Process Active Users to apply or remove nametags ─────────────────────────────
+local function processActiveUsers(activeSet)
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= plr then
+            local isActive = activeSet[p.Name:lower()] ~= nil
+            local cached = nametagConfigs[p.Name]
+            local tagValid = isNametagValid(p.UserId)
+            if isActive and not tagValid then
+                -- Newly active, or tag got orphaned — (re)apply
+                watchPlayer(p)
+            elseif not isActive and cached ~= "inactive" then
+                -- Was active, now gone — remove tag and mark inactive
+                removeNametag(p.UserId)
+                nametagConfigs[p.Name] = "inactive"
             end
         end
-        callback(activeSet)
-    end)
+    end
 end
 
--- ── Bootstrap: self nametag + only active players ─────────────────────────────
+-- ── Bootstrap: self nametag ─────────────────────────────
 task.spawn(function()
     task.wait(1.5)
     applySelfNametag()
-    fetchActiveUsers(function(activeSet)
-        for _, existingPlayer in ipairs(Players:GetPlayers()) do
-            if existingPlayer ~= plr then
-                if activeSet[existingPlayer.Name:lower()] then
-                    watchPlayer(existingPlayer)
-                else
-                    nametagConfigs[existingPlayer.Name] = "inactive" -- skip without fetching
-                end
-            end
-        end
-    end)
-end)
-
--- ── Watch new players that join — only show tag if they're active ──────────────
-Players.PlayerAdded:Connect(function(newPlayer)
-    -- Give them a moment to register their heartbeat
-    task.wait(3)
-    fetchActiveUsers(function(activeSet)
-        if activeSet[newPlayer.Name:lower()] then
-            watchPlayer(newPlayer)
-        else
-            nametagConfigs[newPlayer.Name] = "inactive"
-        end
-    end)
-end)
-
--- ── Poll active list every 8 seconds and apply/fix tags ──────────────────────
-task.spawn(function()
-    while true do
-        task.wait(8)
-        fetchActiveUsers(function(activeSet)
-            for _, p in ipairs(Players:GetPlayers()) do
-                if p ~= plr then
-                    local isActive = activeSet[p.Name:lower()] ~= nil
-                    local cached = nametagConfigs[p.Name]
-                    local tagValid = isNametagValid(p.UserId)
-                    if isActive and not tagValid then
-                        -- Newly active, or tag got orphaned — (re)apply
-                        applyNametag(p)
-                    elseif not isActive and cached ~= "inactive" then
-                        -- Was active, now gone — remove tag and mark inactive
-                        removeNametag(p.UserId)
-                        nametagConfigs[p.Name] = "inactive"
-                    end
-                end
-            end
-        end)
-    end
 end)
 
 -- ── Clean up nametags when players leave ───────────────────────────────────────
@@ -5696,16 +5643,29 @@ end)
 
 SendNotify("Onyx", "Nametag system active", 3)
 
--- ── Heartbeat System: Let others know we are running the script ───────────
+-- ── Heartbeat System: Sync active nametags with server ───────────
 task.spawn(function()
+    -- Ping immediately to get names synced quickly
     while true do
         pcall(function()
-            httpRequest({
+            local response = httpRequest({
                 Url    = WORKER_BASE .. "/register-onyx-user",
                 Method = "POST",
                 Headers = { ["Content-Type"] = "application/json" },
                 Body   = game:GetService("HttpService"):JSONEncode({ roblox_user = plr.Name })
             })
+            if response and response.StatusCode == 200 then
+                local parsed = game:GetService("HttpService"):JSONDecode(response.Body)
+                if parsed and parsed.nametags then
+                    local activeSet = {}
+                    for _, entry in ipairs(parsed.nametags) do
+                        if entry and entry.roblox_user then
+                            activeSet[entry.roblox_user:lower()] = entry
+                        end
+                    end
+                    processActiveUsers(activeSet)
+                end
+            end
         end)
         task.wait(10) -- Ping every 10 seconds
     end
