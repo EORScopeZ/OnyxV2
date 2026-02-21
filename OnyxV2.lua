@@ -5100,7 +5100,7 @@ nametagConfigs[plr.Name:lower()] = nil
 
 -- ── CUSTOMIZE DEFAULTS HERE ──────────────────────────
 local DEFAULT_BG_IMAGE   = "" -- Set to "" for solid color only
-local DEFAULT_ICON_IMAGE = "rbxassetid://138249935932599"
+local DEFAULT_ICON_IMAGE = "138249935932599" -- Onyx Logo ID
 -- ───────────────────────────────────────────────────
 
 local NAMETAG_FONT_MAP = {
@@ -5281,16 +5281,14 @@ local function buildNametag(targetPlayer, cfg)
     if not attachTo then return nil end
 
     -- Format asset URLs for Decals/IDs
+    -- Switch to rbxthumb for maximum reliability (works for decal IDs)
     local function resolveAsset(url)
         if not url or url == "" then return nil end
-        -- If it's already a full Roblox URI or web URL, return as-is
-        if url:find("rbxassetid://") or url:find("http") or url:find("rbxthumb") or url:find("asset") then
-            return url
-        end
-        -- If it's just numbers, prepend the protocol
+        if url:find("rbxthumb") or url:find("http") then return url end
+        
         local id = url:match("%d+")
         if id then
-            return "rbxassetid://" .. id
+            return "rbxthumb://type=Asset&id=" .. id .. "&w=150&h=150"
         end
         return url
     end
@@ -5349,12 +5347,12 @@ local function buildNametag(targetPlayer, cfg)
     mainLayout.Padding             = UDim.new(0, 10) -- Space between icon and text
     mainLayout.Parent              = contentFrame
 
-    -- Padding for the pill (Balanced for the new square look)
+    -- Padding for the pill (Tightened for premium look)
     local uiPadding = Instance.new("UIPadding")
-    uiPadding.PaddingLeft   = UDim.new(0, 8) -- Less space to the left
-    uiPadding.PaddingRight  = UDim.new(0, 20)
-    uiPadding.PaddingTop    = UDim.new(0, 6)
-    uiPadding.PaddingBottom = UDim.new(0, 6)
+    uiPadding.PaddingLeft   = UDim.new(0, 8)
+    uiPadding.PaddingRight  = UDim.new(0, 14) -- Reduced from 20
+    uiPadding.PaddingTop    = UDim.new(0, 5)
+    uiPadding.PaddingBottom = UDim.new(0, 5)
     uiPadding.Parent = contentFrame
 
     -- Optional icon (on the left)
