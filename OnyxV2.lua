@@ -834,36 +834,53 @@ local function CreateUpdateEntry(version, title, features, order)
 end
 
 -- Add update entries (most recent first)
-CreateUpdateEntry("v2.1", "Misc Additions", 
-    "⏮️ Time Reverse moved to Misc tab\n" ..
-    "⏱️ Time Reverse now lasts 10 seconds (up from 2)\n" ..
-    "🤸 Added Trip feature (Press T)\n" ..
-    "   - Ragdoll physics\n" ..
-    "   - Tumbling animation\n" ..
-    "   - Auto-recovery after 0.5s", 1)
+CreateUpdateEntry("v2.5", "Chat Commands + QoL",
+    "⌨️ Full chat command system (.esp, .aimlock, .tp, .emotes, etc.)\n" ..
+    "📋 Command List panel (button in Misc tab)\n" ..
+    "🔑 Configurable minimize keybind (Misc tab)\n" ..
+    "🏷️ Nametag system overhaul — only shows users with script active\n" ..
+    "⚡ Nametag detection now near-instant via active user polling\n" ..
+    "❌ Removed X close button — minimize only", 1)
 
-CreateUpdateEntry("v2.0", "Major Update", 
-    "✨ Added ESP (Box, Name, Distance, Health)\n" ..
-    "🎯 Added Aimlock with FOV circle\n" ..
-    "⏮️ Added Time Reverse (Hold C)\n" ..
-    "🌟 Improved Shaders (less bright, no blur)\n" ..
-    "📍 Fixed Click Teleport reliability\n" ..
-    "🟦 Enhanced Infinite Baseplate", 2)
+CreateUpdateEntry("v2.4", "Nametag System",
+    "🏷️ Live nametag system — shows Onyx users in your server\n" ..
+    "💓 Heartbeat registration every 10 seconds\n" ..
+    "🎨 Custom nametag configs (name, color, icon, glow, glitch)\n" ..
+    "✨ Glitch animation effect on tags\n" ..
+    "📏 LOD system — tags shrink at distance\n" ..
+    "🔄 Auto-removes tags when players leave or stop script", 2)
 
-CreateUpdateEntry("v1.5", "Misc Features", 
-    "🎤 Anti VC Ban system\n" ..
+CreateUpdateEntry("v2.3", "Face Bang Update",
+    "💀 Face Bang — attach to target's face and oscillate\n" ..
+    "🏃 Speed slider (1–40)\n" ..
+    "📏 Distance slider\n" ..
+    "🔄 Directional tracking — follows head rotation\n" ..
+    "⌨️ Z key to start/stop", 3)
+
+CreateUpdateEntry("v2.2", "Key System",
+    "🔑 48-hour temporary keys\n" ..
+    "💾 Key saved per user (auto-login on next execute)\n" ..
+    "✅ Whitelist system — no key needed if whitelisted\n" ..
+    "🚫 HWID blacklist support\n" ..
+    "📊 Execution logging", 4)
+
+CreateUpdateEntry("v2.1", "Combat + Misc",
+    "👁️ ESP — boxes, names, distance, health bars\n" ..
+    "🎯 Aimlock with FOV circle\n" ..
+    "⏮️ Time Reverse (Hold C) — 10 second buffer\n" ..
+    "🤸 Trip (Press T)\n" ..
+    "🎤 Anti VC Ban protection\n" ..
     "📍 Click Teleport (Press F)\n" ..
     "🟦 Infinite Baseplate\n" ..
-    "🌟 Shaders system\n" ..
-    "❌ Unload Script button", 3)
+    "🌟 Shaders", 5)
 
-CreateUpdateEntry("v1.0", "Initial Release", 
-    "🎭 358+ Animations database\n" ..
+CreateUpdateEntry("v2.0", "Major Overhaul",
+    "🎭 358+ Animations with search\n" ..
     "👤 Target Player system\n" ..
-    "⚡ Teleport features\n" ..
+    "⚡ Teleport to / Bring / Focus target\n" ..
     "📹 Spectate mode\n" ..
     "🪑 HeadSit & Backpack modes\n" ..
-    "💾 Animation persistence", 4)
+    "💾 Animation persistence across respawns", 6)
 end -- end Home section do block
 
 -- ANIMATION SECTION (NEW)
