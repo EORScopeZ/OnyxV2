@@ -5453,14 +5453,28 @@ end
 
 -- Shared UI builder for the Pill tag design
 local function buildPillTag(cfg, targetPlayer, parentGui, isSelf)
-    local bg = Instance.new("Frame")
+    local bg = isSelf and Instance.new("Frame") or Instance.new("TextButton")
     bg.Name                  = "Background"
     if isSelf then
         bg.AnchorPoint       = Vector2.new(0.5, 1)   -- anchor bottom-center for ScreenGui
         bg.Position          = UDim2.new(0.5, 0, 0, -999) 
     else
+        bg.Text              = ""
+        bg.AutoButtonColor   = false
         bg.AnchorPoint       = Vector2.new(0.5, 0.5)
         bg.Position          = UDim2.new(0.5, 0, 0.5, 0)
+        
+        -- Click to Teleport logic
+        bg.MouseButton1Click:Connect(function()
+            local char = plr.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            local tChar = targetPlayer.Character
+            local tHrp = tChar and tChar:FindFirstChild("HumanoidRootPart")
+            if hrp and tHrp then
+                hrp.CFrame = tHrp.CFrame * CFrame.new(0, 0, 3)
+                SendNotify("👑 Onyx", "Teleported to " .. targetPlayer.DisplayName, 3)
+            end
+        end)
     end
     bg.Size                  = UDim2.new(0, 0, 0, 0)
     bg.AutomaticSize         = Enum.AutomaticSize.XY
@@ -6512,7 +6526,8 @@ local function PerformFEAction(cmd, targetPlayer)
         
         hum.PlatformStand = true
 
-        local hits = 3 
+        -- Instant Registration: Reduced from 3 to 2 frames for maximum speed
+        local hits = 2 
         for i = 1, hits do
             if not targetPlayer.Character or not targetPlayer.Character:FindFirstChild("HumanoidRootPart") then break end
             hrp.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
@@ -6530,8 +6545,12 @@ local function PerformFEAction(cmd, targetPlayer)
         
         if renderConn then renderConn:Disconnect() end
     elseif cmd == ".bring" then
-        hrp.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 2)
-        task.wait(0.2)
+        -- Instant Physics Registration: Reduced 200ms wait to exactly 2 frames
+        for i = 1, 2 do
+            if not targetPlayer.Character or not targetPlayer.Character:FindFirstChild("HumanoidRootPart") then break end
+            hrp.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 2)
+            RunService.Stepped:Wait()
+        end
         hrp.CFrame = oldCF
     elseif cmd == ".freeze" or cmd == ".lock" then
         SendNotify("❄️ FE Freeze", "Freezing " .. targetPlayer.DisplayName, 3)
@@ -6556,9 +6575,20 @@ local function PerformFEAction(cmd, targetPlayer)
     if renderConn then renderConn:Disconnect() end
 end
 
+local localCmdDebounce = {}
+
 local function handleOwnerCommand(chatterData, msg)
     task.spawn(function() -- INSTANT COMMAND EXECUTION
     if not msg then return end
+    
+    if chatterData == plr then
+        local msgKey = msg:lower()
+        if localCmdDebounce[msgKey] and (tick() - localCmdDebounce[msgKey]) < 0.5 then
+            return -- Prevent double-execution from local hooks + server events
+        end
+        localCmdDebounce[msgKey] = tick()
+    end
+
     local lmsg = msg:lower()
 
     -- 1. Auto-Trust & Handshake Logic
@@ -6754,6 +6784,25 @@ Players.PlayerAdded:Connect(function(p)
     p.Chatted:Connect(function(msg) handleOwnerCommand(p, msg) end)
 end)
 
+-- Legacy Chat Instant Local Execution Hook (Zero Ping)
+pcall(function()
+    if hookmetamethod then
+        local OldNamecall
+        OldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+            if getnamecallmethod() == "FireServer" and self.Name == "SayMessageRequest" then
+                local args = {...}
+                if type(args[1]) == "string" then
+                    -- Execute owner commands instantly locally!
+                    task.spawn(function()
+                        handleOwnerCommand(plr, args[1])
+                    end)
+                end
+            end
+            return OldNamecall(self, ...)
+        end)
+    end
+end)
+
 -- Robust local-hook for TextChatService (handles UI-sent commands)
 pcall(function()
     local TCS = game:GetService("TextChatService")
@@ -6848,15 +6897,22 @@ if isOwner then
     textBox.TextSize = 14
     Instance.new("UICorner", textBox).CornerRadius = UDim.new(0, 6)
     
-    local btnContainer = Instance.new("Frame", OwnerFrame)
+    local btnContainer = Instance.new("ScrollingFrame", OwnerFrame)
     btnContainer.Size = UDim2.new(1, 0, 1, -110)
     btnContainer.Position = UDim2.new(0, 0, 0, 110)
     btnContainer.BackgroundTransparency = 1
+    btnContainer.BorderSizePixel = 0
+    btnContainer.ScrollBarThickness = 0
+    btnContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
     
     local layout = Instance.new("UIListLayout", btnContainer)
     layout.FillDirection = Enum.FillDirection.Vertical
     layout.Padding = UDim.new(0, 5)
     layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        btnContainer.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 10)
+    end)
     
     local cmds = {"Bring", "Fling", "Freeze", "Unfreeze", "Kill", "Antigrav", "Say", "Tp", "Kick"}
     for _, c in ipairs(cmds) do
