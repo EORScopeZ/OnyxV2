@@ -4868,16 +4868,35 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         humanoid.WalkSpeed = 0
         humanoid.JumpPower = 0
 
-        -- Slam downward
-        hrp.AssemblyLinearVelocity = Vector3.new(0, -80, 0)
+        -- Launch forward and upward (throw effect like in video)
+        local lookDir = hrp.CFrame.LookVector
+        hrp.AssemblyLinearVelocity = Vector3.new(
+            lookDir.X * 60,
+            55,
+            lookDir.Z * 60
+        )
 
-        -- Immediately go to freefall state so they drop hard
+        -- Go to freefall so physics takes over
         humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
 
         SendNotify("Trip", "Tripped!", 1)
 
-        -- Get up after 1.5 seconds
-        task.delay(1.5, function()
+        -- Apply tumble spin while airborne
+        task.spawn(function()
+            for i = 1, 8 do
+                task.wait(0.08)
+                if hrp and hrp.Parent then
+                    hrp.AssemblyAngularVelocity = Vector3.new(
+                        math.random(-15, 15),
+                        math.random(-15, 15),
+                        math.random(-15, 15)
+                    )
+                end
+            end
+        end)
+
+        -- Get up after 2 seconds
+        task.delay(2, function()
             if humanoid and humanoid.Parent then
                 humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
                 humanoid.WalkSpeed = origWalkSpeed
