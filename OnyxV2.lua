@@ -83,16 +83,14 @@ local TargetedPlayer = nil
 
 -- Utility Functions
 local function GetPlayer(UserDisplay)
-    if UserDisplay ~= "" then
-        for i,v in pairs(Players:GetPlayers()) do
-            if v.Name:lower():match(UserDisplay:lower()) or v.DisplayName:lower():match(UserDisplay:lower()) then
-                return v
-            end
+    if UserDisplay == "" then return nil end
+    local lower = UserDisplay:lower()
+    for _, v in ipairs(Players:GetPlayers()) do
+        if v.Name:lower():match(lower) or v.DisplayName:lower():match(lower) then
+            return v
         end
-        return nil
-    else
-        return nil
     end
+    return nil
 end
 
 local function GetCharacter(Player)
@@ -1643,7 +1641,7 @@ local function GetNearestPlayer()
     local nearest = nil
     local nearestDist = math.huge
 
-    for _, p in pairs(Players:GetPlayers()) do
+    for _, p in ipairs(Players:GetPlayers()) do
         if p ~= plr and p.Character then
             local otherHRP = p.Character:FindFirstChild("HumanoidRootPart")
             if otherHRP then
@@ -2105,17 +2103,16 @@ local zeroDelayConnection = nil
 local zeroDelayMode = nil -- "headsit" or "backpack"
 
 -- Freeze/unfreeze functions to prevent flinging
+local _v3zero = Vector3.zero
 local function FreezeCharacter()
     local char = plr.Character
     if not char then return end
     local humanoid = char:FindFirstChildOfClass("Humanoid")
-    if humanoid then
-        humanoid.PlatformStand = true
-    end
-    for _, part in pairs(char:GetDescendants()) do
+    if humanoid then humanoid.PlatformStand = true end
+    for _, part in ipairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
-            part.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-            part.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+            part.AssemblyLinearVelocity  = _v3zero
+            part.AssemblyAngularVelocity = _v3zero
         end
     end
 end
@@ -2664,7 +2661,7 @@ end)
 -- Update mic icon status in real-time
 local antiVCLast = 0
 RunService.Heartbeat:Connect(function()
-    local now = tick(); if now - antiVCLast < 0.1 then return end; antiVCLast = now
+    local now = os.clock(); if now - antiVCLast < 0.1 then return end; antiVCLast = now
     if not UserInputService.WindowFocused then return end
     if (AntiVCWindow.Visible or ScreenMicIndicator.Visible) and VoiceChatInternal then
         local success, isPaused = pcall(function() 
@@ -4310,16 +4307,12 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         teleportEffect.Transparency = 0.5
         teleportEffect.Parent = workspace
         
-        -- Fade out effect
-        task.spawn(function()
-            for i = 1, 10 do
-                teleportEffect.Transparency = teleportEffect.Transparency + 0.05
-                teleportEffect.Size = teleportEffect.Size + Vector3.new(0.5, 0, 0.5)
-                teleportEffect.CFrame = CFrame.new(mouseLocation)
-                task.wait(0.05)
-            end
-            teleportEffect:Destroy()
-        end)
+        -- Fade out effect via tween (no per-frame loop)
+        local _teFade = TweenService:Create(teleportEffect,
+            TweenInfo.new(0.5, Enum.EasingStyle.Linear),
+            { Transparency = 1, Size = Vector3.new(10, 0.2, 10) })
+        _teFade:Play()
+        _teFade.Completed:Once(function() teleportEffect:Destroy() end)
     end
 end)
 
@@ -4335,7 +4328,7 @@ local gridSize = 512
 
 -- Function to find the original baseplate
 local function FindBaseplate()
-    for _, obj in pairs(workspace:GetChildren()) do
+    for _, obj in ipairs(workspace:GetChildren()) do
         if obj:IsA("Part") and obj.Name:lower():find("baseplate") then
             return obj
         end
@@ -4477,7 +4470,7 @@ do
     RunService.Heartbeat:Connect(function()
         if not InfiniteBaseplateEnabled then return end
         if not UserInputService.WindowFocused then return end
-        local now = tick()
+        local now = os.clock()
         if now - lastBaseplateUpdate < 0.5 then return end
         lastBaseplateUpdate = now
         UpdateBaseplates()
@@ -4539,15 +4532,16 @@ end)
 -- ESP Update Loop
 local espLast = 0
 RunService.Heartbeat:Connect(function()
-    if not ESPEnabled then return end
-    local now = tick(); if now - espLast < 0.05 then return end; espLast = now
-    if not ESPEnabled then return end
+    local now = os.clock(); if now - espLast < 0.05 then return end; espLast = now
     if not game:GetService("GuiService"):IsTenFootInterface() and not UserInputService.WindowFocused then return end
     
-    for _, player in pairs(Players:GetPlayers()) do
+    local selfChar = plr.Character
+    local selfHRPe = selfChar and selfChar:FindFirstChild("HumanoidRootPart")
+    if not selfHRPe then return end
+    for _, player in ipairs(Players:GetPlayers()) do
         if player ~= plr and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-            if not hrp then return end
+            local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+            if not hrp then continue end
             local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
             
             -- Create ESP if doesn't exist
@@ -4601,10 +4595,7 @@ RunService.Heartbeat:Connect(function()
             
             if onScreen then
                 -- Calculate box size based on distance
-                local selfHRP = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
-                if not selfHRP then return end
-                local distance = (hrp.Position - selfHRP.Position).Magnitude
-                local scaleFactor = 1 / (distance / 10)
+                local distance = (hrp.Position - selfHRPe.Position).Magnitude
                 local boxWidth = math.clamp(2000 / distance, 50, 300)
                 local boxHeight = boxWidth * 1.5
                 
@@ -4647,15 +4638,17 @@ RunService.Heartbeat:Connect(function()
         end
     end
     
-    -- Clean up disconnected players
-    for playerName, esp in pairs(espObjects) do
-        if not Players:FindFirstChild(playerName) then
-            if esp.box then esp.box:Destroy() end
-            if esp.nameLabel then esp.nameLabel:Destroy() end
-            if esp.distanceLabel then esp.distanceLabel:Destroy() end
-            if esp.healthBar then esp.healthBar:Destroy() end
-            espObjects[playerName] = nil
-        end
+end)
+
+-- Clean up ESP for players who leave (event-driven, not per-frame)
+Players.PlayerRemoving:Connect(function(p)
+    local esp = espObjects[p.Name]
+    if esp then
+        if esp.box then esp.box:Destroy() end
+        if esp.nameLabel then esp.nameLabel:Destroy() end
+        if esp.distanceLabel then esp.distanceLabel:Destroy() end
+        if esp.healthBar then esp.healthBar:Destroy() end
+        espObjects[p.Name] = nil
     end
 end)
 
@@ -4704,9 +4697,7 @@ end)
 -- Aimlock Update Loop
 local aimlockLast = 0
 RunService.Heartbeat:Connect(function()
-    if not AimlockEnabled then return end
-    local now = tick(); if now - aimlockLast < 0.033 then return end; aimlockLast = now
-    if not AimlockEnabled then return end
+    local now = os.clock(); if now - aimlockLast < 0.033 then return end; aimlockLast = now
     if not UserInputService.WindowFocused then return end
     
     -- Update FOV circle position
@@ -4717,10 +4708,10 @@ RunService.Heartbeat:Connect(function()
     local closestPlayer = nil
     local closestDistance = math.huge
     
-    for _, player in pairs(Players:GetPlayers()) do
+    for _, player in ipairs(Players:GetPlayers()) do
         if player ~= plr and player.Character and player.Character:FindFirstChild("Head") then
-            local head = player.Character and player.Character:FindFirstChild("Head")
-            if not head then return end
+            local head = player.Character:FindFirstChild("Head")
+            if not head then continue end
             local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
             
             if humanoid and humanoid.Health > 0 then
@@ -4741,10 +4732,11 @@ RunService.Heartbeat:Connect(function()
     aimlockTarget = closestPlayer
     
     -- Aim at target
-    if aimlockTarget and aimlockTarget.Character and aimlockTarget.Character:FindFirstChild("Head") then
-        local head = aimlockTarget.Character and aimlockTarget.Character:FindFirstChild("Head")
-        if not head then return end
-        workspace.CurrentCamera.CFrame = CFrame.new(workspace.CurrentCamera.CFrame.Position, head.Position)
+    if aimlockTarget and aimlockTarget.Character then
+        local head = aimlockTarget.Character:FindFirstChild("Head")
+        if head then
+            workspace.CurrentCamera.CFrame = CFrame.new(workspace.CurrentCamera.CFrame.Position, head.Position)
+        end
     end
 end)
 
@@ -4779,15 +4771,12 @@ end)
 -- Record position history
 local trLast = 0
 RunService.Heartbeat:Connect(function()
-    if not TimeReverseEnabled or isReversing then return end
-    local now = tick(); if now - trLast < 0.033 then return end; trLast = now
-    if not TimeReverseEnabled or isReversing then return end
+    local now = os.clock(); if now - trLast < 0.033 then return end; trLast = now
     if not UserInputService.WindowFocused then return end
     
-    if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-        local hrp = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
-        if not hrp then return end
-        
+    local _trChar = plr.Character
+    local hrp = _trChar and _trChar:FindFirstChild("HumanoidRootPart")
+    if hrp then
         -- O(1) circular buffer write
         positionHistory[histHead] = { CFrame = hrp.CFrame }
         histHead = (histHead % maxHistoryLength) + 1
@@ -4810,19 +4799,23 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
     end
 end)
 
--- Apply time reverse
+-- Apply time reverse (throttled to match record rate so speed feels 1:1)
+local trApplyLast = 0
 RunService.Heartbeat:Connect(function()
     if not isReversing or not TimeReverseEnabled then return end
     if not UserInputService.WindowFocused then return end
-    
-    if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and histCount > 0 then
-        local hrp = plr.Character.HumanoidRootPart
+    local now = os.clock(); if now - trApplyLast < 0.033 then return end; trApplyLast = now
+
+    local _revChar = plr.Character
+    if _revChar and histCount > 0 then
+        local hrp = _revChar:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
         -- Read newest entry from circular buffer
         local readIdx = ((histHead - 2) % maxHistoryLength) + 1
         local lastPos = positionHistory[readIdx]
         if lastPos then
             hrp.CFrame = lastPos.CFrame
-            hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+            hrp.AssemblyLinearVelocity = Vector3.zero
             histHead = readIdx
             histCount = histCount - 1
         end
@@ -5650,7 +5643,8 @@ task.spawn(function()
     while true do
         task.wait(8)
         fetchActiveUsers(function(activeSet)
-            for _, p in ipairs(Players:GetPlayers()) do
+            local allPlayers = Players:GetPlayers()
+            for _, p in ipairs(allPlayers) do
                 if p ~= plr then
                     local isActive = activeSet[p.Name:lower()] ~= nil
                     local cached = nametagConfigs[p.Name]
@@ -5681,12 +5675,12 @@ plr.CharacterAdded:Connect(function()
     plr:SetAttribute("OnyxExecuted", true)
     applySelfNametag() 
     
-    -- Re-apply to everyone else to ensure they stay visible
+    -- Re-apply only to players who were previously active (skip inactive)
     task.spawn(function()
         for _, otherPlayer in ipairs(Players:GetPlayers()) do
-            if otherPlayer ~= plr then
+            if otherPlayer ~= plr and nametagConfigs[otherPlayer.Name] ~= "inactive" then
                 applyNametag(otherPlayer)
-                task.wait(0.3) 
+                task.wait(0.3)
             end
         end
     end)
