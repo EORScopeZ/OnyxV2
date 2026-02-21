@@ -5055,13 +5055,14 @@ end
 -- =====================================================
 -- ONYX NAMETAG SYSTEM
 -- =====================================================
-
+do
 -- Mark this executor as active
 plr:SetAttribute("OnyxExecuted", true)
 
 -- Runtime state
 local nametagObjects = {}   -- [userId] = BillboardGui instance
 local nametagConfigs = {}   -- [username] = config or "default" or table
+local watchingPlayers = {}  -- [userId] = true (currently watching/applying)
 local WORKER_BASE = "https://onyx-vercel-omega.vercel.app"
 
 local function GetHWID()
@@ -5665,6 +5666,10 @@ end
 
 -- Watch a single player for character spawns
 local function watchPlayer(targetPlayer)
+    local userId = targetPlayer.UserId
+    if watchingPlayers[userId] then return end
+    watchingPlayers[userId] = true
+
     -- Only attempt nametag once character is fully loaded
     local function safeApply()
         local char = targetPlayer.Character
@@ -5683,9 +5688,19 @@ local function watchPlayer(targetPlayer)
     end
 
     -- Watch for when they respawn
-    targetPlayer.CharacterAdded:Connect(function()
+    local conn
+    conn = targetPlayer.CharacterAdded:Connect(function()
         task.wait(1.0) -- give character time to fully replicate
         safeApply()
+    end)
+
+    -- Cleanup connection if they leave
+    task.spawn(function()
+        while targetPlayer and targetPlayer.Parent do
+            task.wait(5)
+        end
+        if conn then conn:Disconnect() end
+        watchingPlayers[userId] = nil
     end)
 end
 
@@ -5783,6 +5798,7 @@ task.spawn(function()
         task.wait(3) -- Ping every 3 seconds for fast synchronization
     end
 end)
+end -- End Nametag System
 -- =====================================================
 
 -- =====================================================
@@ -5819,6 +5835,7 @@ local allCommands = {
 }
 
 -- Build the command list window
+do
 local CmdListFrame = Instance.new("Frame")
 CmdListFrame.Name = "OnyxCmdList"
 CmdListFrame.Parent = OnyxUI
@@ -5922,6 +5939,7 @@ end
 CommandsButton.MouseButton1Click:Connect(function()
     CmdListFrame.Visible = not CmdListFrame.Visible
 end)
+end -- End Command List UI
 
 -- Chat command handler
 local function onChat(msg)
