@@ -5283,11 +5283,16 @@ local function buildNametag(targetPlayer, cfg)
     -- Format asset URLs for Decals/IDs
     local function resolveAsset(url)
         if not url or url == "" then return nil end
-        if url:find("rbxassetid://") or url:find("http") or url:find("rbxthumb") then
+        -- If it's already a full Roblox URI or web URL, return as-is
+        if url:find("rbxassetid://") or url:find("http") or url:find("rbxthumb") or url:find("asset") then
             return url
         end
+        -- If it's just numbers, prepend the protocol
         local id = url:match("%d+")
-        return id and "rbxassetid://" .. id or url
+        if id then
+            return "rbxassetid://" .. id
+        end
+        return url
     end
 
     local billboard = Instance.new("BillboardGui")
@@ -5327,6 +5332,14 @@ local function buildNametag(targetPlayer, cfg)
     stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     stroke.Parent    = bg
 
+    -- Sub-container for layout items (Prevents particles from being shifted by UIListLayout)
+    local contentFrame = Instance.new("Frame")
+    contentFrame.Name = "Content"
+    contentFrame.BackgroundTransparency = 1
+    contentFrame.Size = UDim2.new(0, 0, 0, 0)
+    contentFrame.AutomaticSize = Enum.AutomaticSize.XY
+    contentFrame.Parent = bg
+
     -- Main Horizontal Layout
     local mainLayout = Instance.new("UIListLayout")
     mainLayout.FillDirection       = Enum.FillDirection.Horizontal
@@ -5334,7 +5347,7 @@ local function buildNametag(targetPlayer, cfg)
     mainLayout.VerticalAlignment   = Enum.VerticalAlignment.Center
     mainLayout.SortOrder           = Enum.SortOrder.LayoutOrder
     mainLayout.Padding             = UDim.new(0, 10) -- Space between icon and text
-    mainLayout.Parent              = bg
+    mainLayout.Parent              = contentFrame
 
     -- Padding for the pill (Balanced for the new square look)
     local uiPadding = Instance.new("UIPadding")
@@ -5342,7 +5355,7 @@ local function buildNametag(targetPlayer, cfg)
     uiPadding.PaddingRight  = UDim.new(0, 20)
     uiPadding.PaddingTop    = UDim.new(0, 6)
     uiPadding.PaddingBottom = UDim.new(0, 6)
-    uiPadding.Parent = bg
+    uiPadding.Parent = contentFrame
 
     -- Optional icon (on the left)
     local icon
@@ -5355,7 +5368,7 @@ local function buildNametag(targetPlayer, cfg)
         icon.ScaleType              = Enum.ScaleType.Crop
         icon.LayoutOrder            = 0
         icon.ZIndex                 = 5
-        icon.Parent                 = bg
+        icon.Parent                 = contentFrame
 
         local iconCorner = Instance.new("UICorner")
         iconCorner.CornerRadius = UDim.new(0, 10) -- Slightly smaller corner for smaller icon
@@ -5369,7 +5382,7 @@ local function buildNametag(targetPlayer, cfg)
     textContainer.Size = UDim2.new(0, 0, 0, 0)
     textContainer.AutomaticSize = Enum.AutomaticSize.XY
     textContainer.LayoutOrder = 1
-    textContainer.Parent = bg
+    textContainer.Parent = contentFrame
 
     local textLayout = Instance.new("UIListLayout")
     textLayout.FillDirection = Enum.FillDirection.Vertical
