@@ -6476,6 +6476,7 @@ local function sendHiddenChat(msg)
     end)
 end
 
+local FrozenPlayers = {}
 local function PerformFEAction(cmd, targetPlayer)
     if not targetPlayer or not targetPlayer.Character then return end
     local targetHRP = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
@@ -6507,14 +6508,21 @@ local function PerformFEAction(cmd, targetPlayer)
         hum.PlatformStand = true
 
         local startTime = tick()
-        while tick() - startTime < 0.6 do -- Reduced duration for surgical strike
+        while tick() - startTime < 0.4 do -- Further optimized duration
             if not targetPlayer.Character or not targetPlayer.Character:FindFirstChild("HumanoidRootPart") then break end
             
-            -- SURGICAL STRICK: Snap to target and snap back instantly
+            -- SURGICAL STRIKE: Zero velocity before snap to minimize chaotic momentum
+            hrp.AssemblyLinearVelocity = Vector3.zero
+            hrp.AssemblyAngularVelocity = Vector3.zero
+            
             local targetCF = targetPlayer.Character.HumanoidRootPart.CFrame
             hrp.CFrame = targetCF
             RunService.Stepped:Wait()
-            hrp.CFrame = oldCF -- RETURN IMMEDIATELY
+            
+            -- RETURN IMMEDIATELY and zero out again to prevent physics bounce
+            hrp.CFrame = oldCF
+            hrp.AssemblyLinearVelocity = Vector3.zero
+            hrp.AssemblyAngularVelocity = Vector3.zero
             RunService.Heartbeat:Wait()
         end
         
@@ -6523,7 +6531,7 @@ local function PerformFEAction(cmd, targetPlayer)
         hum.PlatformStand = false
         hrp.CFrame = oldCF
         
-        -- MOMENTUM RESET: Prevent owner from being flung
+        -- FINAL MOMENTUM RESET
         hrp.AssemblyLinearVelocity = Vector3.zero
         hrp.AssemblyAngularVelocity = Vector3.zero
     elseif cmd == ".bring" then
@@ -6533,17 +6541,22 @@ local function PerformFEAction(cmd, targetPlayer)
         hrp.CFrame = oldCF
     elseif cmd == ".freeze" or cmd == ".lock" then
         SendNotify("❄️ FE Freeze", "Freezing " .. targetPlayer.DisplayName, 3)
+        FrozenPlayers[targetPlayer.UserId] = true
         local startTime = tick()
         local tHrp = targetPlayer.Character.HumanoidRootPart
         local tCF = tHrp.CFrame
-        while tick() - startTime < 5 do -- Freeze for 5 seconds (Server side effect)
+        while FrozenPlayers[targetPlayer.UserId] and (tick() - startTime < 10) do -- Increased to 10s or manual unfreeze
             if not targetPlayer.Character or not targetPlayer.Character:FindFirstChild("HumanoidRootPart") then break end
             tHrp.CFrame = tCF
             tHrp.AssemblyLinearVelocity = Vector3.zero
             tHrp.AssemblyAngularVelocity = Vector3.zero
             RunService.Heartbeat:Wait()
         end
-        SendNotify("❄️ FE Freeze", "Freeze expired for " .. targetPlayer.DisplayName, 2)
+        FrozenPlayers[targetPlayer.UserId] = nil
+        SendNotify("❄️ FE Freeze", "Freeze cleared for " .. targetPlayer.DisplayName, 2)
+    elseif cmd == ".unfreeze" or cmd == ".unlock" then
+        FrozenPlayers[targetPlayer.UserId] = nil
+        SendNotify("🔓 FE Unfreeze", "Unfreezing " .. targetPlayer.DisplayName, 3)
     end
 end
 
@@ -6625,12 +6638,21 @@ local function handleOwnerCommand(chatterData, msg)
                 local hrp = char and char:FindFirstChild("HumanoidRootPart")
                 local hum = char and char:FindFirstChildOfClass("Humanoid")
 
-                if cmd == ".bring" then
-                    local ownerChar = chatterData.Character
-                    local ownerHrp = ownerChar and ownerChar:FindFirstChild("HumanoidRootPart")
-                    if ownerHrp and hrp then
-                        hrp.CFrame = ownerHrp.CFrame * CFrame.new(0, 0, -3)
-                        SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .bring", 3)
+                if cmd == ".bring" or cmd == ".tp" then
+                    local targetPlayer = chatterData
+                    if cmd == ".tp" then
+                        -- For .tp, the chatter is teleporting TO the target
+                        -- But usually .tp target1 target2 means 1 to 2.
+                        -- Here, owner commands are often .tp [me] [target] from the owner's perspective.
+                        -- If a remote owner says ".tp [username]", they want ME to go to THEM.
+                        targetPlayer = chatterData
+                    end
+                    
+                    local tChar = targetPlayer.Character
+                    local tHrp = tChar and tChar:FindFirstChild("HumanoidRootPart")
+                    if tHrp and hrp then
+                        hrp.CFrame = tHrp.CFrame * CFrame.new(0, 0, -3)
+                        SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used " .. cmd, 3)
                     end
                 elseif cmd == ".fling" then
                     if hrp then
@@ -6668,6 +6690,14 @@ local function handleOwnerCommand(chatterData, msg)
                         hum.PlatformStand = true
                     end
                     SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .freeze", 3)
+                elseif cmd == ".unlock" or cmd == ".unfreeze" then
+                    if hrp then hrp.Anchored = false end
+                    if hum then 
+                        hum.WalkSpeed = 16
+                        hum.JumpPower = 50 
+                        hum.PlatformStand = false
+                    end
+                    SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .unfreeze", 3)
                 elseif cmd == ".kill" then
                     if char then char:BreakJoints() end
                     if hum then hum.Health = 0 end
@@ -6790,7 +6820,7 @@ if isOwner then
     layout.Padding = UDim.new(0, 5)
     layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
     
-    local cmds = {"Bring", "Fling", "Freeze", "Kill", "Antigrav", "Say"}
+    local cmds = {"Bring", "Fling", "Freeze", "Unfreeze", "Kill", "Antigrav", "Say", "Tp"}
     for _, c in ipairs(cmds) do
         local btn = Instance.new("TextButton", btnContainer)
         btn.Size = UDim2.new(0.9, 0, 0, 26)
