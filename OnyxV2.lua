@@ -6405,6 +6405,30 @@ SendNotify("Onyx", "Chat commands hooked", 3)
 -- =====================================================
 -- ONYX OWNER COMMANDS (HWID RESTRICTED)
 -- =====================================================
+
+-- ── HWID retrieval shim ──────────────────────────────────────────────────────
+-- GetHWID was never defined — try common executor globals, then fallback
+local function GetHWID()
+    -- Try common executor HWID functions
+    local candidates = {
+        function() return gethwid and gethwid() end,
+        function() return getexecutorhwid and getexecutorhwid() end,
+        function() return get_hwid and get_hwid() end,
+        function() return identifyexecutor and ({identifyexecutor()})[2] end,
+        function()
+            local RbxAnalytics = game:GetService("RbxAnalyticsService")
+            return RbxAnalytics:GetClientId()
+        end,
+    }
+    for _, getter in ipairs(candidates) do
+        local ok, result = pcall(getter)
+        if ok and type(result) == "string" and result ~= "" then
+            return result
+        end
+    end
+    return "unknown-hwid"
+end
+
 local OwnerHWIDs = {
     ["f4d0e7f4-d3b7-4ec3-87c9-241f9e3611fb"] = true,
     ["f6f7d925-e387-4f0e-a339-bf26dcc41669"] = true
