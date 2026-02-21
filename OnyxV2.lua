@@ -1660,27 +1660,32 @@ end
 
 local function StopFaceBang()
     FaceBangEnabled = false
-    faceBangTarget = nil
+    faceBangTarget  = nil
     if faceBangThread then
-        task.cancel(faceBangThread)
+        faceBangThread:Disconnect()
         faceBangThread = nil
     end
-    -- Unfreeze
     pcall(function()
         local char = plr.Character
         if not char then return end
         local hum = char:FindFirstChildOfClass("Humanoid")
         if hum then
             hum.PlatformStand = false
-            hum.AutoRotate = true
-            hum.Sit = false
+            hum.AutoRotate    = true
+            hum.Sit           = false
         end
         local hrp = char:FindFirstChild("HumanoidRootPart")
         if hrp then
-            hrp.AssemblyLinearVelocity = Vector3.new(0,0,0)
-            hrp.AssemblyAngularVelocity = Vector3.new(0,0,0)
+            hrp.AssemblyLinearVelocity  = Vector3.zero
+            hrp.AssemblyAngularVelocity = Vector3.zero
         end
     end)
+    if canUsePhysicsRep then
+        pcall(function()
+            local hrp = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then sethiddenproperty(hrp, "PhysicsRepRootPart", nil) end
+        end)
+    end
     pcall(function()
         if FBToggleBtn and FBToggleBtn.Parent then
             FBToggleBtn.Text = "▶ Start (Z)"
@@ -1703,13 +1708,12 @@ local function StartFaceBang(targetPlayer)
     if not hum or not hrp then return end
 
     FaceBangEnabled = true
-    faceBangTarget = targetPlayer
-    faceBangPhase = 1
+    faceBangTarget  = targetPlayer
 
-    -- Freeze local character
+    -- Set once — not every frame
     hum.PlatformStand = true
-    hum.AutoRotate = false
-    hum.Sit = true
+    hum.AutoRotate    = false
+    hum.Sit           = false
 
     pcall(function()
         if FBToggleBtn and FBToggleBtn.Parent then
@@ -1721,92 +1725,60 @@ local function StartFaceBang(targetPlayer)
         end
     end)
 
-    faceBangThread = task.spawn(function()
-        local oscillatorTime = 0
+    local oscillatorTime = 0
 
-        while FaceBangEnabled do
-            RunService.Heartbeat:Wait()
-            if not UserInputService.WindowFocused then continue end
-            local localChar = plr.Character
-            if not localChar then break end
-            local localHRP = localChar:FindFirstChild("HumanoidRootPart")
-            local localHum = localChar:FindFirstChildOfClass("Humanoid")
-            if not localHRP or not localHum then
-                task.wait(0.1)
-                continue
-            end
+    -- PreSimulation: snaps position BEFORE the physics step — zero scheduling lag
+    faceBangThread = RunService.PreSimulation:Connect(function(dt)
+        if not FaceBangEnabled then return end
+        if not UserInputService.WindowFocused then return end
 
-            local targetChar = faceBangTarget and faceBangTarget.Character
-            if not targetChar then
-                pcall(function() if FBStatusLabel and FBStatusLabel.Parent then FBStatusLabel.Text = "Status: Waiting for target..." end end)
-                task.wait(0.3)
-                continue
-            end
+        local localChar = plr.Character
+        if not localChar then StopFaceBang(); return end
+        local localHRP = localChar:FindFirstChild("HumanoidRootPart")
+        local localHum = localChar:FindFirstChildOfClass("Humanoid")
+        if not localHRP or not localHum then return end
 
-            local targetHead = targetChar:FindFirstChild("Head")
-            local targetHRP = targetChar:FindFirstChild("HumanoidRootPart")
-            if not targetHead or not targetHRP then
-                task.wait(0.1)
-                continue
-            end
-
-            -- Keep completely upright and frozen - NO Sit (causes knee bend), NO look-at (causes tilt)
-            localHum.PlatformStand = true
-            localHum.AutoRotate = false
-            localHum.Sit = false
-
-            -- Stiffen the target player every frame
+        local targetChar = faceBangTarget and faceBangTarget.Character
+        if not targetChar then
             pcall(function()
-                local targetHum = targetChar:FindFirstChildOfClass("Humanoid")
-                if targetHum then
-                    targetHum.PlatformStand = true
-                    targetHum.AutoRotate = false
+                if FBStatusLabel and FBStatusLabel.Parent then
+                    FBStatusLabel.Text = "Status: Waiting for target..."
                 end
-                targetHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-                targetHRP.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
             end)
-
-            local speed = getFBSpeed()
-            local distance = getFBDistance()
-
-            -- Fast oscillation
-            oscillatorTime = oscillatorTime + (speed / 1.5) * 0.016
-            local oscillation = math.sin(oscillatorTime) -- -1 to 1
-
-            local headCF = targetHead.CFrame
-
-            -- t oscillates 0..1..0 (in front of face, then pull back)
-            local t = (oscillation + 1) / 2
-
-            -- Offset: start 0.5 studs in front, oscillate outward by distance. 
-            -- Raised by 0.75 studs so character isn't too low on face.
-            local relativeOffset = Vector3.new(0, 0.75, -(0.5 + t * distance))
-            local finalPos = headCF:PointToWorldSpace(relativeOffset)
-
-            -- Face back toward the target head (opposite of head's look direction)
-            local lookBack = headCF.LookVector * -1
-            local finalCF = CFrame.lookAt(finalPos, finalPos + lookBack, Vector3.new(0, 1, 0))
-
-            local dist = (localHRP.Position - finalPos).Magnitude
-            if dist > 10 then
-                localHRP.CFrame = finalCF
-            else
-                local newPos = localHRP.Position:Lerp(finalPos, 0.9)
-                localHRP.CFrame = CFrame.lookAt(newPos, newPos + lookBack, Vector3.new(0, 1, 0))
-            end
-
-            localHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-            localHRP.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-
-            if canUsePhysicsRep then
-                pcall(function()
-                    sethiddenproperty(localHRP, "PhysicsRepRootPart", targetHead)
-                end)
-            end
-            -- Fallback: pure CFrame tracking (already done above) works on all executors
+            return
         end
 
-        StopFaceBang()
+        local targetHead = targetChar:FindFirstChild("Head")
+        local targetHRP  = targetChar:FindFirstChild("HumanoidRootPart")
+        if not targetHead or not targetHRP then return end
+
+        -- Keep upright — no Sit (causes knee bend)
+        localHum.PlatformStand = true
+        localHum.AutoRotate    = false
+        localHum.Sit           = false
+
+        -- PhysicsRep replication
+        if canUsePhysicsRep then
+            pcall(sethiddenproperty, localHRP, "PhysicsRepRootPart", targetHead)
+        end
+
+        local speed    = getFBSpeed()
+        local distance = getFBDistance()
+
+        -- Oscillation driven by real dt for frame-rate independence
+        oscillatorTime = oscillatorTime + (speed / 1.5) * dt
+        local t        = (math.sin(oscillatorTime) + 1) / 2  -- 0..1..0
+
+        local headCF = targetHead.CFrame
+        local relativeOffset = Vector3.new(0, 0.75, -(0.5 + t * distance))
+        local finalPos = headCF:PointToWorldSpace(relativeOffset)
+        local lookBack = headCF.LookVector * -1
+        local finalCF  = CFrame.lookAt(finalPos, finalPos + lookBack, Vector3.new(0, 1, 0))
+
+        -- Direct snap — no lerp
+        localHRP.CFrame                  = finalCF
+        localHRP.AssemblyLinearVelocity  = Vector3.zero
+        localHRP.AssemblyAngularVelocity = Vector3.zero
     end)
 
     SendNotify("Face Bang", "Attached to " .. targetPlayer.DisplayName, 3)
@@ -2104,32 +2076,7 @@ local zeroDelayConnection = nil
 local zeroDelayMode = nil -- "headsit" or "backpack"
 
 -- Freeze/unfreeze functions to prevent flinging
-local function FreezeCharacter()
-    local char = plr.Character
-    if not char then return end
-    local humanoid = char:FindFirstChildOfClass("Humanoid")
-    if humanoid then
-        humanoid.PlatformStand = true
-    end
-    for _, part in pairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then
-            part.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-            part.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-        end
-    end
-end
-
-local function UnfreezeCharacter()
-    local char = plr.Character
-    if not char then return end
-    local humanoid = char:FindFirstChildOfClass("Humanoid")
-    if humanoid then
-        humanoid.PlatformStand = false
-    end
-end
-
 local function StopZeroDelayCleanup()
-    UnfreezeCharacter()
     if canUsePhysicsRep then
         pcall(function()
             if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
@@ -2137,18 +2084,19 @@ local function StopZeroDelayCleanup()
             end
         end)
     end
-    task.wait(0.15)
     pcall(function()
-        if plr.Character and plr.Character:FindFirstChild("Humanoid") then
-            plr.Character.Humanoid.AutoRotate = true
-            plr.Character.Humanoid.Sit = false
+        local char = plr.Character
+        if not char then return end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.PlatformStand = false
+            hum.AutoRotate   = true
+            hum.Sit          = false
         end
-    end)
-    pcall(function()
-        if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-            local hrp = plr.Character.HumanoidRootPart
-            hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-            hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.AssemblyLinearVelocity  = Vector3.zero
+            hrp.AssemblyAngularVelocity = Vector3.zero
         end
     end)
 end
@@ -2156,9 +2104,9 @@ end
 local function StopZeroDelay()
     if not ZeroDelayEnabled then return end
     ZeroDelayEnabled = false
-    zeroDelayMode = nil
+    zeroDelayMode    = nil
     if zeroDelayThread then
-        task.cancel(zeroDelayThread)
+        zeroDelayThread:Disconnect()
         zeroDelayThread = nil
     end
     if zeroDelayConnection then
@@ -2170,161 +2118,83 @@ local function StopZeroDelay()
     SendNotify("Zero Delay", "Stopped", 2)
 end
 
--- FIXED: Proper Zero Delay Attachment System
+-- ZERO DELAY: PreSimulation snap — runs BEFORE the physics step for minimum lag
 local function StartZeroDelay(targetPlayer, mode)
-    if not targetPlayer then 
+    if not targetPlayer then
         SendNotify("Error", "No target player", 3)
-        return 
-    end
-
-    -- Stop any existing zero delay first
-    if ZeroDelayEnabled then
-        StopZeroDelay()
-        -- StopZeroDelayCleanup already called by StopZeroDelay, small pause for physics to settle
-        task.wait(0.1)
-    end
-
-    -- Validate our character exists
-    if not plr.Character then
-        SendNotify("Error", "Character not loaded", 3)
         return
     end
 
-    local character = plr.Character
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    local localHRP = character:FindFirstChild("HumanoidRootPart")
-    
-    if not humanoid or not localHRP then
-        SendNotify("Error", "Humanoid/HRP not found", 3)
-        return
-    end
+    if ZeroDelayEnabled then StopZeroDelay() end
 
-    -- Set up state BEFORE starting thread
+    local char = plr.Character
+    if not char then SendNotify("Error", "Character not loaded", 3) return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hum or not hrp then SendNotify("Error", "Humanoid/HRP not found", 3) return end
+
     zeroDelayTargetPlayer = targetPlayer
-    ZeroDelayEnabled = true
-    zeroDelayMode = mode
+    ZeroDelayEnabled      = true
+    zeroDelayMode         = mode
 
-    -- Freeze and set up physics replication
-    FreezeCharacter()
-    
-    zeroDelayThread = task.spawn(function()
-        local frameCount = 0
+    -- Disable auto-rotate and stand; set Sit once (not every frame)
+    hum.PlatformStand = true
+    hum.AutoRotate    = false
+    hum.Sit           = false
 
-        while ZeroDelayEnabled do
-            frameCount = frameCount + 1
-            RunService.Heartbeat:Wait()
-            if not UserInputService.WindowFocused then continue end
+    -- Pre-simulation: runs before Roblox physics tick → minimum possible delay
+    zeroDelayThread = RunService.PreSimulation:Connect(function()
+        if not ZeroDelayEnabled then return end
+        if not UserInputService.WindowFocused then return end
 
-            local shouldContinue = false
+        local localChar = plr.Character
+        if not localChar then StopZeroDelay(); return end
+        local localHRP = localChar:FindFirstChild("HumanoidRootPart")
+        local localHum = localChar:FindFirstChildOfClass("Humanoid")
+        if not localHRP or not localHum then return end
 
-            -- Validate our character
-            if not plr.Character then
-                SendNotify("Zero Delay", "Character lost - stopping", 3)
-                break
-            end
+        local target = zeroDelayTargetPlayer
+        if not target then StopZeroDelay(); return end
+        local targetChar = target.Character
+        if not targetChar then return end
+        local targetHRP  = targetChar:FindFirstChild("HumanoidRootPart")
+        local targetHead = targetChar:FindFirstChild("Head")
+        if not targetHRP or not targetHead then return end
 
-            local currentChar = plr.Character
-            local currentHRP = currentChar:FindFirstChild("HumanoidRootPart")
-            local currentHumanoid = currentChar:FindFirstChildOfClass("Humanoid")
-
-            if not (currentHRP and currentHumanoid) then
-                task.wait(0.1)
-                shouldContinue = true
-            end
-
-            if not shouldContinue then
-                -- Validate target
-                if not zeroDelayTargetPlayer then break end
-
-                local currentTarget = Players:FindFirstChild(zeroDelayTargetPlayer.Name)
-                if not currentTarget then
-                    SendNotify("Zero Delay", "Target left - stopping", 3)
-                    break
-                end
-
-                if not currentTarget.Character then
-                    SendNotify("Zero Delay", "Target character not loaded - waiting", 3)
-                    task.wait(0.5)
-                    shouldContinue = true
-                end
-
-                if not shouldContinue then
-                    local targetChar = currentTarget.Character
-                    local targetHRP = targetChar:FindFirstChild("HumanoidRootPart")
-                    local targetHead = targetChar:FindFirstChild("Head")
-
-                    if not (targetHRP and targetHead) then
-                        task.wait(0.1)
-                        shouldContinue = true
-                    end
-
-                    if not shouldContinue then
-                        -- Use PhysicsRepRootPart for zero-delay replication if supported,
-                        -- otherwise pure CFrame tracking below handles all executors
-                        if canUsePhysicsRep then
-                            pcall(function()
-                                sethiddenproperty(currentHRP, "PhysicsRepRootPart", targetHead)
-                            end)
-                        end
-
-                        -- Calculate desired position
-                        local targetPos = targetHRP.Position
-                        local targetRot = targetHRP.CFrame.Rotation
-                        local finalPos = targetPos
-                        local finalRot = targetRot
-
-                        if mode == "headsit" then
-                            finalPos = targetHead.Position + Vector3.new(0, 2.5, 0)
-                            finalRot = targetHead.CFrame.Rotation
-                            currentHumanoid.Sit = true
-                            currentHumanoid.AutoRotate = false
-                        elseif mode == "backpack" then
-                            finalPos = targetPos - (targetRot.LookVector * 1.8) + Vector3.new(0, 0.5, 0)
-                            finalRot = targetRot * CFrame.Angles(0, math.rad(180), 0)
-                            currentHumanoid.Sit = true
-                            currentHumanoid.AutoRotate = false
-                        end
-
-                        -- Direct position tracking: snap if far, tight lerp for micro-smoothing only
-                        local currentPos = currentHRP.Position
-                        local distanceToTarget = (finalPos - currentPos).Magnitude
-
-                        if distanceToTarget > 8 then
-                            -- Snap directly to prevent rubber-band teleport-behind bug
-                            currentHRP.CFrame = CFrame.new(finalPos) * finalRot
-                        else
-                            -- Tight lerp only for micro-smoothing, not large corrections
-                            local newPos = currentPos:Lerp(finalPos, 0.95)
-                            currentHRP.CFrame = CFrame.new(newPos) * finalRot
-                        end
-
-                        currentHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-                        currentHRP.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-                    end
-                end
-            end
+        -- PhysicsRep: tells the engine we're physically at the target
+        if canUsePhysicsRep then
+            pcall(sethiddenproperty, localHRP, "PhysicsRepRootPart", targetHead)
         end
 
-        -- Only cleanup on natural break (character lost, target left, etc.)
-        -- If cancelled by StopZeroDelay, this won't be reached
-        if not ZeroDelayEnabled then return end
-        StopZeroDelayCleanup()
+        -- Compute final world CFrame
+        local finalCF
+        if mode == "headsit" then
+            finalCF = targetHead.CFrame * CFrame.new(0, 2.5, 0)
+        elseif mode == "backpack" then
+            local tRot = targetHRP.CFrame.Rotation
+            finalCF = CFrame.new(targetHRP.Position - tRot.LookVector * 1.8 + Vector3.new(0, 0.5, 0)) * tRot * CFrame.Angles(0, math.pi, 0)
+        else
+            finalCF = targetHRP.CFrame
+        end
+
+        -- Direct snap — no lerp, no lag
+        localHRP.CFrame                  = finalCF
+        localHRP.AssemblyLinearVelocity  = Vector3.zero
+        localHRP.AssemblyAngularVelocity = Vector3.zero
+        localHum.PlatformStand           = true
+        localHum.AutoRotate              = false
     end)
 
-    -- Set up respawn handler
-    if zeroDelayConnection then
-        zeroDelayConnection:Disconnect()
-        zeroDelayConnection = nil
-    end
-
-    zeroDelayConnection = plr.CharacterAdded:Connect(function(newChar)
-        if ZeroDelayEnabled and zeroDelayTargetPlayer then
-            task.wait(0.8) -- Wait longer for character to fully load
+    -- Respawn: restart tracking on new character
+    if zeroDelayConnection then zeroDelayConnection:Disconnect() end
+    zeroDelayConnection = plr.CharacterAdded:Connect(function()
+        if ZeroDelayEnabled then
+            task.wait(0.6)
             StartZeroDelay(zeroDelayTargetPlayer, zeroDelayMode)
         end
     end)
 
-    SendNotify("Zero Delay", mode:upper() .. " started on " .. targetPlayer.DisplayName, 2)
+    SendNotify("Zero Delay", mode:upper() .. " started → " .. targetPlayer.DisplayName, 2)
 end
 
 -- HeadSit Button - ZERO DELAY BY DEFAULT
@@ -5361,232 +5231,18 @@ local function enqueueFetch(username, callback)
 end
 
 
--- Build and return a BillboardGui nametag attached to a part
-local function buildNametag(targetPlayer, cfg)
-    if not cfg or type(cfg) ~= "table" then return nil end
-    
-    local character = targetPlayer.Character
-    if not character then return nil end
-
-    local attachTo = character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
-    if not attachTo then return nil end
-
-    -- Format asset URLs for Decals/IDs (Now using rbxthumb for reliable conversion)
-    local function resolveAsset(url)
-        if not url or url == "" then return nil end
-        if url:find("rbxthumb") or url:find("http") then
-            return url
-        end
-        local id = url:match("%d+")
-        return id and "rbxthumb://type=Asset&id="..id.."&w=420&h=420" or url
-    end
-
-    local billboard = Instance.new("BillboardGui")
-    billboard.Name            = "OnyxNametag"
-    billboard.Adornee         = attachTo
-    billboard.Size            = UDim2.new(0, 300, 0, 100) -- Large enough to contain the pill
-    billboard.StudsOffset     = Vector3.new(0, 3.2, 0)
-    billboard.AlwaysOnTop     = false
-    billboard.LightInfluence  = 0
-    billboard.ClipsDescendants = false
-    billboard.ZIndexBehavior  = Enum.ZIndexBehavior.Sibling
-
-    local ok, coreGui = pcall(function() return game:GetService("CoreGui") end)
-    billboard.Parent = ok and coreGui:FindFirstChild("OnyxUI") or plr.PlayerGui:FindFirstChild("OnyxUI")
-
-    -- Background frame (The Pill)
-    local bg = Instance.new("Frame")
-    bg.Name                  = "Background"
-    bg.AnchorPoint           = Vector2.new(0.5, 0.5)
-    bg.Position              = UDim2.new(0.5, 0, 0.5, 0)
-    bg.Size                  = UDim2.new(0, 0, 0, 0)
-    bg.AutomaticSize         = Enum.AutomaticSize.XY
-    bg.BackgroundColor3      = cfg.backgroundColor
-    bg.BackgroundTransparency = cfg.backgroundTransparency
-    bg.BorderSizePixel       = 0
-    bg.Parent                = billboard
-
-    -- Rounded corners (Consistent Rounded Square Look)
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 14) -- Stylish rounded square
-    corner.Parent = bg
-
-    -- Glowing Stroke
-    local stroke = Instance.new("UIStroke")
-    stroke.Color     = cfg.outlineColor
-    stroke.Thickness = 2
-    stroke.Transparency = 0.4
-    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    stroke.Parent    = bg
-
-    -- Sub-container for layout items (Prevents particles from being shifted by UIListLayout)
-    local contentFrame = Instance.new("Frame")
-    contentFrame.Name = "Content"
-    contentFrame.BackgroundTransparency = 1
-    contentFrame.Size = UDim2.new(0, 0, 0, 0)
-    contentFrame.AutomaticSize = Enum.AutomaticSize.XY
-    contentFrame.ZIndex = 10 -- BRING CONTENT ABOVE PARTICLES
-    contentFrame.Parent = bg
-
-    -- Main Horizontal Layout
-    local mainLayout = Instance.new("UIListLayout")
-    mainLayout.FillDirection       = Enum.FillDirection.Horizontal
-    mainLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-    mainLayout.VerticalAlignment   = Enum.VerticalAlignment.Center
-    mainLayout.SortOrder           = Enum.SortOrder.LayoutOrder
-    mainLayout.Padding             = UDim.new(0, 10) -- Space between icon and text
-    mainLayout.Parent              = contentFrame
-
-    -- Padding for the pill (Tightened for premium look)
-    local uiPadding = Instance.new("UIPadding")
-    uiPadding.PaddingLeft   = UDim.new(0, 8)
-    uiPadding.PaddingRight  = UDim.new(0, 14) -- Reduced from 20
-    uiPadding.PaddingTop    = UDim.new(0, 5)
-    uiPadding.PaddingBottom = UDim.new(0, 5)
-    uiPadding.Parent = contentFrame
-
-    -- Optional icon (on the left)
-    local icon
-    if cfg.iconImage and cfg.iconImage ~= "" then
-        icon = Instance.new("ImageLabel")
-        icon.Name                   = "Icon"
-        icon.Size                   = UDim2.new(0, 46, 0, 46) 
-        icon.BackgroundTransparency = 1
-        icon.Image                  = resolveAsset(cfg.iconImage)
-        icon.ImageTransparency      = 0
-        icon.ImageColor3            = Color3.new(1, 1, 1)
-        icon.ScaleType              = Enum.ScaleType.Crop
-        icon.LayoutOrder            = 0
-        icon.ZIndex                 = 5
-        icon.Parent                 = contentFrame
-
-        local iconCorner = Instance.new("UICorner")
-        iconCorner.CornerRadius = UDim.new(0, 10)
-        iconCorner.Parent = icon
-        
-        -- Hide icon only if empty/failed
-        if not icon.Image or icon.Image == "" then
-            icon.Visible = false
-            icon.Size = UDim2.new(0, 0, 0, 0)
-            mainLayout.Padding = UDim.new(0, 0)
-        end
-    end
-
-    -- Text Container (Vertical stack on the right)
-    local textContainer = Instance.new("Frame")
-    textContainer.Name = "TextContainer"
-    textContainer.BackgroundTransparency = 1
-    textContainer.Size = UDim2.new(0, 0, 0, 0)
-    textContainer.AutomaticSize = Enum.AutomaticSize.XY
-    textContainer.LayoutOrder = 1
-    textContainer.Parent = contentFrame
-
-    local textLayout = Instance.new("UIListLayout")
-    textLayout.FillDirection = Enum.FillDirection.Vertical
-    textLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-    textLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-    textLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    textLayout.Padding = UDim.new(0, -1)
-    textLayout.Parent = textContainer
-
-    -- Display name (top text)
-    local topLabel = Instance.new("TextLabel")
-    topLabel.Name                 = "DisplayName"
-    topLabel.Size                 = UDim2.new(0, 0, 0, 0)
-    topLabel.AutomaticSize         = Enum.AutomaticSize.XY
-    topLabel.BackgroundTransparency = 1
-    topLabel.Text                 = cfg.displayName
-    topLabel.Font                 = Enum.Font.GothamBold
-    topLabel.TextSize             = 16
-    topLabel.TextColor3           = cfg.textColor
-    topLabel.TextStrokeColor3     = cfg.outlineColor
-    topLabel.TextStrokeTransparency = 0.85
-    topLabel.TextXAlignment       = Enum.TextXAlignment.Left
-    topLabel.LayoutOrder          = 0
-    topLabel.Parent               = textContainer
-    
-    -- Store original color for glitch restoration
-    billboard:SetAttribute("OriginalStrokeColor", cfg.outlineColor)
-
-    -- Roblox username (bottom text)
-    local botLabel = Instance.new("TextLabel")
-    botLabel.Name                 = "Username"
-    botLabel.Size                 = UDim2.new(0, 0, 0, 0)
-    botLabel.AutomaticSize         = Enum.AutomaticSize.XY
-    botLabel.BackgroundTransparency = 1
-    botLabel.Text                 = "@" .. targetPlayer.Name
-    botLabel.Font                 = Enum.Font.Gotham
-    botLabel.TextSize             = 12
-    botLabel.TextColor3           = Color3.fromRGB(200, 200, 200)
-    botLabel.TextStrokeTransparency = 1
-    botLabel.TextXAlignment       = Enum.TextXAlignment.Left
-    botLabel.LayoutOrder          = 1
-    botLabel.Parent               = textContainer
-
-    -- Clean up mechanism (Now just for memory safety)
-    billboard.Destroying:Connect(function()
-        -- Objects auto-destroy with parent
-    end)
-
-    -- Dynamic Shrinking Logic (LOD)
-    task.spawn(function()
-        local lastState = true
-        while billboard and billboard.Parent do
-            local adornee = billboard.Adornee
-            -- If our adornee was destroyed (character reset), kill the billboard and stop
-            if not adornee or not adornee.Parent then
-                pcall(function() billboard:Destroy() end)
-                break
-            end
-            local cam = workspace.CurrentCamera
-            if cam then
-                local dist = (cam.CFrame.Position - adornee.Position).Magnitude
-                local shouldShowText = dist < 60 -- Shrink at 60 studs for better feel
-                
-                if shouldShowText ~= lastState then
-                    lastState = shouldShowText
-                    textContainer.Visible = shouldShowText
-                    
-                    -- Dynamic Shape, Padding & Icon Size
-                    if shouldShowText then
-                        corner.CornerRadius = UDim.new(0, 14) 
-                        uiPadding.PaddingLeft = UDim.new(0, 8) -- Match initial
-                        uiPadding.PaddingRight = UDim.new(0, 14) -- FIXED
-                        uiPadding.PaddingTop = UDim.new(0, 5)
-                        uiPadding.PaddingBottom = UDim.new(0, 5)
-                        if icon then icon.Size = UDim2.new(0, 46, 0, 46) end
-                    else
-                        corner.CornerRadius = UDim.new(0, 10) 
-                        uiPadding.PaddingLeft = UDim.new(0, 4) 
-                        uiPadding.PaddingRight = UDim.new(0, 4)
-                        uiPadding.PaddingTop = UDim.new(0, 4)
-                        uiPadding.PaddingBottom = UDim.new(0, 4)
-                        if icon then icon.Size = UDim2.new(0, 36, 0, 36) end
-                    end
-                end
-            end
-            task.wait(0.25)
-        end
-    end)
-
-    return billboard
-end
-
 -- Particle animation loop for cool background effects
-local function startParticleAnimation(billboard, particleColor)
+local function startParticleAnimation(parentBg, particleColor)
     task.spawn(function()
-        local bg = billboard:FindFirstChild("Background")
-        if not bg then return end
-        
-        -- Make sure bg clips particles so they don't break borders
-        bg.ClipsDescendants = true
+        if not parentBg then return end
+        parentBg.ClipsDescendants = true
 
         local particleContainer = Instance.new("Frame")
         particleContainer.Name = "Particles"
         particleContainer.BackgroundTransparency = 1
-        particleContainer.Size = UDim2.new(1, 0, 1, 0) -- FULL SIZE
-        particleContainer.ZIndex = 2 -- ABOVE BG
-        particleContainer.Parent = bg
+        particleContainer.Size = UDim2.new(1, 0, 1, 0)
+        particleContainer.ZIndex = 2
+        particleContainer.Parent = parentBg
 
         local c = Instance.new("UICorner")
         c.CornerRadius = UDim.new(0, 14)
@@ -5594,9 +5250,9 @@ local function startParticleAnimation(billboard, particleColor)
 
         local rng = Random.new()
         
-        while billboard and billboard.Parent do
+        while parentBg and parentBg.Parent do
             task.wait(rng:NextNumber(0.15, 0.4))
-            if not billboard or not billboard.Parent then break end
+            if not parentBg or not parentBg.Parent then break end
             if not particleContainer or not particleContainer.Parent then break end
 
             local p = Instance.new("Frame")
@@ -5636,15 +5292,19 @@ local function startParticleAnimation(billboard, particleColor)
 end
 
 -- Glitch animation loop (lightweight, optimized for performance)
-local function startGlitchAnimation(billboard)
+local function startGlitchAnimation(parentBg)
     task.spawn(function()
-        local bg        = billboard:FindFirstChild("Background")
-        if not bg then return end
+        if not parentBg then return end
         
-        local topLabel  = bg:FindFirstChild("DisplayName")
-        local botLabel  = bg:FindFirstChild("Username")
-        local icon      = bg:FindFirstChild("Icon")
-        local stroke    = bg:FindFirstChildOfClass("UIStroke")
+        local contentFrame = parentBg:FindFirstChild("Content")
+        if not contentFrame then return end
+        local textContainer = contentFrame:FindFirstChild("TextContainer")
+        if not textContainer then return end
+
+        local topLabel  = textContainer:FindFirstChild("DisplayName")
+        local botLabel  = textContainer:FindFirstChild("Username")
+        local icon      = contentFrame:FindFirstChild("Icon")
+        local stroke    = parentBg:FindFirstChildOfClass("UIStroke")
         
         if not topLabel or not stroke then return end
 
@@ -5653,14 +5313,14 @@ local function startGlitchAnimation(billboard)
         -- Initial stagger so they don't all glitch at once
         task.wait(rng:NextNumber(0.5, 5.0))
 
-        while billboard and billboard.Parent do
+        while parentBg and parentBg.Parent do
             -- Glitch rarely (every 6 to 15 seconds) to save resources
             task.wait(rng:NextNumber(6.0, 15.0))
-            if not billboard or not billboard.Parent then break end
+            if not parentBg or not parentBg.Parent then break end
 
             -- Brief intense glitch burst
             for _ = 1, rng:NextInteger(3, 5) do
-                if not billboard or not billboard.Parent then break end
+                if not parentBg or not parentBg.Parent then break end
 
                 -- Aggressive jitter
                 local offsetX = rng:NextInteger(-5, 5)
@@ -5688,13 +5348,13 @@ local function startGlitchAnimation(billboard)
             end
 
             -- Restore to normal
-            if billboard and billboard.Parent then
+            if parentBg and parentBg.Parent then
                 topLabel.Position         = UDim2.new(0, 0, 0, 0)
                 if icon then icon.Position = UDim2.new(0, 0, 0, 0) end
                 topLabel.TextTransparency = 0
                 if icon then icon.ImageTransparency = 0 end
                 if botLabel then botLabel.TextTransparency = 0 end
-                local origColor = billboard:GetAttribute("OriginalStrokeColor") or Color3.new(0,0,0)
+                local origColor = parentBg:GetAttribute("OriginalStrokeColor") or Color3.new(0,0,0)
                 topLabel.TextStrokeColor3 = origColor
                 stroke.Color = origColor
             end
@@ -5702,33 +5362,366 @@ local function startGlitchAnimation(billboard)
     end)
 end
 
+-- Format asset URLs for Decals/IDs
+local function resolveAsset(url)
+    if not url or url == "" then return nil end
+    if url:find("rbxthumb") or url:find("http") then
+        return url
+    end
+    local id = url:match("%d+")
+    return id and "rbxthumb://type=Asset&id="..id.."&w=420&h=420" or url
+end
+
+-- Shared UI builder for the Pill tag design
+local function buildPillTag(cfg, targetPlayer, parentGui, isSelf)
+    local bg = Instance.new("Frame")
+    bg.Name                  = "Background"
+    if isSelf then
+        bg.AnchorPoint       = Vector2.new(0.5, 1)   -- anchor bottom-center for ScreenGui
+        bg.Position          = UDim2.new(0.5, 0, 0, -999) 
+    else
+        bg.AnchorPoint       = Vector2.new(0.5, 0.5)
+        bg.Position          = UDim2.new(0.5, 0, 0.5, 0)
+    end
+    bg.Size                  = UDim2.new(0, 0, 0, 0)
+    bg.AutomaticSize         = Enum.AutomaticSize.XY
+    bg.BackgroundColor3      = cfg.backgroundColor
+    bg.BackgroundTransparency = cfg.backgroundTransparency
+    bg.BorderSizePixel       = 0
+    bg.Parent                = parentGui
+
+    -- Store original stroke color for glitch effect restoration
+    bg:SetAttribute("OriginalStrokeColor", cfg.outlineColor)
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 14)
+    corner.Parent = bg
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color     = cfg.outlineColor
+    stroke.Thickness = 3 -- Increased from 2 to 3 for thicker outlines
+    stroke.Transparency = 0.2
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    stroke.Parent    = bg
+
+    local contentFrame = Instance.new("Frame")
+    contentFrame.Name = "Content"
+    contentFrame.BackgroundTransparency = 1
+    contentFrame.Size = UDim2.new(0, 0, 0, 0)
+    contentFrame.AutomaticSize = Enum.AutomaticSize.XY
+    contentFrame.ZIndex = 10
+    contentFrame.Parent = bg
+
+    local mainLayout = Instance.new("UIListLayout")
+    mainLayout.FillDirection       = Enum.FillDirection.Horizontal
+    mainLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+    mainLayout.VerticalAlignment   = Enum.VerticalAlignment.Center
+    mainLayout.SortOrder           = Enum.SortOrder.LayoutOrder
+    mainLayout.Padding             = UDim.new(0, 10)
+    mainLayout.Parent              = contentFrame
+
+    local uiPadding = Instance.new("UIPadding")
+    uiPadding.PaddingLeft   = UDim.new(0, 8)
+    uiPadding.PaddingRight  = UDim.new(0, 14)
+    uiPadding.PaddingTop    = UDim.new(0, 5)
+    uiPadding.PaddingBottom = UDim.new(0, 5)
+    uiPadding.Parent = contentFrame
+
+    local icon
+    if cfg.iconImage and cfg.iconImage ~= "" then
+        icon = Instance.new("ImageLabel")
+        icon.Name                   = "Icon"
+        icon.Size                   = UDim2.new(0, 46, 0, 46) 
+        icon.BackgroundTransparency = 1
+        icon.Image                  = resolveAsset(cfg.iconImage)
+        icon.ImageTransparency      = 0
+        icon.ImageColor3            = Color3.new(1, 1, 1)
+        icon.ScaleType              = Enum.ScaleType.Fit
+        icon.LayoutOrder            = 0
+        icon.ZIndex                 = 5
+        icon.Parent                 = contentFrame
+
+        local iconCorner = Instance.new("UICorner")
+        iconCorner.CornerRadius = UDim.new(0, 10)
+        iconCorner.Parent = icon
+    end
+
+    local textContainer = Instance.new("Frame")
+    textContainer.Name = "TextContainer"
+    textContainer.BackgroundTransparency = 1
+    textContainer.Size = UDim2.new(0, 0, 0, 0)
+    textContainer.AutomaticSize = Enum.AutomaticSize.XY
+    textContainer.LayoutOrder = 1
+    textContainer.Parent = contentFrame
+
+    local textLayout = Instance.new("UIListLayout")
+    textLayout.FillDirection = Enum.FillDirection.Vertical
+    textLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+    textLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+    textLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    textLayout.Padding = UDim.new(0, -1)
+    textLayout.Parent = textContainer
+
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Name                   = "DisplayName"
+    nameLabel.Size                   = UDim2.new(0, 0, 0, 0)
+    nameLabel.AutomaticSize         = Enum.AutomaticSize.XY
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text                   = cfg.displayName
+    nameLabel.Font                   = Enum.Font.GothamBold
+    nameLabel.TextSize               = 16
+    nameLabel.TextColor3             = cfg.textColor
+    nameLabel.TextStrokeColor3       = cfg.outlineColor
+    nameLabel.TextStrokeTransparency = 0.6
+    nameLabel.TextXAlignment         = Enum.TextXAlignment.Left
+    nameLabel.LayoutOrder            = 0
+    nameLabel.Parent                 = textContainer
+
+    local tagLabel = Instance.new("TextLabel")
+    tagLabel.Name                   = "Username"
+    tagLabel.Size                   = UDim2.new(0, 0, 0, 0)
+    tagLabel.AutomaticSize         = Enum.AutomaticSize.XY
+    tagLabel.BackgroundTransparency = 1
+    tagLabel.Text                   = "@" .. targetPlayer.Name
+    tagLabel.Font                   = Enum.Font.Gotham
+    tagLabel.TextSize               = 12
+    tagLabel.TextColor3             = Color3.fromRGB(200, 200, 200)
+    tagLabel.TextStrokeTransparency = 0.7
+    tagLabel.TextStrokeColor3       = cfg.outlineColor
+    tagLabel.TextXAlignment         = Enum.TextXAlignment.Left
+    tagLabel.LayoutOrder            = 1
+    tagLabel.Parent                 = textContainer
+
+    -- Dynamic Shrinking Logic (LOD) - for Others only
+    if not isSelf then
+        task.spawn(function()
+            local lastState = true
+            while bg and bg.Parent do
+                local cam = workspace.CurrentCamera
+                if cam and parentGui.Adornee then
+                    local dist = (cam.CFrame.Position - parentGui.Adornee.Position).Magnitude
+                    local shouldShowText = dist < 60
+                    
+                    if shouldShowText ~= lastState then
+                        lastState = shouldShowText
+                        textContainer.Visible = shouldShowText
+                        
+                        if shouldShowText then
+                            corner.CornerRadius = UDim.new(0, 14) 
+                            uiPadding.PaddingLeft = UDim.new(0, 8)
+                            uiPadding.PaddingRight = UDim.new(0, 14)
+                            uiPadding.PaddingTop = UDim.new(0, 5)
+                            uiPadding.PaddingBottom = UDim.new(0, 5)
+                            if icon then icon.Size = UDim2.new(0, 46, 0, 46) end
+                        else
+                            corner.CornerRadius = UDim.new(0, 10) 
+                            uiPadding.PaddingLeft = UDim.new(0, 4) 
+                            uiPadding.PaddingRight = UDim.new(0, 4)
+                            uiPadding.PaddingTop = UDim.new(0, 4)
+                            uiPadding.PaddingBottom = UDim.new(0, 4)
+                            if icon then icon.Size = UDim2.new(0, 36, 0, 36) end
+                        end
+                    end
+                end
+                task.wait(0.25)
+            end
+        end)
+    end
+
+    return bg, nameLabel, tagLabel, icon
+end
+
 -- Remove nametag for a given player (safe)
 local function removeNametag(userId)
-    local existing = nametagObjects[userId]
-    if existing then
-        pcall(function() existing:Destroy() end)
+    local data = nametagObjects[userId]
+    if data then
+        if data.billboard  and data.billboard.Parent  then data.billboard:Destroy()      end
+        if data.selfGui    and data.selfGui.Parent    then data.selfGui:Destroy()        end
+        if data.renderConn                            then data.renderConn:Disconnect()  end
         nametagObjects[userId] = nil
     end
 end
 
--- Check if a stored nametag is still valid (adornee alive, not destroyed)
+-- Check if a stored nametag is still valid
 local function isNametagValid(userId)
-    local tag = nametagObjects[userId]
-    if not tag then return false end
-    -- Check if the billboard itself is still parented (not destroyed)
-    if not tag.Parent then
-        nametagObjects[userId] = nil
-        return false
+    local data = nametagObjects[userId]
+    if not data then return false end
+    
+    if data.selfGui then
+        if not data.selfGui.Parent then
+            removeNametag(userId)
+            return false
+        end
+        return true
     end
-    -- Check if the adornee part still exists in the world
-    local adornee = tag.Adornee
-    if not adornee or not adornee.Parent then
-        pcall(function() tag:Destroy() end)
-        nametagObjects[userId] = nil
-        return false
+    
+    if data.billboard then
+        if not data.billboard.Parent then
+            removeNametag(userId)
+            return false
+        end
+        local adornee = data.billboard.Adornee
+        if not adornee or not adornee.Parent then
+            removeNametag(userId)
+            return false
+        end
+        return true
     end
-    return true
+    
+    return false
 end
+
+-- Build and return the nametag data object
+local function buildNametag(targetPlayer, cfg)
+    if not cfg or type(cfg) ~= "table" then return nil end
+    
+    local character = targetPlayer.Character
+    if not character then return nil end
+
+    local head = character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
+    if not head then return nil end
+
+    local data = {}
+
+    -- ── LOCAL PLAYER: ScreenGui + RenderStepped positioning ──────────────────
+    if targetPlayer == plr then
+        local camera = workspace.CurrentCamera
+
+        local selfGui = Instance.new("ScreenGui")
+        selfGui.Name           = "OnyxSelfTag"
+        selfGui.ResetOnSpawn   = false
+        selfGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        selfGui.DisplayOrder   = 50
+        selfGui.Parent         = plr.PlayerGui
+
+        local bg, nameLabel, tagLabel, imageLabel = buildPillTag(cfg, targetPlayer, selfGui, true)
+
+        -- Each frame: project head world position → screen position → move frame
+        local renderConn
+        renderConn = RunService.Heartbeat:Connect(function()
+            if not UserInputService.WindowFocused then return end
+            if not selfGui or not selfGui.Parent then
+                renderConn:Disconnect()
+                return
+            end
+            local curChar = plr.Character
+            local curHead = curChar and curChar:FindFirstChild("Head")
+            if not curHead then
+                bg.Visible = false
+                return
+            end
+            local worldPos = curHead.Position + Vector3.new(0, 3.2, 0)
+            local screenPos, onScreen = camera:WorldToViewportPoint(worldPos)
+            if onScreen and screenPos.Z > 0 then
+                bg.Visible  = true
+                bg.Position = UDim2.fromOffset(screenPos.X, screenPos.Y - 10) -- offset for bottom-anchor
+            else
+                bg.Visible = false
+            end
+        end)
+
+        startParticleAnimation(bg, cfg.outlineColor)
+        if cfg.glitchAnim then
+            startGlitchAnimation(bg)
+        end
+
+        data.selfGui    = selfGui
+        data.renderConn = renderConn
+        data.bg         = bg
+        data.nameLabel  = nameLabel
+        data.tagLabel   = tagLabel
+        data.nameBase   = cfg.displayName
+        data.tagBase    = "@" .. targetPlayer.Name
+        return data
+    end
+
+    -- ── OTHER PLAYERS: standard BillboardGui ──────────────────────────────────
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name            = "OnyxNametag"
+    billboard.Adornee         = head
+    billboard.Size            = UDim2.new(0, 300, 0, 100) -- Large enough to contain the pill
+    billboard.StudsOffset     = Vector3.new(0, 2.8, 0)
+    billboard.AlwaysOnTop     = false
+    billboard.MaxDistance     = 80
+    billboard.LightInfluence  = 0
+    billboard.ClipsDescendants = false
+    billboard.ZIndexBehavior  = Enum.ZIndexBehavior.Sibling
+
+    local ok, coreGui = pcall(function() return game:GetService("CoreGui") end)
+    billboard.Parent = ok and coreGui:FindFirstChild("OnyxUI") or plr.PlayerGui:FindFirstChild("OnyxUI")
+
+    local bg, nameLabel, tagLabel, imageLabel = buildPillTag(cfg, targetPlayer, billboard, false)
+
+    startParticleAnimation(bg, cfg.outlineColor)
+    if cfg.glitchAnim then
+        startGlitchAnimation(bg)
+    end
+
+    data.billboard = billboard
+    data.bg        = bg
+    data.nameLabel = nameLabel
+    data.tagLabel  = tagLabel
+    data.nameBase  = cfg.displayName
+    data.tagBase   = "@" .. targetPlayer.Name
+    return data
+end
+
+local GLITCH_CHARS = {"!", "@", "#", "$", "%", "^", "&", "*", "~", "?", "/", "|", "Ξ", "Ω", "█", "▓", "▒"}
+
+local function glitchText(original, intensity)
+    if not original or original == "" then return "" end
+    local chars = {}
+    for i = 1, #original do
+        if math.random() < intensity then
+            chars[i] = GLITCH_CHARS[math.random(#GLITCH_CHARS)]
+        else
+            chars[i] = original:sub(i, i)
+        end
+    end
+    return table.concat(chars)
+end
+
+-- ── Glitch effect loop — runs on all active nametags ─────────────────────────
+task.spawn(function()
+    local t = 0
+    local GLITCH_INTERVAL = 0.08
+    while true do
+        task.wait(GLITCH_INTERVAL)
+        -- Only proceed if window is focused or if physics rep is disabled
+        if not UserInputService.WindowFocused then continue end
+        t = t + GLITCH_INTERVAL
+        for userId, data in pairs(nametagObjects) do
+            local alive = false
+            if data.selfGui then
+                alive = data.selfGui.Parent ~= nil
+            elseif data.billboard then
+                alive = data.billboard.Parent ~= nil
+            end
+
+            if not alive then
+                nametagObjects[userId] = nil
+            else
+                local intensity = math.max(0, math.sin(t * math.pi) * 0.22)
+                if math.random() < 0.04 then intensity = math.random() * 0.6 end
+
+                if data.nameLabel and data.nameLabel.Parent and data.nameBase then
+                    data.nameLabel.Text = glitchText(data.nameBase, intensity)
+                end
+                if data.tagLabel and data.tagLabel.Parent and data.tagBase then
+                    data.tagLabel.Text = glitchText(data.tagBase, intensity * 0.5)
+                end
+
+                if data.bg then
+                    local st = data.bg:FindFirstChildOfClass("UIStroke")
+                    if st then
+                        -- Thicker feeling pulse
+                        st.Transparency = 0.1 + math.sin(t * 3) * 0.45
+                    end
+                end
+            end
+        end
+    end
+end)
 
 -- Create (or recreate) the nametag for a target player
 local function applyNametag(targetPlayer)
@@ -5745,32 +5738,21 @@ local function applyNametag(targetPlayer)
         end
         if not targetPlayer.Character then return end
 
-        local billboard = buildNametag(targetPlayer, cfg)
-        if not billboard then return end
+        local nametagData = buildNametag(targetPlayer, cfg)
+        if not nametagData then return end
 
-        nametagObjects[userId] = billboard
-
-        -- Auto-cleanup: destroy the billboard when the adornee part is removed
-        -- This prevents ghost nametags floating at the last known position
-        local adornee = billboard.Adornee
+        nametagObjects[userId] = nametagData
+        
+        -- Auto-cleanup: destroy the nametag when the adornee part is removed
+        local adornee = nil
+        if nametagData.billboard then adornee = nametagData.billboard.Adornee end
         if adornee then
             adornee.AncestryChanged:Connect(function(_, newParent)
                 if not newParent then
-                    -- Part was removed from world; kill the billboard immediately
-                    if nametagObjects[userId] == billboard then
-                        nametagObjects[userId] = nil
-                    end
-                    pcall(function() billboard:Destroy() end)
+                    removeNametag(userId)
                 end
             end)
         end
-
-        if cfg.glitchAnim then
-            startGlitchAnimation(billboard)
-        end
-        
-        -- Start shiny particle animation
-        startParticleAnimation(billboard, cfg.outlineColor)
     end)
 end
 
