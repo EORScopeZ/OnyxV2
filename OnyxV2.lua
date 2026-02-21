@@ -988,6 +988,56 @@ local TripButton = CreateActionButton(MiscActionsContainer, "TripButton", UDim2.
 
 local UnloadScriptButton = CreateActionButton(MiscActionsContainer, "UnloadScriptButton", UDim2.new(0, 0, 0, 0), "❌ Unload Script", 7)
 
+-- Minimize Keybind Changer
+local minimizeKey = Enum.KeyCode.B -- default
+local minimizeKeyListening = false
+
+local MinimizeKeyRow = Instance.new("Frame")
+MinimizeKeyRow.Name = "MinimizeKeyRow"
+MinimizeKeyRow.Parent = MiscActionsContainer
+MinimizeKeyRow.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+MinimizeKeyRow.BackgroundTransparency = 0.92
+MinimizeKeyRow.BorderSizePixel = 0
+MinimizeKeyRow.Size = UDim2.new(1, 0, 0, 36)
+MinimizeKeyRow.LayoutOrder = 8
+MinimizeKeyRow.ZIndex = 3
+do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = MinimizeKeyRow end
+
+local MinimizeKeyLabel = Instance.new("TextLabel")
+MinimizeKeyLabel.Parent = MinimizeKeyRow
+MinimizeKeyLabel.BackgroundTransparency = 1
+MinimizeKeyLabel.Position = UDim2.new(0, 10, 0, 0)
+MinimizeKeyLabel.Size = UDim2.new(0.6, 0, 1, 0)
+MinimizeKeyLabel.Font = Enum.Font.GothamMedium
+MinimizeKeyLabel.Text = "⌨️ Minimize Key"
+MinimizeKeyLabel.TextColor3 = Color3.fromRGB(220, 220, 240)
+MinimizeKeyLabel.TextSize = 13
+MinimizeKeyLabel.TextXAlignment = Enum.TextXAlignment.Left
+MinimizeKeyLabel.ZIndex = 4
+
+local MinimizeKeyBtn = Instance.new("TextButton")
+MinimizeKeyBtn.Parent = MinimizeKeyRow
+MinimizeKeyBtn.AnchorPoint = Vector2.new(1, 0.5)
+MinimizeKeyBtn.Position = UDim2.new(1, -10, 0.5, 0)
+MinimizeKeyBtn.Size = UDim2.new(0, 80, 0, 24)
+MinimizeKeyBtn.BackgroundColor3 = Color3.fromRGB(140, 130, 255)
+MinimizeKeyBtn.BackgroundTransparency = 0.5
+MinimizeKeyBtn.BorderSizePixel = 0
+MinimizeKeyBtn.Font = Enum.Font.GothamBold
+MinimizeKeyBtn.Text = "[B]"
+MinimizeKeyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinimizeKeyBtn.TextSize = 12
+MinimizeKeyBtn.ZIndex = 4
+MinimizeKeyBtn.AutoButtonColor = false
+do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 6); c.Parent = MinimizeKeyBtn end
+
+MinimizeKeyBtn.MouseButton1Click:Connect(function()
+    if minimizeKeyListening then return end
+    minimizeKeyListening = true
+    MinimizeKeyBtn.Text = "..."
+    MinimizeKeyBtn.BackgroundTransparency = 0.2
+end)
+
 -- VISUAL SECTION
 local VisualSection = Instance.new("Frame")
 VisualSection.Name = "VisualSection"
@@ -1946,10 +1996,29 @@ do
     MinimizeButton.MouseButton1Click:Connect(toggleMinimize)
     ToggleButton.MouseButton1Click:Connect(toggleMinimize)
 
-    -- Keyboard shortcut (B) to toggle minimize
+    -- Keyboard shortcut to toggle minimize (key is configurable in Misc tab)
     UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+
+        -- Capture new keybind if listening
+        if minimizeKeyListening then
+            -- Ignore modifier keys
+            local ignored = {
+                [Enum.KeyCode.LeftShift] = true, [Enum.KeyCode.RightShift] = true,
+                [Enum.KeyCode.LeftControl] = true, [Enum.KeyCode.RightControl] = true,
+                [Enum.KeyCode.LeftAlt] = true, [Enum.KeyCode.RightAlt] = true,
+            }
+            if not ignored[input.KeyCode] then
+                minimizeKey = input.KeyCode
+                minimizeKeyListening = false
+                MinimizeKeyBtn.Text = "[" .. tostring(input.KeyCode.Name) .. "]"
+                MinimizeKeyBtn.BackgroundTransparency = 0.5
+            end
+            return
+        end
+
         if gameProcessed then return end
-        if input.KeyCode == Enum.KeyCode.B then
+        if input.KeyCode == minimizeKey then
             toggleMinimize()
         end
     end)
@@ -4762,27 +4831,25 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         local hrp = char:FindFirstChild("HumanoidRootPart")
         if not humanoid or not hrp then return end
 
-        -- Lock the humanoid completely so the avatar goes stiff
-        humanoid.PlatformStand = true
-        humanoid.AutoRotate = false
+        -- Save original values to restore after
+        local origWalkSpeed = humanoid.WalkSpeed
+        local origJumpPower = humanoid.JumpPower
+
+        -- Use Seated state — safe, built-in, makes avatar fall to ground
         humanoid.WalkSpeed = 0
         humanoid.JumpPower = 0
+        humanoid:ChangeState(Enum.HumanoidStateType.Physics)
 
-        -- Kill all velocity so they just drop straight down
-        hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-        hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+        SendNotify("Trip", "Tripped!", 1)
 
-        -- Freeze joints so the whole body stays rigid
-        for _, part in ipairs(char:GetDescendants()) do
-            if part:IsA("BasePart") and part ~= hrp then
-                pcall(function()
-                    part.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-                    part.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-                end)
+        -- Auto-recover after 2 seconds
+        task.delay(2, function()
+            if humanoid and humanoid.Parent then
+                humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+                humanoid.WalkSpeed = origWalkSpeed
+                humanoid.JumpPower = origJumpPower
             end
-        end
-
-        SendNotify("Trip", "Stiff!", 1)
+        end)
     end
 end)
 
