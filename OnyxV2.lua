@@ -6276,12 +6276,15 @@ end, "Misc")
 
 -- Chat command handler
 local function onChat(msg)
+    if not msg or msg == "" then return end
     msg = msg:match("^%s*(.-)%s*$")
+    -- Strip leading slash that Roblox sometimes adds
+    if msg:sub(1,1) == "/" then msg = msg:sub(2) end
     if not msg:match("^%.") then return end
     
     local parts = msg:split(" ")
     local cmdName = parts[1]:sub(2):lower()
-    local argLine = msg:sub(#parts[1] + 2) -- Get everything after ".cmd "
+    local argLine = msg:sub(#parts[1] + 2):match("^%s*(.-)%s*$")
     
     local cmd = Commands[cmdName]
     if cmd then
@@ -6289,21 +6292,57 @@ local function onChat(msg)
         if not success then SendNotify("Onyx Error", tostring(err), 3) end
     end
 end
-end
 
--- Hook chat — both systems for maximum reliability
-pcall(function()
-    plr.Chatted:Connect(onChat)
-end)
+-- Hook chat — covers both legacy (Chatted) and modern (TextChatService) Roblox
+local chatHooked = false
+
+-- METHOD 1: Modern TextChatService — hook WillSendTextChannelMessage on the general channel
+-- This fires BEFORE the message is sent, capturing our own messages reliably
 pcall(function()
     local TCS = game:GetService("TextChatService")
     if TCS and TCS.ChatVersion == Enum.ChatVersion.TextChatService then
+        -- Hook MessageReceived on ALL TextChannels (fires for own messages too on some games)
+        local function hookChannel(channel)
+            pcall(function()
+                channel.WillSendTextChannelMessage:Connect(function(msgObj)
+                    onChat(msgObj.Text)
+                end)
+            end)
+            -- Also hook ShouldDeliverCallback alternative path
+            pcall(function()
+                channel.MessageReceived:Connect(function(msgObj)
+                    if msgObj.TextSource and msgObj.TextSource.UserId == plr.UserId then
+                        onChat(msgObj.Text)
+                    end
+                end)
+            end)
+        end
+
+        -- Hook existing channels
+        local channels = TCS:FindFirstChild("TextChannels")
+        if channels then
+            for _, ch in ipairs(channels:GetChildren()) do
+                if ch:IsA("TextChannel") then hookChannel(ch) end
+            end
+            channels.ChildAdded:Connect(function(ch)
+                if ch:IsA("TextChannel") then hookChannel(ch) end
+            end)
+        end
+
+        -- Fallback: top-level MessageReceived (fires for messages WE receive, not always ours)
         TCS.MessageReceived:Connect(function(msgObj)
             if msgObj.TextSource and msgObj.TextSource.UserId == plr.UserId then
                 onChat(msgObj.Text)
             end
         end)
+
+        chatHooked = true
     end
+end)
+
+-- METHOD 2: Legacy Chatted event (works in Legacy Chat and some TextChatService games)
+pcall(function()
+    plr.Chatted:Connect(onChat)
 end)
 
 SendNotify("Onyx", "Chat commands hooked", 3)
