@@ -4541,6 +4541,28 @@ end)
 
 local AntiVoidEnabled = false
 local HiddenPlayers = {} -- [UserId] = true
+local PropertyCache = setmetatable({}, { __mode = "k" }) -- [Instance] = { Transparency = x, Volume = y }
+
+-- Helper to store and restore properties safely
+local function cacheProperty(inst, prop, val)
+    if not PropertyCache[inst] then PropertyCache[inst] = {} end
+    if PropertyCache[inst][prop] == nil then
+        PropertyCache[inst][prop] = inst[prop]
+    end
+    inst[prop] = val
+end
+
+local function restoreProperties(inst)
+    local cached = PropertyCache[inst]
+    if cached then
+        for prop, val in pairs(cached) do
+            pcall(function() inst[prop] = val end)
+        end
+        PropertyCache[inst] = nil
+    end
+end
+
+-- Anti-Void Loop
 
 -- Anti-Void Loop
 task.spawn(function()
@@ -4566,10 +4588,14 @@ task.spawn(function()
             local char = p and p.Character
             if char then
                 for _, part in ipairs(char:GetDescendants()) do
-                    if part:IsA("BasePart") or part:IsA("Decal") then
-                        part.Transparency = 1
+                    if part:IsA("BasePart") then
+                        if part.Name ~= "HumanoidRootPart" then
+                            cacheProperty(part, "Transparency", 1)
+                        end
+                    elseif part:IsA("Decal") then
+                        cacheProperty(part, "Transparency", 1)
                     elseif part:IsA("Sound") then
-                        part.Volume = 0
+                        cacheProperty(part, "Volume", 0)
                     elseif part:IsA("BillboardGui") or part:IsA("SurfaceGui") then
                         pcall(function() part.Enabled = false end)
                     end
@@ -4591,7 +4617,7 @@ RunService.Heartbeat:Connect(function()
     for _, player in pairs(Players:GetPlayers()) do
         if player ~= plr and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
             local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-            if not hrp then return end
+            if not hrp then continue end
             local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
             
             -- Create ESP if doesn't exist
@@ -5327,11 +5353,11 @@ local function buildNametag(targetPlayer, cfg)
     -- Format asset URLs for Decals/IDs
     local function resolveAsset(url)
         if not url or url == "" then return nil end
-        if url:find("rbxassetid") or url:find("http") or url:find("rbxthumb") then
+        if url:find("rbxassetid://") or url:find("http") or url:find("rbxthumb://") then
             return url
         end
         local id = url:match("%d+")
-        return id and "rbxassetid://" .. id or url
+        return id and "rbxthumb://type=Asset&id="..id.."&w=420&h=420" or url
     end
 
     local billboard = Instance.new("BillboardGui")
@@ -5402,7 +5428,8 @@ local function buildNametag(targetPlayer, cfg)
     if cfg.iconImage and cfg.iconImage ~= "" then
         icon = Instance.new("ImageLabel")
         icon.Name                   = "Icon"
-        icon.Size                   = UDim2.new(0, 46, 0, 46) -- Smaller to feel less 'stretched'
+        icon.Size                   = UDim2.new(0, 0, 0, 0) -- 0-size to prevent stretching if missing
+        icon.AutomaticSize          = Enum.AutomaticSize.XY
         icon.BackgroundTransparency = 1
         icon.Image                  = resolveAsset(cfg.iconImage)
         icon.ScaleType              = Enum.ScaleType.Crop
@@ -5411,8 +5438,19 @@ local function buildNametag(targetPlayer, cfg)
         icon.Parent                 = contentFrame
 
         local iconCorner = Instance.new("UICorner")
-        iconCorner.CornerRadius = UDim.new(0, 10) -- Slightly smaller corner for smaller icon
+        iconCorner.CornerRadius = UDim.new(0, 10)
         iconCorner.Parent = icon
+        
+        -- Hide icon if resolution failed or missing
+        if not icon.Image or icon.Image == "" or icon.Image:find("0$") then
+            icon.Visible = false
+            icon.Size = UDim2.new(0, 0, 0, 0)
+            mainLayout.Padding = UDim.new(0, 0) -- No padding if no icon
+        else
+            icon.Visible = true
+            icon.Size = UDim2.new(0, 46, 0, 46)
+            mainLayout.Padding = UDim.new(0, 10)
+        end
     end
 
     -- Text Container (Vertical stack on the right)
@@ -5435,6 +5473,7 @@ local function buildNametag(targetPlayer, cfg)
     -- Display name (top text)
     local topLabel = Instance.new("TextLabel")
     topLabel.Name                 = "DisplayName"
+    topLabel.Size                 = UDim2.new(0, 0, 0, 0)
     topLabel.AutomaticSize         = Enum.AutomaticSize.XY
     topLabel.BackgroundTransparency = 1
     topLabel.Text                 = cfg.displayName
@@ -5453,6 +5492,7 @@ local function buildNametag(targetPlayer, cfg)
     -- Roblox username (bottom text)
     local botLabel = Instance.new("TextLabel")
     botLabel.Name                 = "Username"
+    botLabel.Size                 = UDim2.new(0, 0, 0, 0)
     botLabel.AutomaticSize         = Enum.AutomaticSize.XY
     botLabel.BackgroundTransparency = 1
     botLabel.Text                 = "@" .. targetPlayer.Name
@@ -5492,9 +5532,9 @@ local function buildNametag(targetPlayer, cfg)
                     if shouldShowText then
                         corner.CornerRadius = UDim.new(0, 14) 
                         uiPadding.PaddingLeft = UDim.new(0, 8) -- Match initial
-                        uiPadding.PaddingRight = UDim.new(0, 20)
-                        uiPadding.PaddingTop = UDim.new(0, 6)
-                        uiPadding.PaddingBottom = UDim.new(0, 6)
+                        uiPadding.PaddingRight = UDim.new(0, 14) -- FIXED
+                        uiPadding.PaddingTop = UDim.new(0, 5)
+                        uiPadding.PaddingBottom = UDim.new(0, 5)
                         if icon then icon.Size = UDim2.new(0, 46, 0, 46) end
                     else
                         corner.CornerRadius = UDim.new(0, 10) 
@@ -5802,7 +5842,7 @@ plr.CharacterAdded:Connect(function()
     -- Re-apply to everyone else to ensure they stay visible
     task.spawn(function()
         for _, otherPlayer in ipairs(Players:GetPlayers()) do
-            if otherPlayer ~= plr then
+            if otherPlayer ~= plr and watchingPlayers[otherPlayer.UserId] then
                 applyNametag(otherPlayer)
                 task.wait(0.3) 
             end
@@ -6020,6 +6060,7 @@ local function onChat(msg)
         if target then
             local char = GetCharacter(target)
             if char then workspace.CurrentCamera.CameraSubject = char:FindFirstChildOfClass("Humanoid") end
+            TargetedPlayer = target.Name; TargetNameInput.Text = target.Name
             SendNotify("View", "Viewing " .. target.DisplayName, 2)
         else SendNotify("Command", "Player not found", 2) end
 
@@ -6073,6 +6114,7 @@ local function onChat(msg)
         if target then
             FocusingTarget = not FocusingTarget
             if FocusingTarget then
+                TargetedPlayer = target.Name; TargetNameInput.Text = target.Name
                 FocusButton.Text = "🎯 Stop Focus"
                 SendNotify("Focus", "Looping TP to " .. target.DisplayName, 2)
                 task.spawn(function()
@@ -6082,9 +6124,12 @@ local function onChat(msg)
                         task.wait(0.1)
                     end
                     FocusButton.Text = "🎯 Focus Target (Loop TP)"
+                    FocusButton.BackgroundTransparency = 0.9
                 end)
+                FocusButton.BackgroundTransparency = 0.7
             else
                 FocusButton.Text = "🎯 Focus Target (Loop TP)"
+                FocusButton.BackgroundTransparency = 0.9
                 SendNotify("Focus", "Stopped", 2)
             end
         else SendNotify("Command", "Player not found", 2) end
@@ -6230,13 +6275,8 @@ local function onChat(msg)
             local char = target.Character
             if char then
                 for _, part in ipairs(char:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.Transparency = 0 -- Simple restore
-                    elseif part:IsA("Decal") then
-                        part.Transparency = 0
-                    elseif part:IsA("Sound") then
-                        part.Volume = 0.5 -- Approximate restore
-                    elseif part:IsA("BillboardGui") or part:IsA("SurfaceGui") then
+                    restoreProperties(part)
+                    if part:IsA("BillboardGui") or part:IsA("SurfaceGui") then
                         part.Enabled = true
                     end
                 end
@@ -6263,7 +6303,7 @@ pcall(function()
     end
 end)
 
-if not chatHooked then
+if true then
     pcall(function()
         plr.Chatted:Connect(function(msg) onChat(msg) end)
     end)
