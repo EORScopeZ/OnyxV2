@@ -5055,7 +5055,7 @@ end
 -- =====================================================
 -- ONYX NAMETAG SYSTEM
 -- =====================================================
-do
+local function setupOnyxNametags()
 -- Mark this executor as active
 plr:SetAttribute("OnyxExecuted", true)
 
@@ -5798,7 +5798,8 @@ task.spawn(function()
         task.wait(3) -- Ping every 3 seconds for fast synchronization
     end
 end)
-end -- End Nametag System
+end
+task.spawn(setupOnyxNametags)
 -- =====================================================
 
 -- =====================================================
@@ -5835,7 +5836,7 @@ local allCommands = {
 }
 
 -- Build the command list window
-do
+local function buildCommandListUI()
 local CmdListFrame = Instance.new("Frame")
 CmdListFrame.Name = "OnyxCmdList"
 CmdListFrame.Parent = OnyxUI
@@ -5849,13 +5850,13 @@ CmdListFrame.Visible = false
 CmdListFrame.ZIndex = 30
 CmdListFrame.Active = true
 do
-    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 14); c.Parent = CmdListFrame
-    local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(255,255,255); s.Transparency = 0.82; s.Thickness = 1.2; s.Parent = CmdListFrame
-    local ov = Instance.new("Frame"); ov.BackgroundColor3 = Color3.fromRGB(185,195,255); ov.BackgroundTransparency = 0.96
-    ov.BorderSizePixel = 0; ov.Size = UDim2.new(1,0,1,0); ov.ZIndex = 30; ov.Parent = CmdListFrame
+    Instance.new("UICorner", CmdListFrame).CornerRadius = UDim.new(0, 14)
+    local s = Instance.new("UIStroke", CmdListFrame); s.Color = Color3.fromRGB(255,255,255); s.Transparency = 0.82; s.Thickness = 1.2
+    local ov = Instance.new("Frame", CmdListFrame); ov.BackgroundColor3 = Color3.fromRGB(185,195,255); ov.BackgroundTransparency = 0.96
+    ov.BorderSizePixel = 0; ov.Size = UDim2.new(1,0,1,0); ov.ZIndex = 30
     Instance.new("UICorner", ov).CornerRadius = UDim.new(0,14)
-    local bar = Instance.new("Frame"); bar.BackgroundColor3 = Color3.fromRGB(140,130,255)
-    bar.BorderSizePixel = 0; bar.Size = UDim2.new(1,0,0,3); bar.ZIndex = 31; bar.Parent = CmdListFrame
+    local bar = Instance.new("Frame", CmdListFrame); bar.BackgroundColor3 = Color3.fromRGB(140,130,255)
+    bar.BorderSizePixel = 0; bar.Size = UDim2.new(1,0,0,3); bar.ZIndex = 31
     Instance.new("UICorner", bar).CornerRadius = UDim.new(0,14)
 end
 
@@ -5871,8 +5872,7 @@ CmdTitleLbl.Font = Enum.Font.GothamBold; CmdTitleLbl.Text = "⌨️  Command Lis
 CmdTitleLbl.TextColor3 = Color3.fromRGB(255,255,255); CmdTitleLbl.TextSize = 14
 CmdTitleLbl.TextXAlignment = Enum.TextXAlignment.Left; CmdTitleLbl.ZIndex = 32
 
-local CmdCloseBtn = Instance.new("TextButton")
-CmdCloseBtn.Parent = CmdTitleBar; CmdCloseBtn.AnchorPoint = Vector2.new(1,0.5)
+local CmdCloseBtn = Instance.new("TextButton", CmdTitleBar); CmdCloseBtn.AnchorPoint = Vector2.new(1,0.5)
 CmdCloseBtn.Position = UDim2.new(1,-10,0.5,0); CmdCloseBtn.Size = UDim2.new(0,24,0,24)
 CmdCloseBtn.BackgroundColor3 = Color3.fromRGB(255,255,255); CmdCloseBtn.BackgroundTransparency = 0.88
 CmdCloseBtn.BorderSizePixel = 0; CmdCloseBtn.Font = Enum.Font.GothamBold
@@ -5881,9 +5881,13 @@ CmdCloseBtn.TextSize = 16; CmdCloseBtn.ZIndex = 32; CmdCloseBtn.AutoButtonColor 
 Instance.new("UICorner", CmdCloseBtn).CornerRadius = UDim.new(0,7)
 CmdCloseBtn.MouseButton1Click:Connect(function() CmdListFrame.Visible = false end)
 
-local divLine = Instance.new("Frame"); divLine.Parent = CmdListFrame
-divLine.BackgroundColor3 = Color3.fromRGB(255,255,255); divLine.BackgroundTransparency = 0.88
-divLine.BorderSizePixel = 0; divLine.Position = UDim2.new(0,12,0,38); divLine.Size = UDim2.new(1,-24,0,1); divLine.ZIndex = 31
+local divLine = Instance.new("Frame", CmdListFrame)
+divLine.BackgroundColor3 = Color3.fromRGB(255,255,255)
+divLine.BackgroundTransparency = 0.88
+divLine.BorderSizePixel = 0
+divLine.Position = UDim2.new(0,12,0,38)
+divLine.Size = UDim2.new(1,-24,0,1)
+divLine.ZIndex = 31
 
 -- Scroll area
 local CmdScroll = Instance.new("ScrollingFrame")
@@ -5893,25 +5897,25 @@ CmdScroll.BorderSizePixel = 0; CmdScroll.ScrollBarThickness = 3
 CmdScroll.ScrollBarImageColor3 = Color3.fromRGB(140,130,255); CmdScroll.ZIndex = 31
 CmdScroll.CanvasSize = UDim2.new(0,0,0,0); CmdScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 
-local CmdListLayout = Instance.new("UIListLayout"); CmdListLayout.Parent = CmdScroll
+local CmdListLayout = Instance.new("UIListLayout", CmdScroll)
 CmdListLayout.SortOrder = Enum.SortOrder.LayoutOrder; CmdListLayout.Padding = UDim.new(0,3)
-local CmdListPad = Instance.new("UIPadding"); CmdListPad.Parent = CmdScroll
+local CmdListPad = Instance.new("UIPadding", CmdScroll)
 CmdListPad.PaddingLeft = UDim.new(0,10); CmdListPad.PaddingRight = UDim.new(0,10)
 CmdListPad.PaddingTop = UDim.new(0,6); CmdListPad.PaddingBottom = UDim.new(0,6)
 
 for i, entry in ipairs(allCommands) do
-    local row = Instance.new("Frame"); row.Parent = CmdScroll
+    local row = Instance.new("Frame", CmdScroll)
     row.BackgroundColor3 = Color3.fromRGB(255,255,255); row.BackgroundTransparency = 0.93
     row.BorderSizePixel = 0; row.Size = UDim2.new(1,0,0,36); row.LayoutOrder = i; row.ZIndex = 32
     Instance.new("UICorner", row).CornerRadius = UDim.new(0,7)
 
-    local cmdL = Instance.new("TextLabel"); cmdL.Parent = row; cmdL.BackgroundTransparency = 1
+    local cmdL = Instance.new("TextLabel", row); cmdL.BackgroundTransparency = 1
     cmdL.Position = UDim2.new(0,8,0,2); cmdL.Size = UDim2.new(0.5,-8,0,17)
     cmdL.Font = Enum.Font.GothamBold; cmdL.Text = entry.cmd
     cmdL.TextColor3 = Color3.fromRGB(180,170,255); cmdL.TextSize = 12
     cmdL.TextXAlignment = Enum.TextXAlignment.Left; cmdL.ZIndex = 33
 
-    local descL = Instance.new("TextLabel"); descL.Parent = row; descL.BackgroundTransparency = 1
+    local descL = Instance.new("TextLabel", row); descL.BackgroundTransparency = 1
     descL.Position = UDim2.new(0,8,0,19); descL.Size = UDim2.new(1,-16,0,13)
     descL.Font = Enum.Font.Gotham; descL.Text = entry.desc
     descL.TextColor3 = Color3.fromRGB(130,130,165); descL.TextSize = 10
@@ -5939,7 +5943,11 @@ end
 CommandsButton.MouseButton1Click:Connect(function()
     CmdListFrame.Visible = not CmdListFrame.Visible
 end)
-end -- End Command List UI
+
+return CmdListFrame
+end
+local CmdListFrame = buildCommandListUI()
+-- =====================================================
 
 -- Chat command handler
 local function onChat(msg)
