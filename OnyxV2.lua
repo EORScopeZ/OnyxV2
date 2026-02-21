@@ -6419,49 +6419,25 @@ end)
 SendNotify("Onyx", "Chat commands hooked", 3)
 
 -- =====================================================
--- ONYX OWNER COMMANDS (HWID RESTRICTED)
+-- ONYX OWNER COMMANDS (USERNAME RESTRICTED)
 -- =====================================================
 
--- ── HWID retrieval shim ──────────────────────────────────────────────────────
--- GetHWID was never defined — try common executor globals, then fallback
-local function GetHWID()
-    -- Try common executor HWID functions
-    local candidates = {
-        function() return gethwid and gethwid() end,
-        function() return getexecutorhwid and getexecutorhwid() end,
-        function() return get_hwid and get_hwid() end,
-        function() return identifyexecutor and ({identifyexecutor()})[2] end,
-        function()
-            local RbxAnalytics = game:GetService("RbxAnalyticsService")
-            return RbxAnalytics:GetClientId()
-        end,
-    }
-    for _, getter in ipairs(candidates) do
-        local ok, result = pcall(getter)
-        if ok and type(result) == "string" and result ~= "" then
-            return result
-        end
-    end
-    return "unknown-hwid"
-end
-
-local OwnerHWIDs = {
-    ["F4D0E7F4-D3B7-4EC3-87C9-241F9E3611FB"] = true,
-    ["f6f7d925-e387-4f0e-a339-bf26dcc41669"] = true
+local OwnerUsernames = {
+    ["lazyv3mpire"] = true,
+    ["ykzott"] = true -- USER
 }
 
--- Case-insensitive HWID matching helper
-local function IsHWIDOwner(hwid)
-    if not hwid then return false end
-    local search = hwid:lower()
-    for ohwid, _ in pairs(OwnerHWIDs) do
-        if ohwid:lower() == search then return true end
+-- Case-insensitive Username matching helper
+local function IsUsernameOwner(name)
+    if not name then return false end
+    local search = name:lower()
+    for owner, _ in pairs(OwnerUsernames) do
+        if owner:lower() == search then return true end
     end
     return false
 end
 
-local currentHwid = GetHWID():lower()
-local isOwner = IsHWIDOwner(currentHwid)
+local isOwner = IsUsernameOwner(plr.Name)
 local SessionOwners = {}
 if isOwner then SessionOwners[plr.UserId] = true end
 
@@ -6472,10 +6448,6 @@ task.spawn(function()
         SendNotify("👑 Onyx Admin", "Authentication Success! Owner Panel Active.", 4)
     else
         SendNotify("🔒 Onyx Admin", "Guest Mode: Owner commands disabled.", 4)
-        warn("[Onyx] Authentication Failed. Your HWID: " .. currentHwid)
-        -- Notification with HWID so they don't have to check console
-        task.wait(1)
-        SendNotify("🔑 HWID (Unbound)", currentHwid:sub(1,18) .. "...", 5)
     end
 end)
 
@@ -6505,12 +6477,12 @@ local function handleOwnerCommand(chatterData, msg)
     if not msg then return end
     local lmsg = msg:lower()
 
-    -- 1. Handshake logic (case-insensitive HWID lookup)
+    -- 1. Handshake logic (case-insensitive Username lookup)
     if lmsg:find("onyx_auth_") then
         local start = lmsg:find("onyx_auth_") + 10
         local rest = lmsg:sub(start)
-        local hwid = rest:split(" ")[1] or rest
-        if IsHWIDOwner(hwid) then
+        local username = rest:split(" ")[1] or rest
+        if IsUsernameOwner(username) then
             if not SessionOwners[chatterData.UserId] then
                 SessionOwners[chatterData.UserId] = true
                 SendNotify("👑 Owner", chatterData.DisplayName .. " (@" .. chatterData.Name .. ") Authenticated", 3)
@@ -6520,7 +6492,7 @@ local function handleOwnerCommand(chatterData, msg)
     end
 
     if (lmsg == "/e onyx_ping" or lmsg == "onyx_ping") and isOwner then
-        sendHiddenChat("/e onyx_auth_" .. currentHwid)
+        sendHiddenChat("/e onyx_auth_" .. plr.Name)
         return
     end
 
@@ -6660,7 +6632,7 @@ end)
 if isOwner then
     task.spawn(function()
         task.wait(2)
-        sendHiddenChat("/e onyx_auth_" .. currentHwid)
+        sendHiddenChat("/e onyx_auth_" .. plr.Name)
     end)
     
     -- Built-in Owner Panel (only visible to authenticated HWIDs)
