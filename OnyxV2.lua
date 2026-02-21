@@ -4532,6 +4532,7 @@ end)
 -- ESP Update Loop
 local espLast = 0
 RunService.Heartbeat:Connect(function()
+    if not ESPEnabled then return end
     local now = os.clock(); if now - espLast < 0.05 then return end; espLast = now
     if not game:GetService("GuiService"):IsTenFootInterface() and not UserInputService.WindowFocused then return end
     
@@ -4697,6 +4698,7 @@ end)
 -- Aimlock Update Loop
 local aimlockLast = 0
 RunService.Heartbeat:Connect(function()
+    if not AimlockEnabled then return end
     local now = os.clock(); if now - aimlockLast < 0.033 then return end; aimlockLast = now
     if not UserInputService.WindowFocused then return end
     
@@ -5711,7 +5713,7 @@ end)
 local allCommands = {
     -- Player / Target
     { cmd = ".view",        desc = "View target" },
-    { cmd = ".tp",          desc = "Teleport to target" },
+    { cmd = ".tp [name]",   desc = "Teleport to target or named player" },
     { cmd = ".bring",       desc = "Bring target to you" },
     { cmd = ".spectate",    desc = "Spectate target" },
     { cmd = ".focus",       desc = "Loop TP to target" },
@@ -5854,10 +5856,13 @@ local function onChat(msg)
             if char then workspace.CurrentCamera.CameraSubject = char:FindFirstChildOfClass("Humanoid") end
         else SendNotify("Command", "No target set", 2) end
 
-    elseif msg == ".tp" then
-        local target = GetPlayer(TargetNameInput.Text)
-        if target then TeleportTO(target)
-        else SendNotify("Command", "No target set", 2) end
+    elseif msg == ".tp" or msg:match("^%.tp%s+%S") then
+        local argName = msg:match("^%.tp%s+(.+)$")
+        local target = argName and GetPlayer(argName) or GetPlayer(TargetNameInput.Text)
+        if target then
+            TeleportTO(target)
+            SendNotify("Teleport", "Teleported to " .. target.DisplayName, 2)
+        else SendNotify("Command", "Player not found", 2) end
 
     elseif msg == ".bring" then
         local target = GetPlayer(TargetNameInput.Text)
