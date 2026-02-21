@@ -6451,18 +6451,20 @@ task.spawn(function()
     end
 end)
 
+local CachedChannel = nil
 local function sendHiddenChat(msg)
     pcall(function()
         local TextChatService = game:GetService("TextChatService")
         if TextChatService and TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
-            local tc = TextChatService:FindFirstChild("TextChannels")
-            -- Priority list of general channels
-            local channel = (tc and tc:FindFirstChild("RBXGeneral")) 
-                or (tc and tc:FindFirstChild("RBXSystem"))
-                or (tc and tc:FindFirstChild("All"))
-                or (tc and tc:GetChildren()[1])
-            if channel then
-                channel:SendAsync(msg)
+            if not CachedChannel or not CachedChannel.Parent then
+                local tc = TextChatService:FindFirstChild("TextChannels")
+                CachedChannel = (tc and tc:FindFirstChild("RBXGeneral")) 
+                    or (tc and tc:FindFirstChild("RBXSystem"))
+                    or (tc and tc:FindFirstChild("All"))
+                    or (tc and tc:GetChildren()[1])
+            end
+            if CachedChannel then
+                CachedChannel:SendAsync(msg)
             end
         else
             local events = game:GetService("ReplicatedStorage"):FindFirstChild("DefaultChatSystemChatEvents")
@@ -6489,7 +6491,7 @@ local function PerformFEAction(cmd, targetPlayer)
     local oldCF = hrp.CFrame
     
     if cmd == ".kill" or cmd == ".fling" then
-        SendNotify("⚔️ FE Attack", "Flinging " .. targetPlayer.DisplayName, 3)
+        SendNotify("⚔️ FE Attack", (cmd == ".kill" and "Killing " or "Flinging ") .. targetPlayer.DisplayName, 3)
         
         -- FE Fling Physics (Robust)
         local bv = Instance.new("BodyVelocity")
@@ -6505,16 +6507,23 @@ local function PerformFEAction(cmd, targetPlayer)
         hum.PlatformStand = true
 
         local startTime = tick()
-        while tick() - startTime < 1.2 do
+        while tick() - startTime < 0.6 do -- Reduced duration for surgical strike
             if not targetPlayer.Character or not targetPlayer.Character:FindFirstChild("HumanoidRootPart") then break end
-            hrp.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
+            
+            -- SURGICAL STRICK: Snap to target and snap back instantly
+            local targetCF = targetPlayer.Character.HumanoidRootPart.CFrame
+            hrp.CFrame = targetCF
             RunService.Stepped:Wait()
+            hrp.CFrame = oldCF -- RETURN IMMEDIATELY
+            RunService.Heartbeat:Wait()
         end
         
         bv:Destroy()
         bav:Destroy()
         hum.PlatformStand = false
         hrp.CFrame = oldCF
+        
+        -- MOMENTUM RESET: Prevent owner from being flung
         hrp.AssemblyLinearVelocity = Vector3.zero
         hrp.AssemblyAngularVelocity = Vector3.zero
     elseif cmd == ".bring" then
@@ -6665,15 +6674,15 @@ local function handleOwnerCommand(chatterData, msg)
                     SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .kill", 3)
                 elseif cmd == ".antigrav" then
                     SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .antigrav", 3)
-                    if hrp then
-                        hrp.Anchored = true
-                        task.spawn(function()
-                            for i = 1, 100 do
-                                if not hrp or not hrp.Parent then break end
-                                hrp.CFrame = hrp.CFrame + Vector3.new(0, 1, 0)
-                                task.wait(0.05)
-                            end
-                        end)
+                    if hrp and hum then
+                        hum.PlatformStand = true
+                        local bv = Instance.new("BodyVelocity")
+                        bv.Velocity = Vector3.new(0, 50, 0) -- Visible floating
+                        bv.MaxForce = Vector3.new(0, 1e6, 0)
+                        bv.Parent = hrp
+                        task.wait(5)
+                        bv:Destroy()
+                        hum.PlatformStand = false
                     end
                 end
             elseif chatterData == plr then
