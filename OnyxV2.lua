@@ -5283,8 +5283,11 @@ local function buildNametag(targetPlayer, cfg)
     -- Format asset URLs for Decals/IDs
     local function resolveAsset(url)
         if not url or url == "" then return nil end
+        if url:find("rbxassetid://") or url:find("http") or url:find("rbxthumb") then
+            return url
+        end
         local id = url:match("%d+")
-        return id and "rbxthumb://type=Asset&id="..id.."&w=420&h=420" or url
+        return id and "rbxassetid://" .. id or url
     end
 
     local billboard = Instance.new("BillboardGui")
@@ -5304,6 +5307,7 @@ local function buildNametag(targetPlayer, cfg)
     bg.Name                  = "Background"
     bg.AnchorPoint           = Vector2.new(0.5, 0.5)
     bg.Position              = UDim2.new(0.5, 0, 0.5, 0)
+    bg.Size                  = UDim2.new(0, 0, 0, 0)
     bg.AutomaticSize         = Enum.AutomaticSize.XY
     bg.BackgroundColor3      = cfg.backgroundColor
     bg.BackgroundTransparency = cfg.backgroundTransparency
@@ -5326,7 +5330,7 @@ local function buildNametag(targetPlayer, cfg)
     -- Main Horizontal Layout
     local mainLayout = Instance.new("UIListLayout")
     mainLayout.FillDirection       = Enum.FillDirection.Horizontal
-    mainLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    mainLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
     mainLayout.VerticalAlignment   = Enum.VerticalAlignment.Center
     mainLayout.SortOrder           = Enum.SortOrder.LayoutOrder
     mainLayout.Padding             = UDim.new(0, 10) -- Space between icon and text
