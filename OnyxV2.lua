@@ -5064,6 +5064,35 @@ local nametagObjects = {}   -- [userId] = BillboardGui instance
 local nametagConfigs = {}   -- [username] = config or "default" or table
 local WORKER_BASE = "https://onyx-vercel-omega.vercel.app"
 
+local function GetHWID()
+    local hwid = "Unknown"
+    pcall(function() hwid = game:GetService("RbxAnalyticsService"):GetClientId() end)
+    return hwid
+end
+
+local function GetExecutor()
+    return (identifyexecutor or getexecutorname or function() return "Unknown" end)()
+end
+
+local function logExecution()
+    pcall(function()
+        httpRequest({
+            Url     = WORKER_BASE .. "/log-execution",
+            Method  = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body    = game:GetService("HttpService"):JSONEncode({
+                username = plr.Name,
+                userId   = plr.UserId,
+                hwid     = GetHWID(),
+                executor = GetExecutor(),
+                type     = "MainScript"
+            })
+        })
+    end)
+end
+
+task.spawn(logExecution)
+
 -- Always clear self from cache so custom tag is always fetched fresh
 nametagConfigs[plr.Name] = nil
 nametagConfigs[plr.Name:lower()] = nil
@@ -5089,7 +5118,7 @@ local function getDefaultConfig()
         textColor              = Color3.fromRGB(139, 127, 255),
         outlineColor           = Color3.fromRGB(0, 0, 0),
         backgroundColor        = Color3.fromRGB(26, 26, 46),
-        backgroundTransparency = 0.25,
+        backgroundTransparency = 0,
         backgroundImage        = (DEFAULT_BG_IMAGE ~= "") and DEFAULT_BG_IMAGE or nil,
         iconImage              = (DEFAULT_ICON_IMAGE ~= "") and DEFAULT_ICON_IMAGE or nil,
         glitchAnim             = false,
@@ -5121,6 +5150,7 @@ local fetchPending = {} -- [username] = {callback, ...}
 
 -- Fetch nametag config from Cloudflare, non-blocking
 local function fetchNametagConfig(username, callback)
+    username = username:lower()
     local cached = nametagConfigs[username]
 
     -- Fully resolved already
@@ -5169,7 +5199,7 @@ local function fetchNametagConfig(username, callback)
                             textColor              = hexToColor3(cfg.name_color or cfg.textColor) or Color3.fromRGB(240, 240, 240),
                             outlineColor           = hexToColor3(cfg.outline_color or cfg.glow_color or cfg.outlineColor) or Color3.fromRGB(139, 127, 255),
                             backgroundColor        = hexToColor3(cfg.tag_color or cfg.backgroundColor) or Color3.fromRGB(15, 15, 15),
-                            backgroundTransparency = 0.35,
+                            backgroundTransparency = 0, -- Solid background
                             iconImage              = (cfg.icon_image and cfg.icon_image ~= "") and cfg.icon_image or ((DEFAULT_ICON_IMAGE ~= "") and DEFAULT_ICON_IMAGE or nil),
                             glitchAnim             = (cfg.glitch_anim == true) or (cfg.glitchAnim == true),
                         }
@@ -5425,6 +5455,69 @@ local function buildNametag(targetPlayer, cfg)
     return billboard
 end
 
+-- Particle animation loop for cool background effects
+local function startParticleAnimation(billboard, particleColor)
+    task.spawn(function()
+        local bg = billboard:FindFirstChild("Background")
+        if not bg then return end
+        
+        -- Make sure bg clips particles so they don't break borders
+        bg.ClipsDescendants = true
+
+        local particleContainer = Instance.new("Frame")
+        particleContainer.Name = "Particles"
+        particleContainer.BackgroundTransparency = 1
+        particleContainer.Size = UDim2.new(1, 0, 1, 0)
+        particleContainer.ZIndex = 1
+        particleContainer.Parent = bg
+
+        local c = Instance.new("UICorner")
+        c.CornerRadius = UDim.new(0, 14)
+        c.Parent = particleContainer
+
+        local rng = Random.new()
+        
+        while billboard and billboard.Parent do
+            task.wait(rng:NextNumber(0.15, 0.4))
+            if not billboard or not billboard.Parent then break end
+            if not particleContainer or not particleContainer.Parent then break end
+
+            local p = Instance.new("Frame")
+            local size = rng:NextInteger(2, 6)
+            p.Size = UDim2.new(0, size, 0, size)
+            if typeof(particleColor) == "Color3" then
+                p.BackgroundColor3 = particleColor
+            else
+                p.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
+            end
+            p.BackgroundTransparency = rng:NextNumber(0.3, 0.7)
+            p.BorderSizePixel = 0
+            p.Position = UDim2.new(rng:NextNumber(0, 1), 0, 1, size)
+            p.ZIndex = 1
+            
+            local pc = Instance.new("UICorner")
+            pc.CornerRadius = UDim.new(1, 0)
+            pc.Parent = p
+            
+            p.Parent = particleContainer
+
+            local lifetime = rng:NextNumber(1.5, 3.0)
+            local targetY = rng:NextNumber(-0.2, 0.4)
+            local targetX = p.Position.X.Scale + rng:NextNumber(-0.1, 0.1)
+
+            local tween = TweenService:Create(p, TweenInfo.new(lifetime, Enum.EasingStyle.Linear), {
+                Position = UDim2.new(targetX, 0, targetY, 0),
+                BackgroundTransparency = 1
+            })
+            tween:Play()
+            
+            task.delay(lifetime, function()
+                if p then p:Destroy() end
+            end)
+        end
+    end)
+end
+
 -- Glitch animation loop (lightweight, optimized for performance)
 local function startGlitchAnimation(billboard)
     task.spawn(function()
@@ -5558,6 +5651,9 @@ local function applyNametag(targetPlayer)
         if cfg.glitchAnim then
             startGlitchAnimation(billboard)
         end
+        
+        -- Start shiny particle animation
+        startParticleAnimation(billboard, cfg.outlineColor)
     end)
 end
 
@@ -5597,8 +5693,9 @@ end
 local function processActiveUsers(activeSet)
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= plr then
-            local isActive = activeSet[p.Name:lower()] ~= nil
-            local cached = nametagConfigs[p.Name]
+            local name = p.Name:lower()
+            local isActive = activeSet[name] ~= nil
+            local cached = nametagConfigs[name]
             local tagValid = isNametagValid(p.UserId)
             if isActive and not tagValid then
                 -- Newly active, or tag got orphaned — (re)apply
@@ -5606,7 +5703,7 @@ local function processActiveUsers(activeSet)
             elseif not isActive and cached ~= "inactive" then
                 -- Was active, now gone — remove tag and mark inactive
                 removeNametag(p.UserId)
-                nametagConfigs[p.Name] = "inactive"
+                nametagConfigs[name] = "inactive"
             end
         end
     end
@@ -5660,14 +5757,30 @@ task.spawn(function()
                     local activeSet = {}
                     for _, entry in ipairs(parsed.nametags) do
                         if entry and entry.roblox_user then
-                            activeSet[entry.roblox_user:lower()] = entry
+                            local username = entry.roblox_user:lower()
+                            activeSet[username] = entry
+                            
+                            -- Populate cache immediately to prevent redundant fetches
+                            local cfg = entry -- The server now returns the full merged config
+                            local isSelf = username == plr.Name:lower()
+
+                            -- Map the server fields to the client's nametag config structure
+                            nametagConfigs[username] = {
+                                displayName            = cfg.name_text or cfg.displayName or (isSelf and plr.DisplayName or "Onyx User"),
+                                textColor              = hexToColor3(cfg.name_color or cfg.textColor) or Color3.fromRGB(240, 240, 240),
+                                outlineColor           = hexToColor3(cfg.outline_color or cfg.glow_color or cfg.outlineColor) or Color3.fromRGB(139, 127, 255),
+                                backgroundColor        = hexToColor3(cfg.tag_color or cfg.backgroundColor) or Color3.fromRGB(15, 15, 15),
+                                backgroundTransparency = 0,
+                                iconImage              = (cfg.icon_image and cfg.icon_image ~= "") and cfg.icon_image or ((DEFAULT_ICON_IMAGE ~= "") and DEFAULT_ICON_IMAGE or nil),
+                                glitchAnim             = (cfg.glitch_anim == true) or (cfg.glitchAnim == true),
+                            }
                         end
                     end
                     processActiveUsers(activeSet)
                 end
             end
         end)
-        task.wait(10) -- Ping every 10 seconds
+        task.wait(3) -- Ping every 3 seconds for fast synchronization
     end
 end)
 -- =====================================================
