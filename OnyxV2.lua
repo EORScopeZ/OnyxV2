@@ -2662,7 +2662,9 @@ ActivateVCBtn.MouseButton1Click:Connect(function()
 end)
 
 -- Update mic icon status in real-time
+local antiVCLast = 0
 RunService.Heartbeat:Connect(function()
+    local now = tick(); if now - antiVCLast < 0.1 then return end; antiVCLast = now
     if not UserInputService.WindowFocused then return end
     if (AntiVCWindow.Visible or ScreenMicIndicator.Visible) and VoiceChatInternal then
         local success, isPaused = pcall(function() 
@@ -4535,7 +4537,10 @@ ESPButton.MouseButton1Click:Connect(function()
 end)
 
 -- ESP Update Loop
+local espLast = 0
 RunService.Heartbeat:Connect(function()
+    if not ESPEnabled then return end
+    local now = tick(); if now - espLast < 0.05 then return end; espLast = now
     if not ESPEnabled then return end
     if not game:GetService("GuiService"):IsTenFootInterface() and not UserInputService.WindowFocused then return end
     
@@ -4697,7 +4702,10 @@ AimlockButton.MouseButton1Click:Connect(function()
 end)
 
 -- Aimlock Update Loop
+local aimlockLast = 0
 RunService.Heartbeat:Connect(function()
+    if not AimlockEnabled then return end
+    local now = tick(); if now - aimlockLast < 0.033 then return end; aimlockLast = now
     if not AimlockEnabled then return end
     if not UserInputService.WindowFocused then return end
     
@@ -4745,9 +4753,12 @@ end)
 -- =====================================================
 
 local TimeReverseEnabled = false
-local positionHistory = {}
-local maxHistoryLength = 300 -- 10 seconds at 30fps (increased from 60)
+local maxHistoryLength = 300 -- 10 seconds at 30fps
 local isReversing = false
+-- Circular buffer for O(1) inserts instead of O(n) table.remove(t,1)
+local positionHistory = table.create(maxHistoryLength)
+local histHead = 1  -- next write index
+local histCount = 0 -- how many valid entries
 
 -- Time Reverse Toggle
 TimeReverseButton.MouseButton1Click:Connect(function()
@@ -4761,12 +4772,15 @@ TimeReverseButton.MouseButton1Click:Connect(function()
         TimeReverseButton.Text = "⏮️ Time Reverse (C): OFF"
         TimeReverseButton.BackgroundTransparency = 0.9
         SendNotify("Time Reverse", "Disabled", 2)
-        positionHistory = {}
+        positionHistory = table.create(maxHistoryLength); histHead = 1; histCount = 0
     end
 end)
 
 -- Record position history
+local trLast = 0
 RunService.Heartbeat:Connect(function()
+    if not TimeReverseEnabled or isReversing then return end
+    local now = tick(); if now - trLast < 0.033 then return end; trLast = now
     if not TimeReverseEnabled or isReversing then return end
     if not UserInputService.WindowFocused then return end
     
@@ -4774,15 +4788,10 @@ RunService.Heartbeat:Connect(function()
         local hrp = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
         if not hrp then return end
         
-        table.insert(positionHistory, {
-            CFrame = hrp.CFrame,
-            Velocity = hrp.AssemblyLinearVelocity
-        })
-        
-        -- Keep only last N positions
-        if #positionHistory > maxHistoryLength then
-            table.remove(positionHistory, 1)
-        end
+        -- O(1) circular buffer write
+        positionHistory[histHead] = { CFrame = hrp.CFrame }
+        histHead = (histHead % maxHistoryLength) + 1
+        if histCount < maxHistoryLength then histCount = histCount + 1 end
     end
 end)
 
@@ -4806,14 +4815,16 @@ RunService.Heartbeat:Connect(function()
     if not isReversing or not TimeReverseEnabled then return end
     if not UserInputService.WindowFocused then return end
     
-    if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and #positionHistory > 0 then
-        local hrp = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
-        if not hrp then return end
-        local lastPos = table.remove(positionHistory)
-        
+    if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and histCount > 0 then
+        local hrp = plr.Character.HumanoidRootPart
+        -- Read newest entry from circular buffer
+        local readIdx = ((histHead - 2) % maxHistoryLength) + 1
+        local lastPos = positionHistory[readIdx]
         if lastPos then
             hrp.CFrame = lastPos.CFrame
             hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+            histHead = readIdx
+            histCount = histCount - 1
         end
     end
 end)
@@ -5540,7 +5551,7 @@ end)
 -- ── Poll active list every 5 seconds and apply new tags ───────────────────────
 task.spawn(function()
     while true do
-        task.wait(5)
+        task.wait(8)
         fetchActiveUsers(function(activeSet)
             for _, p in ipairs(Players:GetPlayers()) do
                 if p ~= plr then
@@ -5743,51 +5754,188 @@ end)
 -- Chat command handler
 local function onChat(msg)
     msg = msg:lower():match("^%s*(.-)%s*$")
+
+    -- Target actions (require a target to be set)
     if msg == ".view" then
-        ViewButton.MouseButton1Click:Fire()
+        local target = GetPlayer(TargetNameInput.Text)
+        if target then
+            local char = GetCharacter(target)
+            if char then workspace.CurrentCamera.CameraSubject = char:FindFirstChildOfClass("Humanoid") end
+        else SendNotify("Command", "No target set", 2) end
+
     elseif msg == ".tp" then
-        TeleportButton.MouseButton1Click:Fire()
+        local target = GetPlayer(TargetNameInput.Text)
+        if target then TeleportTO(target)
+        else SendNotify("Command", "No target set", 2) end
+
     elseif msg == ".bring" then
-        BringButton.MouseButton1Click:Fire()
+        local target = GetPlayer(TargetNameInput.Text)
+        if target then
+            local root = GetRoot(target)
+            local myRoot = GetRoot(plr)
+            if root and myRoot then root.CFrame = myRoot.CFrame * CFrame.new(0, 0, -3) end
+        else SendNotify("Command", "No target set", 2) end
+
     elseif msg == ".spectate" then
-        SpectateButton.MouseButton1Click:Fire()
+        if TargetedPlayer then
+            local target = Players:FindFirstChild(TargetedPlayer)
+            if target then
+                SpectatingTarget = not SpectatingTarget
+                if SpectatingTarget then
+                    pcall(function()
+                        local hum = target.Character and target.Character:FindFirstChildOfClass("Humanoid")
+                        if hum then workspace.CurrentCamera.CameraSubject = hum end
+                    end)
+                    SpectateButton.Text = "📹 Stop Spectating"
+                    SendNotify("Spectate", "Now spectating " .. target.DisplayName, 2)
+                else
+                    pcall(function()
+                        local hum = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
+                        if hum then workspace.CurrentCamera.CameraSubject = hum end
+                    end)
+                    SpectateButton.Text = "📹 Spectate Target"
+                    SendNotify("Spectate", "Stopped", 2)
+                end
+            end
+        else SendNotify("Command", "No target set", 2) end
+
     elseif msg == ".focus" then
-        FocusButton.MouseButton1Click:Fire()
+        if TargetedPlayer then
+            local target = Players:FindFirstChild(TargetedPlayer)
+            if target then
+                FocusingTarget = not FocusingTarget
+                if FocusingTarget then
+                    FocusButton.Text = "🎯 Stop Focus"
+                    SendNotify("Focus", "Looping TP to " .. target.DisplayName, 2)
+                    task.spawn(function()
+                        while FocusingTarget and TargetedPlayer do
+                            local t = Players:FindFirstChild(TargetedPlayer)
+                            if t then TeleportTO(t) else FocusingTarget = false; FocusButton.Text = "🎯 Focus Target (Loop TP)"; break end
+                            task.wait(0.1)
+                        end
+                    end)
+                else
+                    FocusButton.Text = "🎯 Focus Target (Loop TP)"
+                    SendNotify("Focus", "Stopped", 2)
+                end
+            end
+        else SendNotify("Command", "No target set", 2) end
+
     elseif msg == ".headsit" then
-        HeadSitButton.MouseButton1Click:Fire()
+        if TargetedPlayer then
+            local target = Players:FindFirstChild(TargetedPlayer)
+            if target then
+                if ZeroDelayEnabled and zeroDelayMode == "headsit" then
+                    StopZeroDelay(); HeadSitButton.Text = "🪑 Sit on Head"; HeadSitButton.BackgroundTransparency = 0.91
+                else
+                    StartZeroDelay(target, "headsit"); HeadSitButton.Text = "🪑 Stop HeadSit"; HeadSitButton.BackgroundTransparency = 0.7
+                end
+            end
+        else SendNotify("Command", "No target set", 2) end
+
     elseif msg == ".backpack" then
-        BackpackButton.MouseButton1Click:Fire()
+        if TargetedPlayer then
+            local target = Players:FindFirstChild(TargetedPlayer)
+            if target then
+                if ZeroDelayEnabled and zeroDelayMode == "backpack" then
+                    StopZeroDelay(); BackpackButton.Text = "🎒 Backpack Mode"; BackpackButton.BackgroundTransparency = 0.91
+                else
+                    StartZeroDelay(target, "backpack"); BackpackButton.Text = "🎒 Stop Backpack"; BackpackButton.BackgroundTransparency = 0.7
+                end
+            end
+        else SendNotify("Command", "No target set", 2) end
+
     elseif msg == ".cleartarget" then
-        ClearTargetButton.MouseButton1Click:Fire()
+        UpdateTarget(nil)
+        SendNotify("Command", "Target cleared", 2)
+
+    -- Combat
     elseif msg == ".esp" then
-        ESPButton.MouseButton1Click:Fire()
+        ESPEnabled = not ESPEnabled
+        if ESPEnabled then
+            ESPButton.Text = "👁️ ESP: ON"; ESPButton.BackgroundTransparency = 0.7
+            SendNotify("ESP", "Enabled", 2)
+        else
+            ESPButton.Text = "👁️ ESP: OFF"; ESPButton.BackgroundTransparency = 0.9
+            for _, d in pairs(espObjects) do
+                if d.box then d.box:Destroy() end
+                if d.nameLabel then d.nameLabel:Destroy() end
+                if d.distanceLabel then d.distanceLabel:Destroy() end
+                if d.healthBar then d.healthBar:Destroy() end
+            end
+            espObjects = {}
+            SendNotify("ESP", "Disabled", 2)
+        end
+
     elseif msg == ".aimlock" then
-        AimlockButton.MouseButton1Click:Fire()
+        AimlockEnabled = not AimlockEnabled
+        if AimlockEnabled then
+            AimlockButton.Text = "🎯 Aimlock: ON"; AimlockButton.BackgroundTransparency = 0.7
+            SendNotify("Aimlock", "Enabled", 2)
+        else
+            AimlockButton.Text = "🎯 Aimlock: OFF"; AimlockButton.BackgroundTransparency = 0.9
+            SendNotify("Aimlock", "Disabled", 2)
+        end
+
+    -- Animation
     elseif msg == ".emotes" then
-        EmotesButton.MouseButton1Click:Fire()
+        ToggleEmoteMenu()
+
+    -- Visual
     elseif msg == ".shaders" then
         ShadersButton.MouseButton1Click:Fire()
+
+    -- Misc
     elseif msg == ".antivcb" then
         AntiVCWindow.Visible = true
+        ScreenMicIndicator.Visible = true
+        SendNotify("Anti VC Ban", "Opened", 2)
+
     elseif msg == ".facebang" then
         FaceBangWindow.Visible = not FaceBangWindow.Visible
+
     elseif msg == ".teleport" then
-        ClickTeleportButton.MouseButton1Click:Fire()
+        ClickTeleportEnabled = not ClickTeleportEnabled
+        if ClickTeleportEnabled then
+            ClickTeleportButton.Text = "📍 Click Teleport (F): ON"; ClickTeleportButton.BackgroundTransparency = 0.7
+            SendNotify("Click Teleport", "Enabled", 2)
+        else
+            ClickTeleportButton.Text = "📍 Click Teleport (F): OFF"; ClickTeleportButton.BackgroundTransparency = 0.9
+            SendNotify("Click Teleport", "Disabled", 2)
+        end
+
     elseif msg == ".baseplate" then
         InfiniteBaseplateButton.MouseButton1Click:Fire()
+
     elseif msg == ".timereverse" then
-        TimeReverseButton.MouseButton1Click:Fire()
+        TimeReverseEnabled = not TimeReverseEnabled
+        if TimeReverseEnabled then
+            TimeReverseButton.Text = "⏮️ Time Reverse (C): ON"; TimeReverseButton.BackgroundTransparency = 0.7
+            SendNotify("Time Reverse", "Enabled", 2)
+        else
+            TimeReverseEnabled = false
+            TimeReverseButton.Text = "⏮️ Time Reverse (C): OFF"; TimeReverseButton.BackgroundTransparency = 0.9
+            SendNotify("Time Reverse", "Disabled", 2)
+        end
+
     elseif msg == ".trip" then
-        TripButton.MouseButton1Click:Fire()
+        TripEnabled = not TripEnabled
+        if TripEnabled then
+            TripButton.Text = "🤸 Trip (T): ON"; TripButton.BackgroundTransparency = 0.7
+            SendNotify("Trip", "Enabled", 2)
+        else
+            TripButton.Text = "🤸 Trip (T): OFF"; TripButton.BackgroundTransparency = 0.9
+            SendNotify("Trip", "Disabled", 2)
+        end
+
     elseif msg == ".minimize" then
         MinimizeButton.MouseButton1Click:Fire()
+
     elseif msg == ".rj" then
-        local TeleportService = game:GetService("TeleportService")
-        local placeId = game.PlaceId
-        local jobId = game.JobId
         pcall(function()
-            TeleportService:TeleportToPlaceInstance(placeId, jobId, plr)
+            game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, game.JobId, plr)
         end)
+
     elseif msg == ".cmds" then
         CmdListFrame.Visible = not CmdListFrame.Visible
     end
