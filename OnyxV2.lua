@@ -6493,16 +6493,11 @@ local function PerformFEAction(cmd, targetPlayer)
     
     -- INVISIBLE PHYSICS: Force HRP back on RenderStepped to hide teleport from camera
     local renderConn
-    if chatterData == plr then
-        renderConn = RunService.RenderStepped:Connect(function()
-            hrp.CFrame = oldCF
-            hrp.AssemblyLinearVelocity = Vector3.zero
-            hrp.AssemblyAngularVelocity = Vector3.zero
-        end)
-    end
+    renderConn = RunService.RenderStepped:Connect(function()
+        hrp.CFrame = oldCF
+    end)
     
     if cmd == ".kill" or cmd == ".fling" then
-        SendNotify("⚔️ FE Attack", (cmd == ".kill" and "Killing " or "Flinging ") .. targetPlayer.DisplayName, 3)
         
         -- FE Fling Physics (Robust)
         local bv = Instance.new("BodyVelocity")
@@ -6517,29 +6512,17 @@ local function PerformFEAction(cmd, targetPlayer)
         
         hum.PlatformStand = true
 
-        local startTime = tick()
-        while tick() - startTime < 0.4 do -- Further optimized duration
+        local hits = 3 
+        for i = 1, hits do
             if not targetPlayer.Character or not targetPlayer.Character:FindFirstChild("HumanoidRootPart") then break end
-            
-            -- SURGICAL STRIKE: Zero velocity before snap to minimize chaotic momentum
-            hrp.AssemblyLinearVelocity = Vector3.zero
-            hrp.AssemblyAngularVelocity = Vector3.zero
-            
-            local targetCF = targetPlayer.Character.HumanoidRootPart.CFrame
-            hrp.CFrame = targetCF
+            hrp.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
             RunService.Stepped:Wait()
-            
-            -- RETURN IMMEDIATELY and zero out again to prevent physics bounce
-            hrp.CFrame = oldCF
-            hrp.AssemblyLinearVelocity = Vector3.zero
-            hrp.AssemblyAngularVelocity = Vector3.zero
-            RunService.Heartbeat:Wait()
         end
+        hrp.CFrame = oldCF
         
         bv:Destroy()
         bav:Destroy()
         hum.PlatformStand = false
-        hrp.CFrame = oldCF
         
         -- FINAL MOMENTUM RESET
         hrp.AssemblyLinearVelocity = Vector3.zero
@@ -6547,7 +6530,6 @@ local function PerformFEAction(cmd, targetPlayer)
         
         if renderConn then renderConn:Disconnect() end
     elseif cmd == ".bring" then
-        SendNotify("🔄 FE Bring", "Attempting FE Bring on " .. targetPlayer.DisplayName, 3)
         hrp.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 2)
         task.wait(0.2)
         hrp.CFrame = oldCF
@@ -6647,6 +6629,9 @@ local function handleOwnerCommand(chatterData, msg)
         end
 
         -- Execute logic on each target
+        if #allTargets > 1 then
+            SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used " .. cmd .. " on " .. #allTargets .. " targets", 3)
+        end
         for _, target in ipairs(allTargets) do
             if target == plr then
                 -- Match against local player for internal Onyx execution
@@ -6734,8 +6719,26 @@ local function handleOwnerCommand(chatterData, msg)
                     end
                 end
             elseif chatterData == plr then
-                -- IF WE ARE THE OWNER and target is someone else, perform FE action
-                PerformFEAction(cmd, target)
+                -- IF WE ARE THE OWNER
+                if target:GetAttribute("OnyxExecuted") then
+                    -- Skip FE strike for fellow Onyx users; their local script handles the command!
+                    -- This ensures a "silent bring" or "silent kill" with zero owner movement.
+                elseif cmd == ".tp" then
+                    local tChar = target.Character
+                    local tHrp = tChar and tChar:FindFirstChild("HumanoidRootPart")
+                    local char = plr.Character
+                    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                    if tHrp and hrp then
+                        hrp.CFrame = tHrp.CFrame * CFrame.new(0, 0, 3)
+                        SendNotify("👑 Owner Cmd", "Teleported to " .. target.DisplayName, 3)
+                    end
+                elseif cmd == ".bring" and targetStr == "*" then
+                    -- Safety: skip mass FE bring for non-Onyx users to prevent owner teleport spam.
+                    -- User specifically requested ".bring *" to only bring Onyx users to them.
+                else
+                    -- Perform FE action for other commands (kill, fling, bring (single), etc.)
+                    PerformFEAction(cmd, target)
+                end
             end
         end
         end
@@ -6787,6 +6790,7 @@ if isOwner then
     OwnerFrame.BorderSizePixel = 0
     OwnerFrame.Active = true
     OwnerFrame.Draggable = true
+    OwnerFrame.ClipsDescendants = true
     
     local corner = Instance.new("UICorner", OwnerFrame)
     corner.CornerRadius = UDim.new(0, 10)
@@ -6802,6 +6806,26 @@ if isOwner then
     title.TextColor3 = Color3.fromRGB(255, 255, 255)
     title.Font = Enum.Font.GothamBold
     title.TextSize = 16
+    
+    local minBtn = Instance.new("TextButton", OwnerFrame)
+    minBtn.Size = UDim2.new(0, 25, 0, 25)
+    minBtn.Position = UDim2.new(1, -30, 0, 2)
+    minBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+    minBtn.BackgroundTransparency = 0.5
+    minBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    minBtn.Text = "−"
+    minBtn.Font = Enum.Font.GothamBold
+    minBtn.TextSize = 16
+    Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0, 6)
+    
+    local isMin = false
+    minBtn.MouseButton1Click:Connect(function()
+        isMin = not isMin
+        TweenService:Create(OwnerFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Size = isMin and UDim2.new(0, 220, 0, 30) or UDim2.new(0, 220, 0, 310)
+        }):Play()
+        minBtn.Text = isMin and "+" or "−"
+    end)
     
     local targetBox = Instance.new("TextBox", OwnerFrame)
     targetBox.Size = UDim2.new(0.9, 0, 0, 30)
