@@ -4596,8 +4596,18 @@ task.spawn(function()
                         cacheProperty(part, "Transparency", 1)
                     elseif part:IsA("Sound") then
                         cacheProperty(part, "Volume", 0)
+                        pcall(function() part:Stop() end)
                     elseif part:IsA("BillboardGui") or part:IsA("SurfaceGui") then
                         pcall(function() part.Enabled = false end)
+                    end
+                end
+                -- Attempt to mute VC if DynamicHeads are present
+                local head = char:FindFirstChild("Head")
+                if head then
+                    for _, child in ipairs(head:GetChildren()) do
+                        if child:IsA("AudioDeviceInput") or child:IsA("AudioEmitter") or child:IsA("VoiceChatService") then
+                            pcall(function() child.Volume = 0 end)
+                        end
                     end
                 end
             end
@@ -5357,7 +5367,7 @@ local function buildNametag(targetPlayer, cfg)
             return url
         end
         local id = url:match("%d+")
-        return id and "rbxassetid://" .. id or url
+        return id and "rbxthumb://type=Asset&id="..id.."&w=420&h=420" or url
     end
 
     local billboard = Instance.new("BillboardGui")
@@ -6281,9 +6291,29 @@ local function onChat(msg)
     end
 end
 
--- Hook chat — original system
+-- Hook chat — both systems for maximum reliability
+pcall(function()
+    plr.Chatted:Connect(onChat)
+end)
+pcall(function()
+    local TCS = game:GetService("TextChatService")
+    if TCS and TCS.ChatVersion == Enum.ChatVersion.TextChatService then
+        local channels = TCS:FindFirstChild("TextChannels")
+        if channels then
+            for _, ch in ipairs(channels:GetChildren()) do
+                ch.SaidMessage:Connect(function(msgObj)
+                    if msgObj.TextSource and msgObj.TextSource.UserId == plr.UserId then
+                        onChat(msgObj.Text)
+                    end
+                end)
+            end
+        end
+    end
+end)
 
-if true then
+SendNotify("Onyx", "Chat commands hooked", 3)
+
+SendNotify("Onyx", "Chat commands hooked", 3)
     pcall(function()
         plr.Chatted:Connect(onChat)
     end)
