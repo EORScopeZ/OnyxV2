@@ -5428,8 +5428,7 @@ local function buildNametag(targetPlayer, cfg)
     if cfg.iconImage and cfg.iconImage ~= "" then
         icon = Instance.new("ImageLabel")
         icon.Name                   = "Icon"
-        icon.Size                   = UDim2.new(0, 0, 0, 0) -- 0-size to prevent stretching if missing
-        icon.AutomaticSize          = Enum.AutomaticSize.XY
+        icon.Size                   = UDim2.new(0, 46, 0, 46) 
         icon.BackgroundTransparency = 1
         icon.Image                  = resolveAsset(cfg.iconImage)
         icon.ScaleType              = Enum.ScaleType.Crop
@@ -5441,15 +5440,11 @@ local function buildNametag(targetPlayer, cfg)
         iconCorner.CornerRadius = UDim.new(0, 10)
         iconCorner.Parent = icon
         
-        -- Hide icon if resolution failed or missing
+        -- Hide icon if resolution failed
         if not icon.Image or icon.Image == "" then
             icon.Visible = false
             icon.Size = UDim2.new(0, 0, 0, 0)
-            mainLayout.Padding = UDim.new(0, 0) -- No padding if no icon
-        else
-            icon.Visible = true
-            icon.Size = UDim2.new(0, 46, 0, 46)
-            mainLayout.Padding = UDim.new(0, 10)
+            mainLayout.Padding = UDim.new(0, 0)
         end
     end
 
@@ -5566,7 +5561,7 @@ local function startParticleAnimation(billboard, particleColor)
         particleContainer.Name = "Particles"
         particleContainer.BackgroundTransparency = 1
         particleContainer.Size = UDim2.new(1, 0, 1, 0) -- FULL SIZE
-        particleContainer.ZIndex = 1
+        particleContainer.ZIndex = 2 -- ABOVE BG
         particleContainer.Parent = bg
 
         local c = Instance.new("UICorner")
@@ -6049,15 +6044,8 @@ end
 local CmdListFrame = buildCommandListUI()
 -- =====================================================
 
-local lastMsg = ""
-local lastTime = 0
 -- Chat command handler
 local function onChat(msg)
-    if not msg or msg == "" then return end
-    -- Debounce to prevent double-triggering from multiple chat hooks
-    if msg == lastMsg and (tick() - lastTime) < 0.1 then return end
-    lastMsg = msg; lastTime = tick()
-    
     msg = msg:lower():match("^%s*(.-)%s*$")
 
     -- Target actions (require a target to be set)
@@ -6293,25 +6281,10 @@ local function onChat(msg)
     end
 end
 
--- Hook chat — modern TextChatService first, legacy Chatted fallback
-local chatHooked = false
-pcall(function()
-    local TCS = game:GetService("TextChatService")
-    local channels = TCS:FindFirstChild("TextChannels")
-    if channels then
-        for _, ch in ipairs(channels:GetChildren()) do
-            ch.SaidMessage:Connect(function(msgObj)
-                if msgObj.TextSource and msgObj.TextSource.UserId == plr.UserId then
-                    onChat(msgObj.Text)
-                end
-            end)
-        end
-        chatHooked = true
-    end
-end)
+-- Hook chat — original system
 
 if true then
     pcall(function()
-        plr.Chatted:Connect(function(msg) onChat(msg) end)
+        plr.Chatted:Connect(onChat)
     end)
 end
