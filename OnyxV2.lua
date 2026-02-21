@@ -988,6 +988,8 @@ local TripButton = CreateActionButton(MiscActionsContainer, "TripButton", UDim2.
 
 local UnloadScriptButton = CreateActionButton(MiscActionsContainer, "UnloadScriptButton", UDim2.new(0, 0, 0, 0), "❌ Unload Script", 7)
 
+local CommandsButton = CreateActionButton(MiscActionsContainer, "CommandsButton", UDim2.new(0, 0, 0, 0), "⌨️ Command List", 9)
+
 -- Minimize Keybind Changer
 local minimizeKey = Enum.KeyCode.B -- default
 local minimizeKeyListening = false
@@ -4831,19 +4833,23 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         local hrp = char:FindFirstChild("HumanoidRootPart")
         if not humanoid or not hrp then return end
 
-        -- Save original values to restore after
         local origWalkSpeed = humanoid.WalkSpeed
         local origJumpPower = humanoid.JumpPower
 
-        -- Use Seated state — safe, built-in, makes avatar fall to ground
+        -- Stop movement
         humanoid.WalkSpeed = 0
         humanoid.JumpPower = 0
-        humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+
+        -- Slam downward
+        hrp.AssemblyLinearVelocity = Vector3.new(0, -80, 0)
+
+        -- Immediately go to freefall state so they drop hard
+        humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
 
         SendNotify("Trip", "Tripped!", 1)
 
-        -- Auto-recover after 2 seconds
-        task.delay(2, function()
+        -- Get up after 1.5 seconds
+        task.delay(1.5, function()
             if humanoid and humanoid.Parent then
                 humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
                 humanoid.WalkSpeed = origWalkSpeed
@@ -5577,3 +5583,210 @@ task.spawn(function()
         task.wait(10) -- Ping every 10 seconds
     end
 end)
+-- =====================================================
+
+-- =====================================================
+-- CHAT COMMAND SYSTEM + COMMAND LIST UI
+-- =====================================================
+
+local allCommands = {
+    -- Player / Target
+    { cmd = ".view",        desc = "View target" },
+    { cmd = ".tp",          desc = "Teleport to target" },
+    { cmd = ".bring",       desc = "Bring target to you" },
+    { cmd = ".spectate",    desc = "Spectate target" },
+    { cmd = ".focus",       desc = "Loop TP to target" },
+    { cmd = ".headsit",     desc = "Sit on target's head" },
+    { cmd = ".backpack",    desc = "Backpack mode on target" },
+    { cmd = ".cleartarget", desc = "Clear target" },
+    -- Combat
+    { cmd = ".esp",         desc = "Toggle ESP" },
+    { cmd = ".aimlock",     desc = "Toggle Aimlock" },
+    -- Animation
+    { cmd = ".emotes",      desc = "Open Emote Menu" },
+    -- Visual
+    { cmd = ".shaders",     desc = "Load Shaders" },
+    -- Misc
+    { cmd = ".antivcb",     desc = "Open Anti VC Ban" },
+    { cmd = ".facebang",    desc = "Open Face Bang" },
+    { cmd = ".teleport",    desc = "Toggle Click Teleport" },
+    { cmd = ".baseplate",   desc = "Toggle Infinite Baseplate" },
+    { cmd = ".timereverse", desc = "Toggle Time Reverse" },
+    { cmd = ".trip",        desc = "Toggle Trip" },
+    { cmd = ".minimize",    desc = "Toggle Minimize GUI" },
+    { cmd = ".cmds",        desc = "Show/hide Command List" },
+}
+
+-- Build the command list window
+local CmdListFrame = Instance.new("Frame")
+CmdListFrame.Name = "OnyxCmdList"
+CmdListFrame.Parent = OnyxUI
+CmdListFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+CmdListFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+CmdListFrame.Size = UDim2.new(0, 300, 0, 380)
+CmdListFrame.BackgroundColor3 = Color3.fromRGB(9, 9, 18)
+CmdListFrame.BackgroundTransparency = 0.08
+CmdListFrame.BorderSizePixel = 0
+CmdListFrame.Visible = false
+CmdListFrame.ZIndex = 30
+CmdListFrame.Active = true
+do
+    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 14); c.Parent = CmdListFrame
+    local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(255,255,255); s.Transparency = 0.82; s.Thickness = 1.2; s.Parent = CmdListFrame
+    local ov = Instance.new("Frame"); ov.BackgroundColor3 = Color3.fromRGB(185,195,255); ov.BackgroundTransparency = 0.96
+    ov.BorderSizePixel = 0; ov.Size = UDim2.new(1,0,1,0); ov.ZIndex = 30; ov.Parent = CmdListFrame
+    Instance.new("UICorner", ov).CornerRadius = UDim.new(0,14)
+    local bar = Instance.new("Frame"); bar.BackgroundColor3 = Color3.fromRGB(140,130,255)
+    bar.BorderSizePixel = 0; bar.Size = UDim2.new(1,0,0,3); bar.ZIndex = 31; bar.Parent = CmdListFrame
+    Instance.new("UICorner", bar).CornerRadius = UDim.new(0,14)
+end
+
+-- Title bar
+local CmdTitleBar = Instance.new("Frame")
+CmdTitleBar.Parent = CmdListFrame; CmdTitleBar.BackgroundTransparency = 1
+CmdTitleBar.Size = UDim2.new(1,0,0,38); CmdTitleBar.ZIndex = 31
+
+local CmdTitleLbl = Instance.new("TextLabel")
+CmdTitleLbl.Parent = CmdTitleBar; CmdTitleLbl.BackgroundTransparency = 1
+CmdTitleLbl.Position = UDim2.new(0,14,0,0); CmdTitleLbl.Size = UDim2.new(1,-50,1,0)
+CmdTitleLbl.Font = Enum.Font.GothamBold; CmdTitleLbl.Text = "⌨️  Command List"
+CmdTitleLbl.TextColor3 = Color3.fromRGB(255,255,255); CmdTitleLbl.TextSize = 14
+CmdTitleLbl.TextXAlignment = Enum.TextXAlignment.Left; CmdTitleLbl.ZIndex = 32
+
+local CmdCloseBtn = Instance.new("TextButton")
+CmdCloseBtn.Parent = CmdTitleBar; CmdCloseBtn.AnchorPoint = Vector2.new(1,0.5)
+CmdCloseBtn.Position = UDim2.new(1,-10,0.5,0); CmdCloseBtn.Size = UDim2.new(0,24,0,24)
+CmdCloseBtn.BackgroundColor3 = Color3.fromRGB(255,255,255); CmdCloseBtn.BackgroundTransparency = 0.88
+CmdCloseBtn.BorderSizePixel = 0; CmdCloseBtn.Font = Enum.Font.GothamBold
+CmdCloseBtn.Text = "×"; CmdCloseBtn.TextColor3 = Color3.fromRGB(255,255,255)
+CmdCloseBtn.TextSize = 16; CmdCloseBtn.ZIndex = 32; CmdCloseBtn.AutoButtonColor = false
+Instance.new("UICorner", CmdCloseBtn).CornerRadius = UDim.new(0,7)
+CmdCloseBtn.MouseButton1Click:Connect(function() CmdListFrame.Visible = false end)
+
+local divLine = Instance.new("Frame"); divLine.Parent = CmdListFrame
+divLine.BackgroundColor3 = Color3.fromRGB(255,255,255); divLine.BackgroundTransparency = 0.88
+divLine.BorderSizePixel = 0; divLine.Position = UDim2.new(0,12,0,38); divLine.Size = UDim2.new(1,-24,0,1); divLine.ZIndex = 31
+
+-- Scroll area
+local CmdScroll = Instance.new("ScrollingFrame")
+CmdScroll.Parent = CmdListFrame; CmdScroll.Position = UDim2.new(0,0,0,44)
+CmdScroll.Size = UDim2.new(1,0,1,-44); CmdScroll.BackgroundTransparency = 1
+CmdScroll.BorderSizePixel = 0; CmdScroll.ScrollBarThickness = 3
+CmdScroll.ScrollBarImageColor3 = Color3.fromRGB(140,130,255); CmdScroll.ZIndex = 31
+CmdScroll.CanvasSize = UDim2.new(0,0,0,0); CmdScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+
+local CmdListLayout = Instance.new("UIListLayout"); CmdListLayout.Parent = CmdScroll
+CmdListLayout.SortOrder = Enum.SortOrder.LayoutOrder; CmdListLayout.Padding = UDim.new(0,3)
+local CmdListPad = Instance.new("UIPadding"); CmdListPad.Parent = CmdScroll
+CmdListPad.PaddingLeft = UDim.new(0,10); CmdListPad.PaddingRight = UDim.new(0,10)
+CmdListPad.PaddingTop = UDim.new(0,6); CmdListPad.PaddingBottom = UDim.new(0,6)
+
+for i, entry in ipairs(allCommands) do
+    local row = Instance.new("Frame"); row.Parent = CmdScroll
+    row.BackgroundColor3 = Color3.fromRGB(255,255,255); row.BackgroundTransparency = 0.93
+    row.BorderSizePixel = 0; row.Size = UDim2.new(1,0,0,36); row.LayoutOrder = i; row.ZIndex = 32
+    Instance.new("UICorner", row).CornerRadius = UDim.new(0,7)
+
+    local cmdL = Instance.new("TextLabel"); cmdL.Parent = row; cmdL.BackgroundTransparency = 1
+    cmdL.Position = UDim2.new(0,8,0,2); cmdL.Size = UDim2.new(0.5,-8,0,17)
+    cmdL.Font = Enum.Font.GothamBold; cmdL.Text = entry.cmd
+    cmdL.TextColor3 = Color3.fromRGB(180,170,255); cmdL.TextSize = 12
+    cmdL.TextXAlignment = Enum.TextXAlignment.Left; cmdL.ZIndex = 33
+
+    local descL = Instance.new("TextLabel"); descL.Parent = row; descL.BackgroundTransparency = 1
+    descL.Position = UDim2.new(0,8,0,19); descL.Size = UDim2.new(1,-16,0,13)
+    descL.Font = Enum.Font.Gotham; descL.Text = entry.desc
+    descL.TextColor3 = Color3.fromRGB(130,130,165); descL.TextSize = 10
+    descL.TextXAlignment = Enum.TextXAlignment.Left; descL.ZIndex = 33
+end
+
+-- Dragging for cmd list window
+do
+    local dragging, dragStart, startPos
+    CmdTitleBar.InputBegan:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true; dragStart = inp.Position; startPos = CmdListFrame.Position
+            inp.Changed:Connect(function() if inp.UserInputState == Enum.UserInputState.End then dragging = false end end)
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(inp)
+        if dragging and inp.UserInputType == Enum.UserInputType.MouseMovement then
+            local d = inp.Position - dragStart
+            CmdListFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset+d.X, startPos.Y.Scale, startPos.Y.Offset+d.Y)
+        end
+    end)
+end
+
+-- Wire up the Commands button in Misc tab
+CommandsButton.MouseButton1Click:Connect(function()
+    CmdListFrame.Visible = not CmdListFrame.Visible
+end)
+
+-- Chat command handler
+local function onChat(msg)
+    msg = msg:lower():match("^%s*(.-)%s*$")
+    if msg == ".view" then
+        ViewButton.MouseButton1Click:Fire()
+    elseif msg == ".tp" then
+        TeleportButton.MouseButton1Click:Fire()
+    elseif msg == ".bring" then
+        BringButton.MouseButton1Click:Fire()
+    elseif msg == ".spectate" then
+        SpectateButton.MouseButton1Click:Fire()
+    elseif msg == ".focus" then
+        FocusButton.MouseButton1Click:Fire()
+    elseif msg == ".headsit" then
+        HeadSitButton.MouseButton1Click:Fire()
+    elseif msg == ".backpack" then
+        BackpackButton.MouseButton1Click:Fire()
+    elseif msg == ".cleartarget" then
+        ClearTargetButton.MouseButton1Click:Fire()
+    elseif msg == ".esp" then
+        ESPButton.MouseButton1Click:Fire()
+    elseif msg == ".aimlock" then
+        AimlockButton.MouseButton1Click:Fire()
+    elseif msg == ".emotes" then
+        EmotesButton.MouseButton1Click:Fire()
+    elseif msg == ".shaders" then
+        ShadersButton.MouseButton1Click:Fire()
+    elseif msg == ".antivcb" then
+        AntiVCWindow.Visible = true
+    elseif msg == ".facebang" then
+        FaceBangWindow.Visible = not FaceBangWindow.Visible
+    elseif msg == ".teleport" then
+        ClickTeleportButton.MouseButton1Click:Fire()
+    elseif msg == ".baseplate" then
+        InfiniteBaseplateButton.MouseButton1Click:Fire()
+    elseif msg == ".timereverse" then
+        TimeReverseButton.MouseButton1Click:Fire()
+    elseif msg == ".trip" then
+        TripButton.MouseButton1Click:Fire()
+    elseif msg == ".minimize" then
+        MinimizeButton.MouseButton1Click:Fire()
+    elseif msg == ".cmds" then
+        CmdListFrame.Visible = not CmdListFrame.Visible
+    end
+end
+
+-- Hook chat — modern TextChatService first, legacy Chatted fallback
+local chatHooked = false
+pcall(function()
+    local TCS = game:GetService("TextChatService")
+    local channels = TCS:FindFirstChild("TextChannels")
+    if channels then
+        for _, ch in ipairs(channels:GetChildren()) do
+            ch.SaidMessage:Connect(function(msgObj)
+                if msgObj.TextSource and msgObj.TextSource.UserId == plr.UserId then
+                    onChat(msgObj.Text)
+                end
+            end)
+        end
+        chatHooked = true
+    end
+end)
+
+if not chatHooked then
+    pcall(function()
+        plr.Chatted:Connect(function(msg) onChat(msg) end)
+    end)
+end
