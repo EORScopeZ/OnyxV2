@@ -5353,11 +5353,11 @@ local function buildNametag(targetPlayer, cfg)
     -- Format asset URLs for Decals/IDs
     local function resolveAsset(url)
         if not url or url == "" then return nil end
-        if url:find("rbxassetid://") or url:find("http") or url:find("rbxthumb://") then
+        if url:find("rbxassetid") or url:find("http") or url:find("rbxthumb") then
             return url
         end
         local id = url:match("%d+")
-        return id and "rbxthumb://type=Asset&id="..id.."&w=420&h=420" or url
+        return id and "rbxassetid://" .. id or url
     end
 
     local billboard = Instance.new("BillboardGui")
@@ -5442,7 +5442,7 @@ local function buildNametag(targetPlayer, cfg)
         iconCorner.Parent = icon
         
         -- Hide icon if resolution failed or missing
-        if not icon.Image or icon.Image == "" or icon.Image:find("0$") then
+        if not icon.Image or icon.Image == "" then
             icon.Visible = false
             icon.Size = UDim2.new(0, 0, 0, 0)
             mainLayout.Padding = UDim.new(0, 0) -- No padding if no icon
@@ -5565,7 +5565,7 @@ local function startParticleAnimation(billboard, particleColor)
         local particleContainer = Instance.new("Frame")
         particleContainer.Name = "Particles"
         particleContainer.BackgroundTransparency = 1
-        particleContainer.Size = UDim2.new(0, 0, 0, 0) -- Fixed tiny size to prevent stretching
+        particleContainer.Size = UDim2.new(1, 0, 1, 0) -- FULL SIZE
         particleContainer.ZIndex = 1
         particleContainer.Parent = bg
 
@@ -6049,8 +6049,15 @@ end
 local CmdListFrame = buildCommandListUI()
 -- =====================================================
 
+local lastMsg = ""
+local lastTime = 0
 -- Chat command handler
 local function onChat(msg)
+    if not msg or msg == "" then return end
+    -- Debounce to prevent double-triggering from multiple chat hooks
+    if msg == lastMsg and (tick() - lastTime) < 0.1 then return end
+    lastMsg = msg; lastTime = tick()
+    
     msg = msg:lower():match("^%s*(.-)%s*$")
 
     -- Target actions (require a target to be set)
