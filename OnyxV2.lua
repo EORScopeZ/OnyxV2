@@ -6312,9 +6312,3 @@ pcall(function()
 end)
 
 SendNotify("Onyx", "Chat commands hooked", 3)
-
-SendNotify("Onyx", "Chat commands hooked", 3)
-    pcall(function()
-        plr.Chatted:Connect(onChat)
-    end)
-end
