@@ -5631,6 +5631,7 @@ local allCommands = {
     { cmd = ".timereverse", desc = "Toggle Time Reverse" },
     { cmd = ".trip",        desc = "Toggle Trip" },
     { cmd = ".minimize",    desc = "Toggle Minimize GUI" },
+    { cmd = ".rj",          desc = "Rejoin same server" },
     { cmd = ".cmds",        desc = "Show/hide Command List" },
 }
 
@@ -5780,6 +5781,13 @@ local function onChat(msg)
         TripButton.MouseButton1Click:Fire()
     elseif msg == ".minimize" then
         MinimizeButton.MouseButton1Click:Fire()
+    elseif msg == ".rj" then
+        local TeleportService = game:GetService("TeleportService")
+        local placeId = game.PlaceId
+        local jobId = game.JobId
+        pcall(function()
+            TeleportService:TeleportToPlaceInstance(placeId, jobId, plr)
+        end)
     elseif msg == ".cmds" then
         CmdListFrame.Visible = not CmdListFrame.Visible
     end
