@@ -1573,7 +1573,7 @@ do
         return function() return val end
     end
 
-    getFBSpeed    = BuildSlider(72,  "🏃 Speed",    1, 40, 20)
+    getFBSpeed    = BuildSlider(72,  "🏃 Speed",    1, 80, 40)
     getFBDistance = BuildSlider(132, "📏 Distance",  1, 10, 3)
 
     -- ── Toggle button ─────────────────────────────────────────────────────────
@@ -1778,10 +1778,9 @@ local function StartFaceBang(targetPlayer)
             -- t oscillates 0..1..0 (in front of face, then pull back)
             local t = (oscillation + 1) / 2
 
-            -- Position is purely relative to the head's CFrame so it always
-            -- moves along the direction the head is actually facing.
-            -- Offset: start 0.5 studs in front, oscillate outward by distance
-            local relativeOffset = Vector3.new(0, 0, -(0.5 + t * distance))
+            -- Offset: start 0.5 studs in front, oscillate outward by distance. 
+            -- Raised by 0.75 studs so character isn't too low on face.
+            local relativeOffset = Vector3.new(0, 0.75, -(0.5 + t * distance))
             local finalPos = headCF:PointToWorldSpace(relativeOffset)
 
             -- Face back toward the target head (opposite of head's look direction)
@@ -4536,6 +4535,51 @@ ESPButton.MouseButton1Click:Connect(function()
     end
 end)
 
+-- =====================================================
+-- UTILITY SYSTEMS (Anti-Void, Player Hiding)
+-- =====================================================
+
+local AntiVoidEnabled = false
+local HiddenPlayers = {} -- [UserId] = true
+
+-- Anti-Void Loop
+task.spawn(function()
+    while true do
+        if AntiVoidEnabled then
+            local char = plr.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            if hrp and hrp.Position.Y < -500 then
+                hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                hrp.CFrame = hrp.CFrame * CFrame.new(0, 550, 0)
+                SendNotify("Anti-Void", "Saved from falling!", 2)
+            end
+        end
+        task.wait(0.5)
+    end
+end)
+
+-- Player Hiding Loop (Visuals & Audio)
+task.spawn(function()
+    while true do
+        for userId, _ in pairs(HiddenPlayers) do
+            local p = Players:GetPlayerByUserId(userId)
+            local char = p and p.Character
+            if char then
+                for _, part in ipairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") or part:IsA("Decal") then
+                        part.Transparency = 1
+                    elseif part:IsA("Sound") then
+                        part.Volume = 0
+                    elseif part:IsA("BillboardGui") or part:IsA("SurfaceGui") then
+                        pcall(function() part.Enabled = false end)
+                    end
+                end
+            end
+        end
+        task.wait(0.5)
+    end
+end)
+
 -- ESP Update Loop
 local espLast = 0
 RunService.Heartbeat:Connect(function()
@@ -5100,7 +5144,7 @@ nametagConfigs[plr.Name:lower()] = nil
 
 -- ── CUSTOMIZE DEFAULTS HERE ──────────────────────────
 local DEFAULT_BG_IMAGE   = "" -- Set to "" for solid color only
-local DEFAULT_ICON_IMAGE = "138249935932599" -- Onyx Logo ID
+local DEFAULT_ICON_IMAGE = "rbxassetid://138249935932599"
 -- ───────────────────────────────────────────────────
 
 local NAMETAG_FONT_MAP = {
@@ -5117,7 +5161,7 @@ local function getDefaultConfig()
         displayName            = "Onyx User",
         font                   = "GothamBlack",
         textColor              = Color3.fromRGB(139, 127, 255),
-        outlineColor           = Color3.fromRGB(0, 0, 0),
+        outlineColor           = Color3.fromRGB(255, 255, 255),
         backgroundColor        = Color3.fromRGB(26, 26, 46),
         backgroundTransparency = 0,
         backgroundImage        = (DEFAULT_BG_IMAGE ~= "") and DEFAULT_BG_IMAGE or nil,
@@ -5198,7 +5242,7 @@ local function fetchNametagConfig(username, callback)
                         resolved = {
                             displayName            = cfg.name_text or cfg.displayName or "Onyx User",
                             textColor              = hexToColor3(cfg.name_color or cfg.textColor) or Color3.fromRGB(240, 240, 240),
-                            outlineColor           = hexToColor3(cfg.outline_color or cfg.glow_color or cfg.outlineColor) or Color3.fromRGB(139, 127, 255),
+                            outlineColor           = hexToColor3(cfg.outline_color or cfg.glow_color or cfg.outlineColor) or Color3.fromRGB(255, 255, 255),
                             backgroundColor        = hexToColor3(cfg.tag_color or cfg.backgroundColor) or Color3.fromRGB(15, 15, 15),
                             backgroundTransparency = 0, -- Solid background
                             iconImage              = (cfg.icon_image and cfg.icon_image ~= "") and cfg.icon_image or ((DEFAULT_ICON_IMAGE ~= "") and DEFAULT_ICON_IMAGE or nil),
@@ -5281,16 +5325,13 @@ local function buildNametag(targetPlayer, cfg)
     if not attachTo then return nil end
 
     -- Format asset URLs for Decals/IDs
-    -- Switch to rbxthumb for maximum reliability (works for decal IDs)
     local function resolveAsset(url)
         if not url or url == "" then return nil end
-        if url:find("rbxthumb") or url:find("http") then return url end
-        
-        local id = url:match("%d+")
-        if id then
-            return "rbxthumb://type=Asset&id=" .. id .. "&w=150&h=150"
+        if url:find("rbxassetid") or url:find("http") or url:find("rbxthumb") then
+            return url
         end
-        return url
+        local id = url:match("%d+")
+        return id and "rbxassetid://" .. id or url
     end
 
     local billboard = Instance.new("BillboardGui")
@@ -5336,6 +5377,7 @@ local function buildNametag(targetPlayer, cfg)
     contentFrame.BackgroundTransparency = 1
     contentFrame.Size = UDim2.new(0, 0, 0, 0)
     contentFrame.AutomaticSize = Enum.AutomaticSize.XY
+    contentFrame.ZIndex = 10 -- BRING CONTENT ABOVE PARTICLES
     contentFrame.Parent = bg
 
     -- Main Horizontal Layout
@@ -5483,7 +5525,7 @@ local function startParticleAnimation(billboard, particleColor)
         local particleContainer = Instance.new("Frame")
         particleContainer.Name = "Particles"
         particleContainer.BackgroundTransparency = 1
-        particleContainer.Size = UDim2.new(1, 0, 1, 0)
+        particleContainer.Size = UDim2.new(0, 0, 0, 0) -- Fixed tiny size to prevent stretching
         particleContainer.ZIndex = 1
         particleContainer.Parent = bg
 
@@ -5798,7 +5840,7 @@ task.spawn(function()
                             nametagConfigs[username] = {
                                 displayName            = cfg.name_text or cfg.displayName or (isSelf and plr.DisplayName or "Onyx User"),
                                 textColor              = hexToColor3(cfg.name_color or cfg.textColor) or Color3.fromRGB(240, 240, 240),
-                                outlineColor           = hexToColor3(cfg.outline_color or cfg.glow_color or cfg.outlineColor) or Color3.fromRGB(139, 127, 255),
+                                outlineColor           = hexToColor3(cfg.outline_color or cfg.glow_color or cfg.outlineColor) or Color3.fromRGB(255, 255, 255),
                                 backgroundColor        = hexToColor3(cfg.tag_color or cfg.backgroundColor) or Color3.fromRGB(15, 15, 15),
                                 backgroundTransparency = 0,
                                 iconImage              = (cfg.icon_image and cfg.icon_image ~= "") and cfg.icon_image or ((DEFAULT_ICON_IMAGE ~= "") and DEFAULT_ICON_IMAGE or nil),
@@ -5848,6 +5890,9 @@ local allCommands = {
     { cmd = ".minimize",    desc = "Toggle Minimize GUI" },
     { cmd = ".rj",          desc = "Rejoin same server" },
     { cmd = ".cmds",        desc = "Show/hide Command List" },
+    { cmd = ".antivoid",    desc = "Toggle Anti-Void" },
+    { cmd = ".hide [name]",  desc = "Hide player visuals/audio" },
+    { cmd = ".unhide [p]",   desc = "Unhide player" },
 }
 
 -- Build the command list window
@@ -5969,12 +6014,14 @@ local function onChat(msg)
     msg = msg:lower():match("^%s*(.-)%s*$")
 
     -- Target actions (require a target to be set)
-    if msg == ".view" then
-        local target = GetPlayer(TargetNameInput.Text)
+    if msg == ".view" or msg:match("^%.view%s+%S") then
+        local argName = msg:match("^%.view%s+(.+)$")
+        local target = argName and GetPlayer(argName) or GetPlayer(TargetNameInput.Text)
         if target then
             local char = GetCharacter(target)
             if char then workspace.CurrentCamera.CameraSubject = char:FindFirstChildOfClass("Humanoid") end
-        else SendNotify("Command", "No target set", 2) end
+            SendNotify("View", "Viewing " .. target.DisplayName, 2)
+        else SendNotify("Command", "Player not found", 2) end
 
     elseif msg == ".tp" or msg:match("^%.tp%s+%S") then
         local argName = msg:match("^%.tp%s+(.+)$")
@@ -5984,82 +6031,89 @@ local function onChat(msg)
             SendNotify("Teleport", "Teleported to " .. target.DisplayName, 2)
         else SendNotify("Command", "Player not found", 2) end
 
-    elseif msg == ".bring" then
-        local target = GetPlayer(TargetNameInput.Text)
+    elseif msg == ".bring" or msg:match("^%.bring%s+%S") then
+        local argName = msg:match("^%.bring%s+(.+)$")
+        local target = argName and GetPlayer(argName) or GetPlayer(TargetNameInput.Text)
         if target then
             local root = GetRoot(target)
             local myRoot = GetRoot(plr)
             if root and myRoot then root.CFrame = myRoot.CFrame * CFrame.new(0, 0, -3) end
-        else SendNotify("Command", "No target set", 2) end
+            SendNotify("Bring", "Brought " .. target.DisplayName, 2)
+        else SendNotify("Command", "Player not found", 2) end
 
-    elseif msg == ".spectate" then
-        if TargetedPlayer then
-            local target = Players:FindFirstChild(TargetedPlayer)
-            if target then
-                SpectatingTarget = not SpectatingTarget
-                if SpectatingTarget then
-                    pcall(function()
-                        local hum = target.Character and target.Character:FindFirstChildOfClass("Humanoid")
-                        if hum then workspace.CurrentCamera.CameraSubject = hum end
-                    end)
-                    SpectateButton.Text = "📹 Stop Spectating"
-                    SendNotify("Spectate", "Now spectating " .. target.DisplayName, 2)
-                else
-                    pcall(function()
-                        local hum = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
-                        if hum then workspace.CurrentCamera.CameraSubject = hum end
-                    end)
-                    SpectateButton.Text = "📹 Spectate Target"
-                    SendNotify("Spectate", "Stopped", 2)
-                end
+    elseif msg == ".spectate" or msg:match("^%.spectate%s+%S") then
+        local argName = msg:match("^%.spectate%s+(.+)$")
+        local target = argName and GetPlayer(argName) or (TargetedPlayer and Players:FindFirstChild(TargetedPlayer))
+        if not target and not argName then target = GetPlayer(TargetNameInput.Text) end
+
+        if target then
+            SpectatingTarget = not SpectatingTarget
+            if SpectatingTarget then
+                pcall(function()
+                    local hum = target.Character and target.Character:FindFirstChildOfClass("Humanoid")
+                    if hum then workspace.CurrentCamera.CameraSubject = hum end
+                end)
+                SpectateButton.Text = "📹 Stop Spectating"
+                SendNotify("Spectate", "Now spectating " .. target.DisplayName, 2)
+            else
+                pcall(function()
+                    local hum = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
+                    if hum then workspace.CurrentCamera.CameraSubject = hum end
+                end)
+                SpectateButton.Text = "📹 Spectate Target"
+                SendNotify("Spectate", "Stopped", 2)
             end
-        else SendNotify("Command", "No target set", 2) end
+        else SendNotify("Command", "Player not found", 2) end
 
-    elseif msg == ".focus" then
-        if TargetedPlayer then
-            local target = Players:FindFirstChild(TargetedPlayer)
-            if target then
-                FocusingTarget = not FocusingTarget
-                if FocusingTarget then
-                    FocusButton.Text = "🎯 Stop Focus"
-                    SendNotify("Focus", "Looping TP to " .. target.DisplayName, 2)
-                    task.spawn(function()
-                        while FocusingTarget and TargetedPlayer do
-                            local t = Players:FindFirstChild(TargetedPlayer)
-                            if t then TeleportTO(t) else FocusingTarget = false; FocusButton.Text = "🎯 Focus Target (Loop TP)"; break end
-                            task.wait(0.1)
-                        end
-                    end)
-                else
+    elseif msg == ".focus" or msg:match("^%.focus%s+%S") then
+        local argName = msg:match("^%.focus%s+(.+)$")
+        local target = argName and GetPlayer(argName) or (TargetedPlayer and Players:FindFirstChild(TargetedPlayer))
+        if not target and not argName then target = GetPlayer(TargetNameInput.Text) end
+
+        if target then
+            FocusingTarget = not FocusingTarget
+            if FocusingTarget then
+                FocusButton.Text = "🎯 Stop Focus"
+                SendNotify("Focus", "Looping TP to " .. target.DisplayName, 2)
+                task.spawn(function()
+                    while FocusingTarget do
+                        if not target or not target.Parent then FocusingTarget = false; break end
+                        TeleportTO(target)
+                        task.wait(0.1)
+                    end
                     FocusButton.Text = "🎯 Focus Target (Loop TP)"
-                    SendNotify("Focus", "Stopped", 2)
-                end
+                end)
+            else
+                FocusButton.Text = "🎯 Focus Target (Loop TP)"
+                SendNotify("Focus", "Stopped", 2)
             end
-        else SendNotify("Command", "No target set", 2) end
+        else SendNotify("Command", "Player not found", 2) end
 
-    elseif msg == ".headsit" then
-        if TargetedPlayer then
-            local target = Players:FindFirstChild(TargetedPlayer)
-            if target then
-                if ZeroDelayEnabled and zeroDelayMode == "headsit" then
-                    StopZeroDelay(); HeadSitButton.Text = "🪑 Sit on Head"; HeadSitButton.BackgroundTransparency = 0.91
-                else
-                    StartZeroDelay(target, "headsit"); HeadSitButton.Text = "🪑 Stop HeadSit"; HeadSitButton.BackgroundTransparency = 0.7
-                end
-            end
-        else SendNotify("Command", "No target set", 2) end
+    elseif msg == ".headsit" or msg:match("^%.headsit%s+%S") then
+        local argName = msg:match("^%.headsit%s+(.+)$")
+        local target = argName and GetPlayer(argName) or (TargetedPlayer and Players:FindFirstChild(TargetedPlayer))
+        if not target and not argName then target = GetPlayer(TargetNameInput.Text) end
 
-    elseif msg == ".backpack" then
-        if TargetedPlayer then
-            local target = Players:FindFirstChild(TargetedPlayer)
-            if target then
-                if ZeroDelayEnabled and zeroDelayMode == "backpack" then
-                    StopZeroDelay(); BackpackButton.Text = "🎒 Backpack Mode"; BackpackButton.BackgroundTransparency = 0.91
-                else
-                    StartZeroDelay(target, "backpack"); BackpackButton.Text = "🎒 Stop Backpack"; BackpackButton.BackgroundTransparency = 0.7
-                end
+        if target then
+            if ZeroDelayEnabled and zeroDelayMode == "headsit" then
+                StopZeroDelay(); HeadSitButton.Text = "🪑 Sit on Head"; HeadSitButton.BackgroundTransparency = 0.91
+            else
+                StartZeroDelay(target, "headsit"); HeadSitButton.Text = "🪑 Stop HeadSit"; HeadSitButton.BackgroundTransparency = 0.7
             end
-        else SendNotify("Command", "No target set", 2) end
+        else SendNotify("Command", "Player not found", 2) end
+
+    elseif msg == ".backpack" or msg:match("^%.backpack%s+%S") then
+        local argName = msg:match("^%.backpack%s+(.+)$")
+        local target = argName and GetPlayer(argName) or (TargetedPlayer and Players:FindFirstChild(TargetedPlayer))
+        if not target and not argName then target = GetPlayer(TargetNameInput.Text) end
+
+        if target then
+            if ZeroDelayEnabled and zeroDelayMode == "backpack" then
+                StopZeroDelay(); BackpackButton.Text = "🎒 Backpack Mode"; BackpackButton.BackgroundTransparency = 0.91
+            else
+                StartZeroDelay(target, "backpack"); BackpackButton.Text = "🎒 Stop Backpack"; BackpackButton.BackgroundTransparency = 0.7
+            end
+        else SendNotify("Command", "Player not found", 2) end
 
     elseif msg == ".cleartarget" then
         UpdateTarget(nil)
@@ -6154,6 +6208,41 @@ local function onChat(msg)
 
     elseif msg == ".cmds" then
         CmdListFrame.Visible = not CmdListFrame.Visible
+
+    elseif msg == ".antivoid" then
+        AntiVoidEnabled = not AntiVoidEnabled
+        SendNotify("Anti-Void", (AntiVoidEnabled and "Enabled" or "Disabled"), 2)
+
+    elseif msg:match("^%.hide%s+%S") then
+        local argName = msg:match("^%.hide%s+(.+)$")
+        local target = GetPlayer(argName)
+        if target then
+            HiddenPlayers[target.UserId] = true
+            SendNotify("Hide", "Hidden player: " .. target.DisplayName, 2)
+        else SendNotify("Command", "Player not found", 2) end
+
+    elseif msg:match("^%.unhide%s+%S") then
+        local argName = msg:match("^%.unhide%s+(.+)$")
+        local target = GetPlayer(argName)
+        if target then
+            HiddenPlayers[target.UserId] = nil
+            -- Restore visibility
+            local char = target.Character
+            if char then
+                for _, part in ipairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.Transparency = 0 -- Simple restore
+                    elseif part:IsA("Decal") then
+                        part.Transparency = 0
+                    elseif part:IsA("Sound") then
+                        part.Volume = 0.5 -- Approximate restore
+                    elseif part:IsA("BillboardGui") or part:IsA("SurfaceGui") then
+                        part.Enabled = true
+                    end
+                end
+            end
+            SendNotify("Hide", "Unhidden player: " .. target.DisplayName, 2)
+        else SendNotify("Command", "Player not found", 2) end
     end
 end
 
