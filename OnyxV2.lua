@@ -4851,58 +4851,99 @@ TripButton.MouseButton1Click:Connect(function()
 end)
 
 -- Trip Input Handler
+local tripActive = false
+
+local function doTrip()
+    if tripActive then return end
+    local char = plr.Character
+    if not char then return end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not humanoid or not hrp then return end
+
+    tripActive = true
+
+    local origWalkSpeed  = humanoid.WalkSpeed
+    local origJumpPower  = humanoid.JumpPower
+    local origAutoRotate = humanoid.AutoRotate
+
+    -- 1. Freeze controls
+    humanoid.WalkSpeed     = 0
+    humanoid.JumpPower     = 0
+    humanoid.AutoRotate    = false
+    humanoid.PlatformStand = true   -- stops Humanoid from correcting pose
+
+    -- 2. Disable Animate script so no animation overrides the stiff pose
+    local animateScript = char:FindFirstChild("Animate")
+    if animateScript then animateScript.Disabled = true end
+
+    -- 3. Disable all Motor6D joints so character goes stiff/rigid
+    local disabledJoints = {}
+    for _, desc in ipairs(char:GetDescendants()) do
+        if desc:IsA("Motor6D") and desc.Name ~= "RootJoint" then
+            desc.Enabled = false
+            table.insert(disabledJoints, desc)
+        end
+    end
+
+    -- 4. Launch forward and upward
+    local lookDir = hrp.CFrame.LookVector
+    hrp.AssemblyLinearVelocity = Vector3.new(
+        lookDir.X * 60,
+        55,
+        lookDir.Z * 60
+    )
+    humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
+
+    SendNotify("Trip", "Tripped!", 1)
+
+    -- 5. Tumble spin while airborne
+    task.spawn(function()
+        for i = 1, 10 do
+            task.wait(0.07)
+            if hrp and hrp.Parent then
+                hrp.AssemblyAngularVelocity = Vector3.new(
+                    math.random(-18, 18),
+                    math.random(-10, 10),
+                    math.random(-18, 18)
+                )
+            end
+        end
+    end)
+
+    -- 6. Recover after 2 seconds
+    task.delay(2, function()
+        if not char or not char.Parent then tripActive = false return end
+        if not humanoid or not humanoid.Parent then tripActive = false return end
+
+        -- Re-enable joints
+        for _, joint in ipairs(disabledJoints) do
+            pcall(function() joint.Enabled = true end)
+        end
+
+        -- Re-enable Animate
+        if animateScript and animateScript.Parent then
+            animateScript.Disabled = false
+        end
+
+        -- Restore humanoid state
+        humanoid.PlatformStand = false
+        humanoid.AutoRotate    = origAutoRotate
+        humanoid.WalkSpeed     = origWalkSpeed
+        humanoid.JumpPower     = origJumpPower
+        humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+
+        -- Stop leftover spin
+        pcall(function() hrp.AssemblyAngularVelocity = Vector3.zero end)
+
+        tripActive = false
+    end)
+end
+
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
-    
     if input.KeyCode == Enum.KeyCode.T and TripEnabled then
-        local char = plr.Character
-        if not char then return end
-        local humanoid = char:FindFirstChildOfClass("Humanoid")
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if not humanoid or not hrp then return end
-
-        local origWalkSpeed = humanoid.WalkSpeed
-        local origJumpPower = humanoid.JumpPower
-
-        -- Stop movement
-        humanoid.WalkSpeed = 0
-        humanoid.JumpPower = 0
-
-        -- Launch forward and upward (throw effect like in video)
-        local lookDir = hrp.CFrame.LookVector
-        hrp.AssemblyLinearVelocity = Vector3.new(
-            lookDir.X * 60,
-            55,
-            lookDir.Z * 60
-        )
-
-        -- Go to freefall so physics takes over
-        humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
-
-        SendNotify("Trip", "Tripped!", 1)
-
-        -- Apply tumble spin while airborne
-        task.spawn(function()
-            for i = 1, 8 do
-                task.wait(0.08)
-                if hrp and hrp.Parent then
-                    hrp.AssemblyAngularVelocity = Vector3.new(
-                        math.random(-15, 15),
-                        math.random(-15, 15),
-                        math.random(-15, 15)
-                    )
-                end
-            end
-        end)
-
-        -- Get up after 2 seconds
-        task.delay(2, function()
-            if humanoid and humanoid.Parent then
-                humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-                humanoid.WalkSpeed = origWalkSpeed
-                humanoid.JumpPower = origJumpPower
-            end
-        end)
+        doTrip()
     end
 end)
 
@@ -5342,9 +5383,15 @@ local function buildNametag(targetPlayer, cfg)
     task.spawn(function()
         local lastState = true
         while billboard and billboard.Parent do
+            local adornee = billboard.Adornee
+            -- If our adornee was destroyed (character reset), kill the billboard and stop
+            if not adornee or not adornee.Parent then
+                pcall(function() billboard:Destroy() end)
+                break
+            end
             local cam = workspace.CurrentCamera
-            if cam and billboard.Adornee then
-                local dist = (cam.CFrame.Position - billboard.Adornee.Position).Magnitude
+            if cam then
+                local dist = (cam.CFrame.Position - adornee.Position).Magnitude
                 local shouldShowText = dist < 60 -- Shrink at 60 studs for better feel
                 
                 if shouldShowText ~= lastState then
@@ -5452,13 +5499,29 @@ local function removeNametag(userId)
     end
 end
 
+-- Check if a stored nametag is still valid (adornee alive, not destroyed)
+local function isNametagValid(userId)
+    local tag = nametagObjects[userId]
+    if not tag then return false end
+    -- Check if the billboard itself is still parented (not destroyed)
+    if not tag.Parent then
+        nametagObjects[userId] = nil
+        return false
+    end
+    -- Check if the adornee part still exists in the world
+    local adornee = tag.Adornee
+    if not adornee or not adornee.Parent then
+        pcall(function() tag:Destroy() end)
+        nametagObjects[userId] = nil
+        return false
+    end
+    return true
+end
+
 -- Create (or recreate) the nametag for a target player
 local function applyNametag(targetPlayer)
     -- Local player must have executed to see anything
     if not plr:GetAttribute("OnyxExecuted") then return end
-    
-    -- Removed the attribute check for targetPlayer because client-side attributes 
-    -- don't replicate to others. Now you'll see tags for everyone!
 
     local userId = targetPlayer.UserId
     removeNametag(userId)
@@ -5474,6 +5537,21 @@ local function applyNametag(targetPlayer)
         if not billboard then return end
 
         nametagObjects[userId] = billboard
+
+        -- Auto-cleanup: destroy the billboard when the adornee part is removed
+        -- This prevents ghost nametags floating at the last known position
+        local adornee = billboard.Adornee
+        if adornee then
+            adornee.AncestryChanged:Connect(function(_, newParent)
+                if not newParent then
+                    -- Part was removed from world; kill the billboard immediately
+                    if nametagObjects[userId] == billboard then
+                        nametagObjects[userId] = nil
+                    end
+                    pcall(function() billboard:Destroy() end)
+                end
+            end)
+        end
 
         if cfg.glitchAnim then
             startGlitchAnimation(billboard)
@@ -5567,7 +5645,7 @@ Players.PlayerAdded:Connect(function(newPlayer)
     end)
 end)
 
--- ── Poll active list every 5 seconds and apply new tags ───────────────────────
+-- ── Poll active list every 8 seconds and apply/fix tags ──────────────────────
 task.spawn(function()
     while true do
         task.wait(8)
@@ -5576,9 +5654,9 @@ task.spawn(function()
                 if p ~= plr then
                     local isActive = activeSet[p.Name:lower()] ~= nil
                     local cached = nametagConfigs[p.Name]
-                    if isActive and not nametagObjects[p.UserId] then
-                        -- Newly active player, show their tag
-                        nametagConfigs[p.Name] = nil -- clear inactive cache
+                    local tagValid = isNametagValid(p.UserId)
+                    if isActive and not tagValid then
+                        -- Newly active, or tag got orphaned — (re)apply
                         applyNametag(p)
                     elseif not isActive and cached ~= "inactive" then
                         -- Was active, now gone — remove tag and mark inactive
