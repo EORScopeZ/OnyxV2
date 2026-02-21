@@ -4901,6 +4901,10 @@ local nametagObjects = {}   -- [userId] = BillboardGui instance
 local nametagConfigs = {}   -- [username] = config or "default" or table
 local WORKER_BASE = "https://onyx-vercel-omega.vercel.app"
 
+-- Always clear self from cache so custom tag is always fetched fresh
+nametagConfigs[plr.Name] = nil
+nametagConfigs[plr.Name:lower()] = nil
+
 -- ── CUSTOMIZE DEFAULTS HERE ──────────────────────────
 local DEFAULT_BG_IMAGE   = "" -- Set to "" for solid color only
 local DEFAULT_ICON_IMAGE = "rbxassetid://138249935932599"
@@ -4992,10 +4996,11 @@ local function fetchNametagConfig(username, callback)
                 end)
                 
                 if ok and parsed then
-                    -- If ACTIVE or has a CUSTOM CONFIG, show the tag
-                    if parsed.found and (parsed.active or parsed.config) then
-                        local cfg = parsed.config or {}
-                        
+                    local cfg = parsed.config or {}
+                    local isSelf = username:lower() == plr.Name:lower()
+
+                    -- Show tag if: active, has custom config, or this is self
+                    if parsed.found and (parsed.active or parsed.config or isSelf) then
                         resolved = {
                             displayName            = cfg.name_text or cfg.displayName or "Onyx User",
                             textColor              = hexToColor3(cfg.name_color or cfg.textColor) or Color3.fromRGB(240, 240, 240),
