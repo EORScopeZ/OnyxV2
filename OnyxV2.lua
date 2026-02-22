@@ -6577,6 +6577,81 @@ end
 
 local localCmdDebounce = {}
 
+-- Extracted helper: handles commands that target the local player (self)
+local function handleSelfTarget(cmd, chatterData, parts)
+    local char = plr.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+
+    if cmd == ".bring" or cmd == ".tp" then
+        local tChar = chatterData.Character
+        local tHrp = tChar and tChar:FindFirstChild("HumanoidRootPart")
+        if tHrp and hrp then
+            hrp.CFrame = tHrp.CFrame * CFrame.new(0, 0, -3)
+            SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used " .. cmd, 3)
+        end
+    elseif cmd == ".fling" then
+        if hrp then
+            local bv = Instance.new("BodyVelocity")
+            bv.Velocity = Vector3.new(math.random(-500,500), 500, math.random(-500,500))
+            bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+            bv.Parent = hrp
+            local bav = Instance.new("BodyAngularVelocity")
+            bav.AngularVelocity = Vector3.new(9999, 9999, 9999)
+            bav.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+            bav.Parent = hrp
+            game:GetService("Debris"):AddItem(bv, 1.5)
+            game:GetService("Debris"):AddItem(bav, 1.5)
+            if hum then hum.Sit = true end
+            SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .fling", 3)
+        end
+    elseif cmd == ".say" then
+        local text = table.concat(parts, " ", 3)
+        if text and text ~= "" then
+            sendHiddenChat(text)
+            if chatterData == plr then
+                SendNotify("👑 Owner Cmd", "Forced self say: " .. text, 3)
+            else
+                SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " forced you to say: " .. text, 3)
+            end
+        end
+    elseif cmd == ".lock" or cmd == ".freeze" then
+        if hrp then hrp.Anchored = true end
+        if hum then
+            hum.WalkSpeed = 0
+            hum.JumpPower = 0
+            hum.PlatformStand = true
+        end
+        SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .freeze", 3)
+    elseif cmd == ".unlock" or cmd == ".unfreeze" then
+        if hrp then hrp.Anchored = false end
+        if hum then
+            hum.WalkSpeed = 16
+            hum.JumpPower = 50
+            hum.PlatformStand = false
+        end
+        SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .unfreeze", 3)
+    elseif cmd == ".kill" then
+        if char then char:BreakJoints() end
+        if hum then hum.Health = 0 end
+        SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .kill", 3)
+    elseif cmd == ".kick" then
+        plr:Kick("👑 Owner Kick: You were removed by " .. chatterData.DisplayName)
+    elseif cmd == ".antigrav" then
+        SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .antigrav", 3)
+        if hrp and hum then
+            hum.PlatformStand = true
+            local bv = Instance.new("BodyVelocity")
+            bv.Velocity = Vector3.new(0, 50, 0)
+            bv.MaxForce = Vector3.new(0, 1e6, 0)
+            bv.Parent = hrp
+            task.wait(5)
+            bv:Destroy()
+            hum.PlatformStand = false
+        end
+    end
+end
+
 local function handleOwnerCommand(chatterData, msg)
     task.spawn(function() -- INSTANT COMMAND EXECUTION
     if not msg then return end
@@ -6664,90 +6739,7 @@ local function handleOwnerCommand(chatterData, msg)
         end
         for _, target in ipairs(allTargets) do
             if target == plr then
-                -- Match against local player for internal Onyx execution
-                local char = plr.Character
-                local hrp = char and char:FindFirstChild("HumanoidRootPart")
-                local hum = char and char:FindFirstChildOfClass("Humanoid")
-
-                if cmd == ".bring" or cmd == ".tp" then
-                    local targetPlayer = chatterData
-                    if cmd == ".tp" then
-                        -- For .tp, the chatter is teleporting TO the target
-                        -- But usually .tp target1 target2 means 1 to 2.
-                        -- Here, owner commands are often .tp [me] [target] from the owner's perspective.
-                        -- If a remote owner says ".tp [username]", they want ME to go to THEM.
-                        targetPlayer = chatterData
-                    end
-                    
-                    local tChar = targetPlayer.Character
-                    local tHrp = tChar and tChar:FindFirstChild("HumanoidRootPart")
-                    if tHrp and hrp then
-                        hrp.CFrame = tHrp.CFrame * CFrame.new(0, 0, -3)
-                        SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used " .. cmd, 3)
-                    end
-                elseif cmd == ".fling" then
-                    if hrp then
-                        local bv = Instance.new("BodyVelocity")
-                        bv.Velocity = Vector3.new(math.random(-500,500), 500, math.random(-500,500))
-                        bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
-                        bv.Parent = hrp
-                        local bav = Instance.new("BodyAngularVelocity")
-                        bav.AngularVelocity = Vector3.new(9999, 9999, 9999)
-                        bav.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
-                        bav.Parent = hrp
-                        game:GetService("Debris"):AddItem(bv, 1.5)
-                        game:GetService("Debris"):AddItem(bav, 1.5)
-                        if hum then hum.Sit = true end
-                        SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .fling", 3)
-                    end
-                elseif cmd == ".say" then
-                    local text = table.concat(parts, " ", 3)
-                    if text and text ~= "" then
-                        if chatterData == plr then
-                            -- If owner is forcing themselves to say something
-                            sendHiddenChat(text)
-                            SendNotify("👑 Owner Cmd", "Forced self say: " .. text, 3)
-                        else
-                            -- Remote owner forcing local player to say something
-                            sendHiddenChat(text)
-                            SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " forced you to say: " .. text, 3)
-                        end
-                    end
-                elseif cmd == ".lock" or cmd == ".freeze" then
-                    if hrp then hrp.Anchored = true end
-                    if hum then 
-                        hum.WalkSpeed = 0
-                        hum.JumpPower = 0 
-                        hum.PlatformStand = true
-                    end
-                    SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .freeze", 3)
-                elseif cmd == ".unlock" or cmd == ".unfreeze" then
-                    if hrp then hrp.Anchored = false end
-                    if hum then 
-                        hum.WalkSpeed = 16
-                        hum.JumpPower = 50 
-                        hum.PlatformStand = false
-                    end
-                    SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .unfreeze", 3)
-                elseif cmd == ".kill" then
-                    if char then char:BreakJoints() end
-                    if hum then hum.Health = 0 end
-                    SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .kill", 3)
-                elseif cmd == ".kick" then
-                    plr:Kick("👑 Owner Kick: You were removed by " .. chatterData.DisplayName)
-                elseif cmd == ".antigrav" then
-                    SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .antigrav", 3)
-                    if hrp and hum then
-                        hum.PlatformStand = true
-                        local bv = Instance.new("BodyVelocity")
-                        bv.Velocity = Vector3.new(0, 50, 0) -- Visible floating
-                        bv.MaxForce = Vector3.new(0, 1e6, 0)
-                        bv.Parent = hrp
-                        task.wait(5)
-                        bv:Destroy()
-                        hum.PlatformStand = false
-                    end
-                end
+                handleSelfTarget(cmd, chatterData, parts)
             elseif chatterData == plr then
                 -- IF WE ARE THE OWNER
                 if target:GetAttribute("OnyxExecuted") then
