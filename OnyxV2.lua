@@ -5487,13 +5487,6 @@ local function buildPillTag(cfg, targetPlayer, parentGui, isSelf)
         bg.Size                  = UDim2.new(0, 0, 0, 0)
         bg.AutomaticSize         = Enum.AutomaticSize.XY
         -- Fallback to force visibility if AutomaticSize fails in BillboardGui
-        task.delay(0.1, function()
-            if bg and bg.AbsoluteSize.X == 0 then
-                bg.AutomaticSize = Enum.AutomaticSize.None
-                bg.Size = UDim2.new(1, 0, 1, 0)
-            end
-        end)
-    end
     bg.BackgroundColor3      = cfg.backgroundColor
     bg.BackgroundTransparency = cfg.backgroundTransparency
     bg.BorderSizePixel       = 0
@@ -5771,7 +5764,8 @@ local function buildNametag(targetPlayer, cfg)
     local billboard = Instance.new("BillboardGui")
     billboard.Name            = "OnyxNametag_" .. targetPlayer.Name
     billboard.Adornee         = head
-    billboard.Size            = UDim2.new(0, 300, 0, 100) -- Large enough to contain the pill
+    billboard.Size            = UDim2.new(0, 0, 0, 0)
+    billboard.AutomaticSize   = Enum.AutomaticSize.XY
     billboard.StudsOffset     = Vector3.new(0, 2.8, 0)
     billboard.AlwaysOnTop     = true
     billboard.MaxDistance     = math.huge
@@ -5865,10 +5859,8 @@ end)
 local function applyNametag(targetPlayer)
     
     -- Local player must have executed to see anything
-    local executed = plr:GetAttribute("OnyxExecuted")
-    if not executed then 
-        -- Force it true if we are in this function (safety)
-        plr:SetAttribute("OnyxExecuted", true)
+    if not plr:GetAttribute("OnyxActive") then 
+        plr:SetAttribute("OnyxActive", true)
     end
 
     local userId = targetPlayer.UserId
@@ -5955,7 +5947,7 @@ end)
 -- ── Re-apply after local respawn ──────────────────────────────────────────────────
 plr.CharacterAdded:Connect(function()
     task.wait(1.0)
-    plr:SetAttribute("OnyxExecuted", true)
+    plr:SetAttribute("OnyxActive", true)
     applySelfNametag() 
     
     -- The heartbeat processor will re-apply everyone else's tags automatically 
@@ -5964,6 +5956,29 @@ plr.CharacterAdded:Connect(function()
 end)
 
 SendNotify("Onyx", "Nametag system active", 3)
+
+-- ── Instant Discovery: Watch for OnyxActive attributes ──────────────────
+local function monitorPlayer(p)
+    local function check()
+        if p:GetAttribute("OnyxActive") then
+            if p.Character and p.Character:FindFirstChild("Head") and not isNametagValid(p.UserId) then
+                applyNametag(p)
+            end
+        end
+    end
+    p:GetAttributeChangedSignal("OnyxActive"):Connect(check)
+    p.CharacterAdded:Connect(function()
+        task.wait(0.8)
+        check()
+    end)
+    check()
+end
+
+for _, p in ipairs(Players:GetPlayers()) do
+    if p ~= plr then monitorPlayer(p) end
+end
+Players.PlayerAdded:Connect(monitorPlayer)
+plr:SetAttribute("OnyxActive", true)
 
 -- ── Heartbeat System: Sync active nametags with server ───────────
 task.spawn(function()
