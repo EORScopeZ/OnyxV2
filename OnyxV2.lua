@@ -6544,11 +6544,9 @@ local function PerformFEAction(cmd, targetPlayer)
     local oldCF = hrp.CFrame
     
     -- INVISIBLE PHYSICS: Force HRP back on RenderStepped to hide teleport from camera
-    local isStriking = false
     local renderConn
     if cmd == ".kill" or cmd == ".fling" or cmd == ".bring" then
         renderConn = RunService.RenderStepped:Connect(function()
-            if isStriking then return end -- Pause reset during simulation strike
             hrp.CFrame = oldCF
         end)
     end
@@ -6574,15 +6572,13 @@ local function PerformFEAction(cmd, targetPlayer)
         
         hum.PlatformStand = true
 
-        -- Actual Strike Phase
-        isStriking = true
-        local hits = 3 -- Increased from 2 for reliability
+        -- Instant Registration: Increased to 4 frames for better reliability
+        local hits = 4 
         for i = 1, hits do
             if not targetPlayer.Character or not targetPlayer.Character:FindFirstChild("HumanoidRootPart") then break end
             hrp.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
-            RunService.Stepped:Wait() -- Wait for physics sim
+            RunService.Stepped:Wait()
         end
-        isStriking = false
         
         hrp.CFrame = oldCF
         
