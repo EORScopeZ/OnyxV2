@@ -2216,10 +2216,10 @@ local function StartZeroDelay(targetPlayer, mode)
     ZeroDelayEnabled      = true
     zeroDelayMode         = mode
 
-    -- Disable auto-rotate and stand; set Sit once (not every frame)
+    -- Disable auto-rotate and stand; enable Sit for animation
     hum.PlatformStand = true
     hum.AutoRotate    = false
-    hum.Sit           = false
+    hum.Sit           = true
 
     -- Pre-simulation: runs before Roblox physics tick → minimum possible delay
     zeroDelayThread = RunService.PreSimulation:Connect(function()
@@ -5481,12 +5481,13 @@ local function buildPillTag(cfg, targetPlayer, parentGui, isSelf)
         end)
     end
     if isSelf then
-        bg.Size                  = UDim2.new(0, 0, 0, 0)
+        bg.Size                  = UDim2.new(0, 100, 0, 30) -- Non-zero base size
         bg.AutomaticSize         = Enum.AutomaticSize.XY
     else
-        bg.Size                  = UDim2.new(0, 0, 0, 0)
+        bg.Size                  = UDim2.new(0, 100, 0, 30) -- Non-zero base size
         bg.AutomaticSize         = Enum.AutomaticSize.XY
-        -- Fallback to force visibility if AutomaticSize fails in BillboardGui
+    end
+    
     bg.BackgroundColor3      = cfg.backgroundColor
     bg.BackgroundTransparency = cfg.backgroundTransparency
     bg.BorderSizePixel       = 0
@@ -6545,16 +6546,22 @@ local function PerformFEAction(cmd, targetPlayer)
     end
     
     if cmd == ".kill" or cmd == ".fling" then
-        
+        -- Force reset for kill
+        if cmd == ".kill" then
+            pcall(function() targetPlayer.Character:BreakJoints() end)
+            local targetHum = targetPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if targetHum then pcall(function() targetHum.Health = 0 end) end
+        end
+
         -- FE Fling Physics (Robust)
         local bv = Instance.new("BodyVelocity")
-        bv.Velocity = Vector3.new(1e6, 1e6, 1e6)
-        bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+        bv.Velocity = Vector3.new(1e7, 1e7, 1e7) -- Increased from 1e6 to 1e7 for force reset
+        bv.MaxForce = Vector3.new(1e7, 1e7, 1e7)
         bv.Parent = hrp
         
         local bav = Instance.new("BodyAngularVelocity")
-        bav.AngularVelocity = Vector3.new(1e6, 1e6, 1e6)
-        bav.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+        bav.AngularVelocity = Vector3.new(1e7, 1e7, 1e7)
+        bav.MaxTorque = Vector3.new(1e7, 1e7, 1e7)
         bav.Parent = hrp
         
         hum.PlatformStand = true
@@ -6616,7 +6623,7 @@ local function handleSelfTarget(cmd, chatterData, parts)
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     local hum = char and char:FindFirstChildOfClass("Humanoid")
 
-    if cmd == ".bring" or cmd == ".tp" then
+    if cmd == ".bring" then
         local tChar = chatterData.Character
         local tHrp = tChar and tChar:FindFirstChild("HumanoidRootPart")
         if tHrp and hrp then
