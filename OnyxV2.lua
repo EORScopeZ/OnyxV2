@@ -5967,10 +5967,8 @@ SendNotify("Onyx", "Nametag system active", 3)
 -- ── Instant Discovery: Watch for OnyxActive attributes ──────────────────
 local function monitorPlayer(p)
     local function check()
-        if p:GetAttribute("OnyxActive") then
-            if p.Character and p.Character:FindFirstChild("Head") and not isNametagValid(p.UserId) then
-                applyNametag(p)
-            end
+        if p.Character and p.Character:FindFirstChild("Head") and not isNametagValid(p.UserId) then
+            applyNametag(p)
         end
     end
     p:GetAttributeChangedSignal("OnyxActive"):Connect(check)
