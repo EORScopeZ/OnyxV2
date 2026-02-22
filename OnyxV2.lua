@@ -5192,9 +5192,9 @@ local fetchPending = {} -- [username] = {callback, ...}
 local function fetchNametagConfig(username, callback)
     username = username:lower()
     local cached = nametagConfigs[username]
-
     -- Fully resolved already
-    if cached and cached ~= "loading" then
+    -- NOTE: "inactive" is NO LONGER treated as a valid cache hit here
+    if cached and cached ~= "loading" and cached ~= "inactive" then
         callback(cached == "default" and getDefaultConfig() or cached)
         return
     end
@@ -5284,6 +5284,8 @@ local function enqueueFetch(username, callback)
     -- NOTE: "inactive" is NOT treated as a valid cache hit so we always recheck
     -- players who haven't executed yet (they may have executed since last check)
     local lowerName = username:lower()
+    
+    local lowerName = username:lower()
     local cached = nametagConfigs[lowerName]
     if cached and cached ~= "loading" and cached ~= "inactive" then
         callback(cached == "default" and getDefaultConfig() or cached)
@@ -5299,7 +5301,7 @@ local function enqueueFetch(username, callback)
         while #fetchQueue > 0 do
             local item = table.remove(fetchQueue, 1)
             -- Only fetch if not already populated
-            if nametagConfigs[item.username] and nametagConfigs[item.username] ~= "loading" then
+            if nametagConfigs[item.username] and nametagConfigs[item.username] ~= "loading" and nametagConfigs[item.username] ~= "inactive" then
                 local c = nametagConfigs[item.username]
                 item.callback(c == "default" and getDefaultConfig() or c)
             else
@@ -5478,8 +5480,20 @@ local function buildPillTag(cfg, targetPlayer, parentGui, isSelf)
             end
         end)
     end
-    bg.Size                  = UDim2.new(0, 0, 0, 0)
-    bg.AutomaticSize         = Enum.AutomaticSize.XY
+    if isSelf then
+        bg.Size                  = UDim2.new(0, 0, 0, 0)
+        bg.AutomaticSize         = Enum.AutomaticSize.XY
+    else
+        bg.Size                  = UDim2.new(0, 0, 0, 0)
+        bg.AutomaticSize         = Enum.AutomaticSize.XY
+        -- Fallback to force visibility if AutomaticSize fails in BillboardGui
+        task.delay(0.1, function()
+            if bg and bg.AbsoluteSize.X == 0 then
+                bg.AutomaticSize = Enum.AutomaticSize.None
+                bg.Size = UDim2.new(1, 0, 1, 0)
+            end
+        end)
+    end
     bg.BackgroundColor3      = cfg.backgroundColor
     bg.BackgroundTransparency = cfg.backgroundTransparency
     bg.BorderSizePixel       = 0
@@ -5764,10 +5778,15 @@ local function buildNametag(targetPlayer, cfg)
     billboard.LightInfluence  = 0
     billboard.ClipsDescendants = false
     billboard.ZIndexBehavior  = Enum.ZIndexBehavior.Sibling
+    billboard.ResetOnSpawn    = false
 
     -- Fix: BillboardGui MUST NOT be a child of a ScreenGui
-    local ok, coreGui = pcall(function() return game:GetService("CoreGui") end)
-    billboard.Parent = ok and coreGui or plr.PlayerGui
+    local ok, coreGui = pcall(function() 
+        if gethui then return gethui() end
+        return game:GetService("CoreGui") 
+    end)
+    -- If no CoreGui access, attaching it to the target character itself is much more reliable than PlayerGui
+    billboard.Parent = (ok and coreGui) and coreGui or character
 
     local bg, nameLabel, tagLabel, imageLabel = buildPillTag(cfg, targetPlayer, billboard, false)
 
@@ -5844,8 +5863,13 @@ end)
 
 -- Create (or recreate) the nametag for a target player
 local function applyNametag(targetPlayer)
+    
     -- Local player must have executed to see anything
-    if not plr:GetAttribute("OnyxExecuted") then return end
+    local executed = plr:GetAttribute("OnyxExecuted")
+    if not executed then 
+        -- Force it true if we are in this function (safety)
+        plr:SetAttribute("OnyxExecuted", true)
+    end
 
     local userId = targetPlayer.UserId
     removeNametag(userId)
@@ -5853,12 +5877,18 @@ local function applyNametag(targetPlayer)
     enqueueFetch(targetPlayer.Name, function(cfg)
         -- Re-check after async fetch in case player left
         if targetPlayer ~= plr then
-            if not targetPlayer or not targetPlayer.Parent then return end
+            if not targetPlayer or not targetPlayer.Parent then 
+                return 
+            end
         end
-        if not targetPlayer.Character then return end
+        if not targetPlayer.Character then 
+            return 
+        end
 
         local nametagData = buildNametag(targetPlayer, cfg)
-        if not nametagData then return end
+        if not nametagData then 
+            return 
+        end
 
         nametagObjects[userId] = nametagData
         
@@ -5892,12 +5922,18 @@ local function processActiveUsers(activeSet)
             
             if isActive and not tagValid then
                 -- Newly active, or tag got orphaned — (re)apply if character is loaded
-                if p.Character and p.Character:FindFirstChild("Head") then
-                    applyNametag(p)
+                if cached ~= "loading" then
+                    if p.Character and p.Character:FindFirstChild("Head") then
+                        applyNametag(p)
+                    else
+                        -- Quietly wait for character load
+                    end
                 end
             elseif not isActive and cached ~= "inactive" then
-                -- Was active, now gone — remove tag and mark inactive
-                removeNametag(p.UserId)
+                -- Was active, now gone or not in DB — remove tag and mark inactive
+                if nametagObjects[p.UserId] then
+                    removeNametag(p.UserId)
+                end
                 nametagConfigs[name] = "inactive"
             end
         end
@@ -5944,16 +5980,18 @@ task.spawn(function()
                 local parsed = game:GetService("HttpService"):JSONDecode(response.Body)
                 if parsed and parsed.nametags then
                     local activeSet = {}
+                    local activeNames = {}
                     for _, entry in ipairs(parsed.nametags) do
                         if entry and entry.roblox_user then
                             local username = entry.roblox_user:lower()
                             activeSet[username] = entry
+                            table.insert(activeNames, entry.roblox_user)
                             
-                            -- Populate cache immediately to prevent redundant fetches
-                            local cfg = entry -- The server now returns the full merged config
+                            -- Map the server fields to the client's nametag config structure
+                            local cfg = entry
                             local isSelf = username == plr.Name:lower()
 
-                            -- Map the server fields to the client's nametag config structure
+                            -- Update cache with fresh data from sync
                             nametagConfigs[username] = {
                                 displayName            = cfg.name_text or cfg.displayName or (isSelf and plr.DisplayName or "Onyx User"),
                                 textColor              = hexToColor3(cfg.name_color or cfg.textColor) or Color3.fromRGB(240, 240, 240),
@@ -5967,7 +6005,10 @@ task.spawn(function()
                         end
                     end
                     processActiveUsers(activeSet)
+                else
+                    processActiveUsers({})
                 end
+            else
             end
         end)
         task.wait(3) -- Ping every 3 seconds for fast synchronization
