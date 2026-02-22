@@ -18,7 +18,7 @@ Host your main script somewhere with a raw URL and set MAIN_SCRIPT_URL below.
 -- =====================================================
 -- CONFIG
 -- =====================================================
-local ONYX_URL = "https://describe-extract-reno-jennifer.trycloudflare.com"
+local ONYX_URL = "onyxapi-production.up.railway.app"
 local MAIN_SCRIPT_URL   = "https://raw.githubusercontent.com/EORScopeZ/OnyxV2/refs/heads/main/OnyxV2.lua"
 -- ^ Replace with your raw GitHub/Pastebin/etc URL for the main script
 
