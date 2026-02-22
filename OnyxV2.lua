@@ -5928,12 +5928,11 @@ local function processActiveUsers(activeSet)
                         -- Quietly wait for character load
                     end
                 end
-            elseif not isActive and cached ~= "inactive" then
-                -- Was active, now gone or not in DB — remove tag and mark inactive
-                if nametagObjects[p.UserId] then
-                    removeNametag(p.UserId)
-                end
-                nametagConfigs[name] = "inactive"
+            elseif not isActive then
+                -- Player not in current server metadata. 
+                -- We no longer explicitly remove them here because it causes flickering/disappearance 
+                -- if the heartbeat list is truncated or the request hits a different backend.
+                -- PlayerRemoving will handle actual cleanup.
             end
         end
     end
