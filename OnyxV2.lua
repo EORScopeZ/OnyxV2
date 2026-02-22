@@ -6007,6 +6007,7 @@ task.spawn(setupOnyxNametags)
 -- CHAT COMMAND SYSTEM + COMMAND LIST UI
 -- =====================================================
 
+local function initCommandSystems()
 local allCommands = {
     -- Player / Target
     { cmd = ".view",        desc = "View target" },
@@ -6936,3 +6937,5 @@ else
         sendHiddenChat("/e onyx_ping")
     end)
 end
+end
+initCommandSystems()
