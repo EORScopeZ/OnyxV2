@@ -5130,10 +5130,11 @@ local function refreshDiscoveryList()
     end)
 end
 
+refreshDiscoveryList() -- Initial fetch immediately
 task.spawn(function()
     while true do
+        task.wait(10) -- Faster discovery for new users
         refreshDiscoveryList()
-        task.wait(60)
     end
 end)
 
@@ -5488,6 +5489,7 @@ local function resolveAsset(url)
         return url
     end
     local id = url:match("%d+")
+    -- Use rbxthumb for better compatibility with decal IDs
     return id and "rbxthumb://type=Asset&id="..id.."&w=420&h=420" or url
 end
 
@@ -5517,10 +5519,10 @@ local function buildPillTag(cfg, targetPlayer, parentGui, isSelf)
         end)
     end
     if isSelf then
-        bg.Size                  = UDim2.new(0, 100, 0, 30) -- Non-zero base size
+        bg.Size                  = UDim2.new(0, 0, 0, 0) -- 0,0 base to allow shrinking to icon
         bg.AutomaticSize         = Enum.AutomaticSize.XY
     else
-        bg.Size                  = UDim2.new(0, 100, 0, 30) -- Non-zero base size
+        bg.Size                  = UDim2.new(0, 0, 0, 0) -- 0,0 base to allow shrinking to icon
         bg.AutomaticSize         = Enum.AutomaticSize.XY
     end
     
@@ -5617,8 +5619,8 @@ local function buildPillTag(cfg, targetPlayer, parentGui, isSelf)
 
     local nameLabel = Instance.new("TextLabel")
     nameLabel.Name                   = "DisplayName"
-    nameLabel.Size                   = UDim2.new(0, 0, 0, 0)
-    nameLabel.AutomaticSize         = Enum.AutomaticSize.XY
+    nameLabel.Size                   = UDim2.new(0, 0, 0, 18) -- Fixed height for better alignment
+    nameLabel.AutomaticSize         = Enum.AutomaticSize.X
     nameLabel.BackgroundTransparency = 1
     nameLabel.Text                   = cfg.displayName
     nameLabel.Font                   = Enum.Font.GothamBold
@@ -5632,13 +5634,13 @@ local function buildPillTag(cfg, targetPlayer, parentGui, isSelf)
 
     local tagLabel = Instance.new("TextLabel")
     tagLabel.Name                   = "Username"
-    tagLabel.Size                   = UDim2.new(0, 0, 0, 0)
-    tagLabel.AutomaticSize         = Enum.AutomaticSize.XY
+    tagLabel.Size                   = UDim2.new(0, 0, 0, 14) -- Fixed height for better alignment
+    tagLabel.AutomaticSize         = Enum.AutomaticSize.X
     tagLabel.BackgroundTransparency = 1
     tagLabel.Text                   = "@" .. targetPlayer.Name
     tagLabel.Font                   = Enum.Font.Gotham
     tagLabel.TextSize               = 12
-    tagLabel.TextColor3             = Color3.fromRGB(200, 200, 200)
+    tagLabel.TextColor3             = Color3.fromRGB(220, 220, 220) -- Slightly brighter
     tagLabel.TextStrokeTransparency = 0.7
     tagLabel.TextStrokeColor3       = cfg.outlineColor
     tagLabel.TextXAlignment         = Enum.TextXAlignment.Left
@@ -5663,13 +5665,13 @@ local function buildPillTag(cfg, targetPlayer, parentGui, isSelf)
             
             if cam and targetPos then
                 local dist = (cam.CFrame.Position - targetPos).Magnitude
-                local shouldShowText = dist < 60
+                local isClose = dist < 70 -- Threshold for shrinking aesthetic
                 
-                if shouldShowText ~= lastState then
-                    lastState = shouldShowText
-                    textContainer.Visible = shouldShowText
+                if isClose ~= lastState then
+                    lastState = isClose
+                    textContainer.Visible = isClose -- Hide text when distant for the "pill-shrink" look
                     
-                    if shouldShowText then
+                    if isClose then
                         corner.CornerRadius = UDim.new(0, 14) 
                         uiPadding.PaddingLeft = UDim.new(0, 8)
                         uiPadding.PaddingRight = UDim.new(0, 14)
@@ -5986,6 +5988,11 @@ plr.CharacterAdded:Connect(function()
     applySelfNametag() 
     
     applySelfNametag() 
+    
+    -- Instant poll of everyone else on local respawn
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= plr then pollPlayer(p) end
+    end
 end)
 
 SendNotify("Onyx", "Nametag system active", 3)
@@ -6039,14 +6046,13 @@ end
 local function monitorAndPoll(p)
     if p == plr then return end
     
-    -- 1. Initial poll on join
-    task.wait(math.random(1, 3)) -- Staggered start
+    -- 1. Initial poll on join (Instant)
     pollPlayer(p)
     
-    -- 2. Slow re-poll loop (every 45s) for players without tags
+    -- 2. Regular re-poll loop (every 10s) for players without tags
     task.spawn(function()
         while p and p.Parent do
-            task.wait(45)
+            task.wait(10)
             if not isNametagValid(p.UserId) then
                 pollPlayer(p)
             end
