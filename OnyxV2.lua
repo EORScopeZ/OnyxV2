@@ -61,7 +61,7 @@ do
     local execName = ""
     pcall(function() execName = string.lower(tostring(identifyexecutor and identifyexecutor() or "")) end)
     
-    if string.find(execName, "xeno") then
+    if execName:match("xeno") then
         canUsePhysicsRep = false
     elseif sethiddenproperty then
         -- Only test if not Xeno
@@ -5101,9 +5101,8 @@ plr:SetAttribute("OnyxExecuted", true)
 
 -- Runtime state
 local nametagObjects = {}   -- [userId] = BillboardGui instance
-local nametagConfigs = {}   -- [username] = config or "default" or table
-local watchingPlayers = {}  -- [userId] = true (currently watching/applying)
-local WORKER_BASE = "https://onyx-vercel-omega.vercel.app"
+local nametagConfigs = {}   -- [username] = config OR "loading" OR "inactive"
+local WORKER_BASE = "https://onyx-backend-production-22fa.up.railway.app"
 
 local function GetHWID()
     local hwid = "Unknown"
@@ -5208,6 +5207,7 @@ local function fetchNametagConfig(username, callback)
     end
 
     -- Fresh fetch
+    username = username:lower()
     nametagConfigs[username] = "loading"
     fetchPending[username] = fetchPending[username] or {}
     table.insert(fetchPending[username], callback)
@@ -5241,6 +5241,7 @@ local function fetchNametagConfig(username, callback)
                             outlineColor           = hexToColor3(cfg.outline_color or cfg.glow_color or cfg.outlineColor) or Color3.fromRGB(255, 255, 255),
                             backgroundColor        = hexToColor3(cfg.tag_color or cfg.backgroundColor) or Color3.fromRGB(15, 15, 15),
                             backgroundTransparency = 0, -- Solid background
+                            backgroundImage        = (cfg.image_url and cfg.image_url ~= "") and cfg.image_url or ((DEFAULT_BG_IMAGE ~= "") and DEFAULT_BG_IMAGE or nil),
                             iconImage              = (cfg.icon_image and cfg.icon_image ~= "") and cfg.icon_image or ((DEFAULT_ICON_IMAGE ~= "") and DEFAULT_ICON_IMAGE or nil),
                             glitchAnim             = (cfg.glitch_anim == true) or (cfg.glitchAnim == true),
                         }
@@ -5282,13 +5283,14 @@ local function enqueueFetch(username, callback)
     -- Already cached (or loading) — bypass the queue
     -- NOTE: "inactive" is NOT treated as a valid cache hit so we always recheck
     -- players who haven't executed yet (they may have executed since last check)
-    local cached = nametagConfigs[username]
+    local lowerName = username:lower()
+    local cached = nametagConfigs[lowerName]
     if cached and cached ~= "loading" and cached ~= "inactive" then
         callback(cached == "default" and getDefaultConfig() or cached)
         return
     end
 
-    table.insert(fetchQueue, { username = username, callback = callback })
+    table.insert(fetchQueue, { username = lowerName, callback = callback })
 
     if fetchQueueRunning then return end
     fetchQueueRunning = true
@@ -5496,6 +5498,20 @@ local function buildPillTag(cfg, targetPlayer, parentGui, isSelf)
     stroke.Transparency = 0.2
     stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     stroke.Parent    = bg
+    
+    if cfg.backgroundImage and cfg.backgroundImage ~= "" then
+        local bgImage = Instance.new("ImageLabel")
+        bgImage.Name = "BgImage"
+        bgImage.Size = UDim2.new(1, 0, 1, 0)
+        bgImage.BackgroundTransparency = 1
+        bgImage.Image = resolveAsset(cfg.backgroundImage)
+        bgImage.ScaleType = Enum.ScaleType.Crop
+        bgImage.ZIndex = 0
+        bgImage.Parent = bg
+        local ic = Instance.new("UICorner")
+        ic.CornerRadius = UDim.new(0, 14)
+        ic.Parent = bgImage
+    end
 
     local contentFrame = Instance.new("Frame")
     contentFrame.Name = "Content"
@@ -5865,46 +5881,6 @@ local function applySelfNametag()
     applyNametag(plr)
 end
 
--- Watch a single player for character spawns
-local function watchPlayer(targetPlayer)
-    local userId = targetPlayer.UserId
-    if watchingPlayers[userId] then return end
-    watchingPlayers[userId] = true
-
-    -- Only attempt nametag once character is fully loaded
-    local function safeApply()
-        local char = targetPlayer.Character
-        if not char then return end
-        
-        -- Improved head wait with timeout (prevents permanent yielding/crashes)
-        local head = char:FindFirstChild("Head") or char:WaitForChild("Head", 5)
-        if not head then return end
-        
-        applyNametag(targetPlayer)
-    end
-
-    -- Try immediately (staggered by the loop calling watchPlayer)
-    if targetPlayer.Character then
-        safeApply()
-    end
-
-    -- Watch for when they respawn
-    local conn
-    conn = targetPlayer.CharacterAdded:Connect(function()
-        task.wait(1.0) -- give character time to fully replicate
-        safeApply()
-    end)
-
-    -- Cleanup connection if they leave
-    task.spawn(function()
-        while targetPlayer and targetPlayer.Parent do
-            task.wait(5)
-        end
-        if conn then conn:Disconnect() end
-        watchingPlayers[userId] = nil
-    end)
-end
-
 -- ── Process Active Users to apply or remove nametags ─────────────────────────────
 local function processActiveUsers(activeSet)
     for _, p in ipairs(Players:GetPlayers()) do
@@ -5913,9 +5889,12 @@ local function processActiveUsers(activeSet)
             local isActive = activeSet[name] ~= nil
             local cached = nametagConfigs[name]
             local tagValid = isNametagValid(p.UserId)
+            
             if isActive and not tagValid then
-                -- Newly active, or tag got orphaned — (re)apply
-                watchPlayer(p)
+                -- Newly active, or tag got orphaned — (re)apply if character is loaded
+                if p.Character and p.Character:FindFirstChild("Head") then
+                    applyNametag(p)
+                end
             elseif not isActive and cached ~= "inactive" then
                 -- Was active, now gone — remove tag and mark inactive
                 removeNametag(p.UserId)
@@ -5943,15 +5922,9 @@ plr.CharacterAdded:Connect(function()
     plr:SetAttribute("OnyxExecuted", true)
     applySelfNametag() 
     
-    -- Re-apply to everyone else to ensure they stay visible
-    task.spawn(function()
-        for _, otherPlayer in ipairs(Players:GetPlayers()) do
-            if otherPlayer ~= plr and watchingPlayers[otherPlayer.UserId] then
-                applyNametag(otherPlayer)
-                task.wait(0.3) 
-            end
-        end
-    end)
+    -- The heartbeat processor will re-apply everyone else's tags automatically 
+    -- during its normal 3-second `processActiveUsers` loop.
+    -- We removed watchingPlayers logic because it leaked memory and caused tags to vanish on respawn.
 end)
 
 SendNotify("Onyx", "Nametag system active", 3)
@@ -5987,6 +5960,7 @@ task.spawn(function()
                                 outlineColor           = hexToColor3(cfg.outline_color or cfg.glow_color or cfg.outlineColor) or Color3.fromRGB(255, 255, 255),
                                 backgroundColor        = hexToColor3(cfg.tag_color or cfg.backgroundColor) or Color3.fromRGB(15, 15, 15),
                                 backgroundTransparency = 0,
+                                backgroundImage        = (cfg.image_url and cfg.image_url ~= "") and cfg.image_url or ((DEFAULT_BG_IMAGE ~= "") and DEFAULT_BG_IMAGE or nil),
                                 iconImage              = (cfg.icon_image and cfg.icon_image ~= "") and cfg.icon_image or ((DEFAULT_ICON_IMAGE ~= "") and DEFAULT_ICON_IMAGE or nil),
                                 glitchAnim             = (cfg.glitch_anim == true) or (cfg.glitchAnim == true),
                             }
@@ -6508,9 +6482,11 @@ local function PerformFEAction(cmd, targetPlayer)
     
     -- INVISIBLE PHYSICS: Force HRP back on RenderStepped to hide teleport from camera
     local renderConn
-    renderConn = RunService.RenderStepped:Connect(function()
-        hrp.CFrame = oldCF
-    end)
+    if cmd == ".kill" or cmd == ".fling" or cmd == ".bring" then
+        renderConn = RunService.RenderStepped:Connect(function()
+            hrp.CFrame = oldCF
+        end)
+    end
     
     if cmd == ".kill" or cmd == ".fling" then
         
@@ -6607,15 +6583,8 @@ local function handleSelfTarget(cmd, chatterData, parts)
             SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " used .fling", 3)
         end
     elseif cmd == ".say" then
-        local text = table.concat(parts, " ", 3)
-        if text and text ~= "" then
-            sendHiddenChat(text)
-            if chatterData == plr then
-                SendNotify("👑 Owner Cmd", "Forced self say: " .. text, 3)
-            else
-                SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " forced you to say: " .. text, 3)
-            end
-        end
+        -- Removed from handleSelfTarget; moved to main loop to process when target is local client
+        return
     elseif cmd == ".lock" or cmd == ".freeze" then
         if hrp then hrp.Anchored = true end
         if hum then
@@ -6721,10 +6690,12 @@ local function handleOwnerCommand(chatterData, msg)
         -- Identify ALL potential targets for the FE engine (Optimized)
         local lTargetStr = targetStr:lower()
         local allTargets = {}
-        if targetStr == "*" then
+        if targetStr == "*" or lTargetStr == "all" then
             for _, p in pairs(Players:GetPlayers()) do
                 if p ~= chatterData then table.insert(allTargets, p) end
             end
+        elseif lTargetStr == "me" or lTargetStr == "owner" or lTargetStr == chatterData.Name:lower() then
+            table.insert(allTargets, chatterData)
         else
             for _, p in pairs(Players:GetPlayers()) do
                 if p.Name:lower():sub(1, #targetStr) == lTargetStr or 
@@ -6740,10 +6711,29 @@ local function handleOwnerCommand(chatterData, msg)
         end
         for _, target in ipairs(allTargets) do
             if target == plr then
-                handleSelfTarget(cmd, chatterData, parts)
+                -- Target is US (the local client)
+                if cmd == ".say" then
+                    -- Extract the message starting from the 3rd word (.say User Message...)
+                    local text = cleanMsg:match("^%S+%s+%S+%s+(.+)$")
+                    if text and text ~= "" then
+                        sendHiddenChat(text)
+                        if chatterData == plr then
+                            SendNotify("👑 Owner Cmd", "Forced self say: " .. text, 3)
+                        else
+                            SendNotify("👑 Owner Cmd", chatterData.DisplayName .. " forced you to say: " .. text, 3)
+                        end
+                    end
+                else
+                    handleSelfTarget(cmd, chatterData, parts)
+                end
             elseif chatterData == plr then
                 -- IF WE ARE THE OWNER
-                if target:GetAttribute("OnyxExecuted") then
+                if cmd == ".say" then
+                    -- We sent a .say command targeting someone else.
+                    -- Normal FE can't force chat, but if the target has Onyx, their local script will pick it up and execute the 'target == plr' block above!
+                    -- We just notify ourselves that we sent the signal.
+                    SendNotify("👑 Owner Cmd", "Sent .say signal to " .. target.DisplayName, 3)
+                elseif target:GetAttribute("OnyxExecuted") then
                     -- Skip FE strike for fellow Onyx users; their local script handles the command!
                     -- This ensures a "silent bring" or "silent kill" with zero owner movement.
                 elseif cmd == ".tp" then
