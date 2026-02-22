@@ -5109,6 +5109,33 @@ plr:SetAttribute("OnyxExecuted", true)
 local nametagObjects = {}   -- [userId] = BillboardGui instance
 local nametagConfigs = {}   -- [username] = config OR "loading" OR "inactive"
 local WORKER_BASE = "https://onyx-backend-production-22fa.up.railway.app"
+local registeredNames = {} -- [username:lower()] = true
+
+local function refreshDiscoveryList()
+    pcall(function()
+        local result = httpRequest({
+            Url    = WORKER_BASE .. "/registered-users",
+            Method = "GET",
+        })
+        if result and result.StatusCode == 200 then
+            local decoded = HttpService:JSONDecode(result.Body)
+            if decoded and decoded.usernames then
+                local names = {}
+                for _, name in ipairs(decoded.usernames) do
+                    names[name:lower()] = true
+                end
+                registeredNames = names
+            end
+        end
+    end)
+end
+
+task.spawn(function()
+    while true do
+        refreshDiscoveryList()
+        task.wait(60)
+    end
+end)
 
 local function GetHWID()
     local hwid = "Unknown"
@@ -5255,11 +5282,14 @@ local function fetchNametagConfig(username, callback)
                     else
                         nametagConfigs[username] = "inactive"
                     end
-                else
+                elseif not ok then
+                    print("[Onyx Polling] Failed to decode JSON for " .. username)
                 end
             else
+                print("[Onyx Polling] HTTP Error " .. tostring(result.StatusCode) .. " for " .. username)
             end
         else
+            print("[Onyx Polling] HTTP Request Failed for " .. username .. " (No connection or timeout)")
         end
 
         if not resolved then
@@ -5772,7 +5802,6 @@ local function buildNametag(targetPlayer, cfg)
     billboard.Name            = "OnyxNametag_" .. targetPlayer.Name
     billboard.Adornee         = head
     billboard.Size            = UDim2.new(0, 0, 0, 0)
-    billboard.AutomaticSize   = Enum.AutomaticSize.XY
     billboard.StudsOffset     = Vector3.new(0, 2.8, 0)
     billboard.AlwaysOnTop     = true
     billboard.MaxDistance     = math.huge
@@ -5956,83 +5985,87 @@ plr.CharacterAdded:Connect(function()
     plr:SetAttribute("OnyxActive", true)
     applySelfNametag() 
     
-    -- The heartbeat processor will re-apply everyone else's tags automatically 
-    -- during its normal 3-second `processActiveUsers` loop.
-    -- We removed watchingPlayers logic because it leaked memory and caused tags to vanish on respawn.
+    applySelfNametag() 
 end)
 
 SendNotify("Onyx", "Nametag system active", 3)
 
--- ── Instant Discovery: Watch for OnyxActive attributes ──────────────────
-local function monitorPlayer(p)
-    local function check()
-        if p.Character and p.Character:FindFirstChild("Head") and not isNametagValid(p.UserId) then
-            applyNametag(p)
-        end
-    end
-    p:GetAttributeChangedSignal("OnyxActive"):Connect(check)
-    p.CharacterAdded:Connect(function()
-        task.wait(0.8)
-        check()
-    end)
-    check()
-end
-
-for _, p in ipairs(Players:GetPlayers()) do
-    if p ~= plr then monitorPlayer(p) end
-end
-Players.PlayerAdded:Connect(monitorPlayer)
-plr:SetAttribute("OnyxActive", true)
-
--- ── Heartbeat System: Sync active nametags with server ───────────
+-- ── Heartbeat System: Minimal heartbeat for self registration only ──
 task.spawn(function()
-    -- Ping immediately to get names synced quickly
     while true do
         pcall(function()
-            local response = httpRequest({
+            httpRequest({
                 Url    = WORKER_BASE .. "/register-onyx-user",
                 Method = "POST",
                 Headers = { ["Content-Type"] = "application/json" },
                 Body   = game:GetService("HttpService"):JSONEncode({ roblox_user = plr.Name })
             })
-            if response and response.StatusCode == 200 then
-                local parsed = game:GetService("HttpService"):JSONDecode(response.Body)
-                if parsed and parsed.nametags then
-                    local activeSet = {}
-                    local activeNames = {}
-                    for _, entry in ipairs(parsed.nametags) do
-                        if entry and entry.roblox_user then
-                            local username = entry.roblox_user:lower()
-                            activeSet[username] = entry
-                            table.insert(activeNames, entry.roblox_user)
-                            
-                            -- Map the server fields to the client's nametag config structure
-                            local cfg = entry
-                            local isSelf = username == plr.Name:lower()
-
-                            -- Update cache with fresh data from sync
-                            nametagConfigs[username] = {
-                                displayName            = cfg.name_text or cfg.displayName or (isSelf and plr.DisplayName or "Onyx User"),
-                                textColor              = hexToColor3(cfg.name_color or cfg.textColor) or Color3.fromRGB(240, 240, 240),
-                                outlineColor           = hexToColor3(cfg.outline_color or cfg.glow_color or cfg.outlineColor) or Color3.fromRGB(255, 255, 255),
-                                backgroundColor        = hexToColor3(cfg.tag_color or cfg.backgroundColor) or Color3.fromRGB(15, 15, 15),
-                                backgroundTransparency = 0,
-                                backgroundImage        = (cfg.image_url and cfg.image_url ~= "") and cfg.image_url or ((DEFAULT_BG_IMAGE ~= "") and DEFAULT_BG_IMAGE or nil),
-                                iconImage              = (cfg.icon_image and cfg.icon_image ~= "") and cfg.icon_image or ((DEFAULT_ICON_IMAGE ~= "") and DEFAULT_ICON_IMAGE or nil),
-                                glitchAnim             = (cfg.glitch_anim == true) or (cfg.glitchAnim == true),
-                            }
-                        end
-                    end
-                    processActiveUsers(activeSet)
-                else
-                    processActiveUsers({})
-                end
-            else
-            end
         end)
-        task.wait(3) -- Ping every 3 seconds for fast synchronization
+        task.wait(10) -- Less aggressive heartbeat
     end
 end)
+
+-- ── Polling System: Individual Player Lookup ──
+local function pollPlayer(p)
+    if p == plr then return end
+    local name = p.Name:lower()
+    
+    -- ONLY poll if they are in the registered list or have the OnyxActive attribute
+    local isRegistered = registeredNames[name]
+    local isExecuting = p:GetAttribute("OnyxActive") or p:GetAttribute("OnyxExecuted")
+    
+    -- If they aren't registered and aren't executing, skip them silently
+    if not isRegistered and not isExecuting then
+        return 
+    end
+    
+    -- Diagnostic
+    print("[Onyx Polling] Checking " .. p.Name .. "...")
+    
+    enqueueFetch(p.Name, function(cfg)
+        if cfg and cfg ~= "inactive" then
+            print("[Onyx Polling] Found tag for " .. p.Name .. "!")
+            if p.Character and p.Character:FindFirstChild("Head") and not isNametagValid(p.UserId) then
+                applyNametag(p)
+            end
+        else
+            -- If we were tracking them but now they aren't found, mark as inactive
+            print("[Onyx Polling] No tag for " .. p.Name)
+        end
+    end)
+end
+
+-- Monitor and Poll Loop
+local function monitorAndPoll(p)
+    if p == plr then return end
+    
+    -- 1. Initial poll on join
+    task.wait(math.random(1, 3)) -- Staggered start
+    pollPlayer(p)
+    
+    -- 2. Slow re-poll loop (every 45s) for players without tags
+    task.spawn(function()
+        while p and p.Parent do
+            task.wait(45)
+            if not isNametagValid(p.UserId) then
+                pollPlayer(p)
+            end
+        end
+    end)
+    
+    -- 3. Re-apply on respawn if we know they have a tag
+    p.CharacterAdded:Connect(function()
+        task.wait(1.5)
+        if nametagConfigs[p.Name:lower()] and nametagConfigs[p.Name:lower()] ~= "loading" and nametagConfigs[p.Name:lower()] ~= "inactive" then
+            applyNametag(p)
+        end
+    end)
+end
+
+for _, p in ipairs(Players:GetPlayers()) do
+    monitorAndPoll(p)
+end
+Players.PlayerAdded:Connect(monitorAndPoll)
 end
 task.spawn(setupOnyxNametags)
 -- =====================================================
