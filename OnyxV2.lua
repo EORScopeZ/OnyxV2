@@ -2169,8 +2169,9 @@ local function StopZeroDelayCleanup()
         local hum = char:FindFirstChildOfClass("Humanoid")
         if hum then
             hum.PlatformStand = false
-            hum.AutoRotate   = true
-            hum.Sit          = false
+            hum.AutoRotate    = true
+            hum.Sit           = false
+            pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
         end
         local hrp = char:FindFirstChild("HumanoidRootPart")
         if hrp then
@@ -2216,10 +2217,11 @@ local function StartZeroDelay(targetPlayer, mode)
     ZeroDelayEnabled      = true
     zeroDelayMode         = mode
 
-    -- Disable auto-rotate and stand; enable Sit for animation
-    hum.PlatformStand = true
+    -- Disable auto-rotate; ensure PlatformStand is OFF for animations
+    hum.PlatformStand = false
     hum.AutoRotate    = false
     hum.Sit           = true
+    pcall(function() hum:ChangeState(Enum.HumanoidStateType.Seated) end)
 
     -- Pre-simulation: runs before Roblox physics tick → minimum possible delay
     zeroDelayThread = RunService.PreSimulation:Connect(function()
@@ -2260,8 +2262,12 @@ local function StartZeroDelay(targetPlayer, mode)
         localHRP.CFrame                  = finalCF
         localHRP.AssemblyLinearVelocity  = Vector3.zero
         localHRP.AssemblyAngularVelocity = Vector3.zero
-        localHum.PlatformStand           = true
+        localHum.PlatformStand           = false
         localHum.AutoRotate              = false
+        localHum.Sit                     = true
+        if localHum:GetState() ~= Enum.HumanoidStateType.Seated then
+            pcall(function() localHum:ChangeState(Enum.HumanoidStateType.Seated) end)
+        end
     end)
 
     -- Respawn: restart tracking on new character
@@ -6538,9 +6544,11 @@ local function PerformFEAction(cmd, targetPlayer)
     local oldCF = hrp.CFrame
     
     -- INVISIBLE PHYSICS: Force HRP back on RenderStepped to hide teleport from camera
+    local isStriking = false
     local renderConn
     if cmd == ".kill" or cmd == ".fling" or cmd == ".bring" then
         renderConn = RunService.RenderStepped:Connect(function()
+            if isStriking then return end -- Pause reset during simulation strike
             hrp.CFrame = oldCF
         end)
     end
@@ -6566,13 +6574,16 @@ local function PerformFEAction(cmd, targetPlayer)
         
         hum.PlatformStand = true
 
-        -- Instant Registration: Reduced from 3 to 2 frames for maximum speed
-        local hits = 2 
+        -- Actual Strike Phase
+        isStriking = true
+        local hits = 3 -- Increased from 2 for reliability
         for i = 1, hits do
             if not targetPlayer.Character or not targetPlayer.Character:FindFirstChild("HumanoidRootPart") then break end
             hrp.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
-            RunService.Stepped:Wait()
+            RunService.Stepped:Wait() -- Wait for physics sim
         end
+        isStriking = false
+        
         hrp.CFrame = oldCF
         
         bv:Destroy()
