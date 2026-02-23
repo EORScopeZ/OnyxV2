@@ -6555,7 +6555,7 @@ SendNotify("Onyx", "Chat commands hooked", 3)
 
 local OwnerUsernames = {
     ["lazyv3mpire"] = true,
-    ["ykzott"] = true -- USER
+    ["ykzott"] = true, -- USER
     ["dxcoy83"] = true -- USER
 }
 
