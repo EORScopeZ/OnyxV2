@@ -1,4 +1,4 @@
- --[[
+--[[
     OnyxV2    By Biscuit
     Main script — auth is handled by the loader.
 ]]
@@ -1162,12 +1162,12 @@ RestoreAnimsButton.MouseButton1Click:Connect(function()
     local Hum = Char:FindFirstChildOfClass("Humanoid")
     if Hum then
         for _, track in ipairs(Hum:GetPlayingAnimationTracks()) do
-            track:Stop(0)
+            track:Stop(0); pcall(function() track:Destroy() end)
         end
         local animator = Hum:FindFirstChildOfClass("Animator")
         if animator then
             for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
-                track:Stop(0)
+                track:Stop(0); pcall(function() track:Destroy() end)
             end
         end
     end
@@ -3089,7 +3089,7 @@ local function ResetAnimation(animType)
     if not Char then return end
     
     local Hum = Char:FindFirstChildOfClass("Humanoid") or Char:FindFirstChildOfClass("AnimationController")
-    for _, v in next, Hum:GetPlayingAnimationTracks() do v:Stop(0) end
+    for _, v in next, Hum:GetPlayingAnimationTracks() do v:Stop(0); pcall(function() v:Destroy() end) end
     
     pcall(function()
         local Animate = Char.Animate
@@ -3168,15 +3168,16 @@ function setAnimation(animationType, animationId)
     Animate.Disabled = true
     task.wait(0.05)
 
-    -- 2. Stop ALL playing tracks (including cached Walk/Run/Jump/Fall tracks)
+    -- 2. Stop AND destroy ALL playing tracks (including cached Walk/Run/Jump/Fall tracks)
+    -- IMPORTANT: Must destroy, not just stop, or tracks accumulate and hit the 32-track limit.
     if Hum then
         for _, track in ipairs(Hum:GetPlayingAnimationTracks()) do
-            pcall(function() track:Stop(0) end)
+            pcall(function() track:Stop(0); track:Destroy() end)
         end
     end
     if Animator then
         for _, track in ipairs(Animator:GetPlayingAnimationTracks()) do
-            pcall(function() track:Stop(0) end)
+            pcall(function() track:Stop(0); track:Destroy() end)
         end
     end
 
@@ -3290,10 +3291,10 @@ local function applyAnimationsBatch(anims)
     task.wait(0.05)
 
     if Hum then
-        for _, track in ipairs(Hum:GetPlayingAnimationTracks()) do pcall(function() track:Stop(0) end) end
+        for _, track in ipairs(Hum:GetPlayingAnimationTracks()) do pcall(function() track:Stop(0); track:Destroy() end) end
     end
     if Animator then
-        for _, track in ipairs(Animator:GetPlayingAnimationTracks()) do pcall(function() track:Stop(0) end) end
+        for _, track in ipairs(Animator:GetPlayingAnimationTracks()) do pcall(function() track:Stop(0); track:Destroy() end) end
     end
 
     pcall(function()
