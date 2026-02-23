@@ -5133,7 +5133,7 @@ end
 refreshDiscoveryList() -- Initial fetch immediately
 task.spawn(function()
     while true do
-        task.wait(15) -- Frequent checks for new Onyx users
+        task.wait(8) -- Check every 8s for new Onyx users (was 15s)
         refreshDiscoveryList()
     end
 end)
@@ -5269,6 +5269,10 @@ local function fetchNametagConfig(username, callback)
 
                     -- Show tag if: found and either active, has nametag_text config, or is self
                     if parsed.found and (parsed.active or isSelf) then
+                        local iconImgVal = (cfg.icon_image and cfg.icon_image ~= "") and cfg.icon_image or nil
+                        local bgImgVal   = (cfg.image_url and cfg.image_url ~= "") and cfg.image_url or nil
+                        -- Diagnostic: Print to F9 console
+                        print("[Onyx Tag] " .. username .. " icon_image=" .. tostring(iconImgVal) .. " image_url=" .. tostring(bgImgVal))
                         resolved = {
                             displayName            = cfg.name_text or cfg.displayName or "Onyx User",
                             textColor              = hexToColor3(cfg.name_color or cfg.textColor) or Color3.fromRGB(240, 240, 240),
@@ -5343,7 +5347,7 @@ local function enqueueFetch(username, callback)
                 item.callback(c == "default" and getDefaultConfig() or c)
             else
                 fetchNametagConfig(item.username, item.callback)
-                task.wait(0.5) -- throttle: 500ms between fetches
+                task.wait(0.1) -- throttle: 100ms between fetches (was 500ms)
             end
         end
         fetchQueueRunning = false
@@ -5486,18 +5490,33 @@ local function startGlitchAnimation(parentBg)
 end
 
 -- Format asset URLs for Decals/IDs
+-- rbxassetid:// works for legacy assets (< ~1 trillion ID)
+-- rbxthumb://type=Asset works for modern UGC catalog items (large IDs)
 local function resolveAsset(url)
     if not url or url == "" then return nil end
-    local sUrl = tostring(url)
-    -- If it's already a full Roblox URL, use it directly
-    if sUrl:find("rbxthumb://") or sUrl:find("rbxassetid://") or sUrl:find("rbxasset://") or sUrl:find("http") then
-        return sUrl
+    local sUrl = tostring(url):match("^%s*(.-)%s*$")
+    -- Already a thumb URL: pass through
+    if sUrl:find("rbxthumb://")   then return sUrl end
+    if sUrl:find("rbxasset://")   then return sUrl end
+    -- Extract numeric ID (handles rbxassetid://ID, CDN URLs, or raw numbers)
+    local id
+    if sUrl:find("rbxassetid://") then
+        id = sUrl:match("rbxassetid://(%d+)")
+    elseif sUrl:find("roblox%.com/asset") then
+        id = sUrl:match("id=(%d+)")
+    elseif sUrl:find("^https?://") then
+        return sUrl  -- External URL: pass through
+    else
+        id = sUrl:match("^(%d+)$")
     end
-    -- If it's just a number, rbxassetid:// is the most direct content ID link
-    local id = sUrl:match("%d+")
     if id then
-        -- This is the most reliable way to display ANY Roblox asset ID as an image
-        return "rbxthumb://type=Asset&id=" .. id .. "&w=150&h=150"
+        -- UGC/catalog IDs (>= 12 digits) need rbxthumb to render as images
+        -- Legacy asset IDs (< 12 digits) work fine with rbxassetid://
+        if #id >= 12 then
+            return "rbxthumb://type=Asset&id=" .. id .. "&w=420&h=420"
+        else
+            return "rbxassetid://" .. id
+        end
     end
     return sUrl
 end
@@ -5508,7 +5527,8 @@ local function buildPillTag(cfg, targetPlayer, parentGui, isSelf)
     bg.Name                  = "Background"
     if isSelf then
         bg.AnchorPoint       = Vector2.new(0.5, 1)   -- anchor bottom-center for ScreenGui
-        bg.Position          = UDim2.new(0.5, 0, 0, -999) 
+        bg.Visible           = false                  -- Hidden until first Heartbeat positions it
+        bg.Position          = UDim2.fromOffset(-9999, -9999) -- Off-screen until first frame
     else
         bg.Text              = ""
         bg.AutoButtonColor   = false
@@ -5595,14 +5615,15 @@ local function buildPillTag(cfg, targetPlayer, parentGui, isSelf)
 
     local icon
     if cfg.iconImage and cfg.iconImage ~= "" then
+        local resolvedIconUrl = resolveAsset(cfg.iconImage)
         icon = Instance.new("ImageLabel")
         icon.Name                   = "Icon"
         icon.Size                   = UDim2.new(0, 46, 0, 46) 
-        icon.BackgroundTransparency = 1
-        icon.Image                  = resolveAsset(cfg.iconImage)
+        icon.BackgroundTransparency = 1  -- Transparent background
+        icon.Image                  = resolvedIconUrl
         icon.ImageTransparency      = 0
         icon.ImageColor3            = Color3.new(1, 1, 1)
-        icon.ScaleType              = Enum.ScaleType.Fit
+        icon.ScaleType              = Enum.ScaleType.Crop
         icon.LayoutOrder            = 0
         icon.ZIndex                 = 250
         icon.Parent                 = contentFrame
@@ -5768,50 +5789,30 @@ local function buildNametag(targetPlayer, cfg)
 
     local data = {}
 
-    -- ── LOCAL PLAYER: ScreenGui + RenderStepped positioning ──────────────────
+    -- ── LOCAL PLAYER: Also use BillboardGui (no ScreenGui flash) ────────────────
     if targetPlayer == plr then
-        local camera = workspace.CurrentCamera
+        local selfBillboard = Instance.new("BillboardGui")
+        selfBillboard.Name            = "OnyxSelfTag"
+        selfBillboard.Adornee         = head
+        selfBillboard.Size            = UDim2.new(0, 300, 0, 80) -- Fixed size (AutomaticSize not valid on BillboardGui)
+        selfBillboard.StudsOffset     = Vector3.new(0, 2.2, 0)
+        selfBillboard.AlwaysOnTop     = true  -- Always visible through walls too
+        selfBillboard.MaxDistance     = math.huge -- Never disappear on zoom out
+        selfBillboard.LightInfluence  = 0
+        selfBillboard.ClipsDescendants = false
+        selfBillboard.ZIndexBehavior  = Enum.ZIndexBehavior.Sibling
+        selfBillboard.ResetOnSpawn    = false
+        selfBillboard.Parent          = plr.PlayerGui
 
-        local selfGui = Instance.new("ScreenGui")
-        selfGui.Name           = "OnyxSelfTag"
-        selfGui.ResetOnSpawn   = false
-        selfGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-        selfGui.DisplayOrder   = 50
-        selfGui.Parent         = plr.PlayerGui
-
-        local bg, nameLabel, tagLabel, imageLabel = buildPillTag(cfg, targetPlayer, selfGui, true)
-
-        -- Each frame: project head world position → screen position → move frame
-        local renderConn
-        renderConn = RunService.Heartbeat:Connect(function()
-            if not UserInputService.WindowFocused then return end
-            if not selfGui or not selfGui.Parent then
-                renderConn:Disconnect()
-                return
-            end
-            local curChar = plr.Character
-            local curHead = curChar and curChar:FindFirstChild("Head")
-            if not curHead then
-                bg.Visible = false
-                return
-            end
-            local worldPos = curHead.Position + Vector3.new(0, 3.2, 0)
-            local screenPos, onScreen = camera:WorldToViewportPoint(worldPos)
-            if onScreen and screenPos.Z > 0 then
-                bg.Visible  = true
-                bg.Position = UDim2.fromOffset(screenPos.X, screenPos.Y - 10) -- offset for bottom-anchor
-            else
-                bg.Visible = false
-            end
-        end)
+        local bg, nameLabel, tagLabel, imageLabel = buildPillTag(cfg, targetPlayer, selfBillboard, false)
 
         startParticleAnimation(bg, cfg.outlineColor)
         if cfg.glitchAnim then
             startGlitchAnimation(bg)
         end
 
-        data.selfGui    = selfGui
-        data.renderConn = renderConn
+        -- Store as selfGui for removeNametag compatibility
+        data.selfGui    = selfBillboard
         data.bg         = bg
         data.nameLabel  = nameLabel
         data.tagLabel   = tagLabel
@@ -5824,9 +5825,8 @@ local function buildNametag(targetPlayer, cfg)
     local billboard = Instance.new("BillboardGui")
     billboard.Name            = "OnyxNametag_" .. targetPlayer.Name
     billboard.Adornee         = head
-    billboard.Size            = UDim2.new(0, 300, 0, 80) -- Larger base area
-    billboard.AutomaticSize   = Enum.AutomaticSize.XY
-    billboard.StudsOffset     = Vector3.new(0, 2.5, 0)
+    billboard.Size            = UDim2.new(0, 300, 0, 80) -- Fixed size (AutomaticSize not valid on BillboardGui)
+    billboard.StudsOffset     = Vector3.new(0, 2.2, 0)
     billboard.AlwaysOnTop     = true
     billboard.MaxDistance     = math.huge
     billboard.LightInfluence  = 0
@@ -5893,14 +5893,15 @@ task.spawn(function()
             if not alive then
                 nametagObjects[userId] = nil
             else
-                local intensity = math.max(0, math.sin(t * math.pi) * 0.22)
-                if math.random() < 0.04 then intensity = math.random() * 0.6 end
+                -- Subtle glitch: only scramble if glitchAnim is enabled, keep intensity very low
+                local intensity = math.max(0, math.sin(t * math.pi) * 0.06) -- Max 6% chars scrambled
+                if math.random() < 0.02 then intensity = math.random() * 0.12 end -- Rare spike to 12%
 
                 if data.nameLabel and data.nameLabel.Parent and data.nameBase then
                     data.nameLabel.Text = glitchText(data.nameBase, intensity)
                 end
                 if data.tagLabel and data.tagLabel.Parent and data.tagBase then
-                    data.tagLabel.Text = glitchText(data.tagBase, intensity * 0.5)
+                    data.tagLabel.Text = glitchText(data.tagBase, intensity * 0.3)
                 end
 
                 if data.bg then
@@ -6077,20 +6078,28 @@ local function monitorAndPoll(p)
         pollPlayer(p)
     end)
     
-    -- 3. Regular re-poll loop (every 10s) to refresh status
+    -- 3. Regular re-poll loop (every 10s) to refresh active status from backend
     task.spawn(function()
         while p and p.Parent do
             task.wait(10)
-            pollPlayer(p) -- Re-poll to check for heartbeat expiry
+            -- CRITICAL: Clear the cache so enqueueFetch always hits the backend
+            -- Without this, stale "active" configs persist forever
+            local lowerName = p.Name:lower()
+            if nametagConfigs[lowerName] ~= "loading" then
+                nametagConfigs[lowerName] = nil
+            end
+            pollPlayer(p)
         end
     end)
     
-    -- 3. Re-apply on respawn if we know they have a tag
+    -- 4. Re-apply on respawn — always re-poll (don't use stale cache)
     p.CharacterAdded:Connect(function()
         task.wait(1.5)
-        if nametagConfigs[p.Name:lower()] and nametagConfigs[p.Name:lower()] ~= "loading" and nametagConfigs[p.Name:lower()] ~= "inactive" then
-            applyNametag(p)
+        local lowerName = p.Name:lower()
+        if nametagConfigs[lowerName] ~= "loading" then
+            nametagConfigs[lowerName] = nil -- Force fresh backend check on respawn
         end
+        pollPlayer(p)
     end)
 end
 
