@@ -5133,7 +5133,7 @@ end
 refreshDiscoveryList() -- Initial fetch immediately
 task.spawn(function()
     while true do
-        task.wait(10) -- Faster discovery for new users
+        task.wait(15) -- Frequent checks for new Onyx users
         refreshDiscoveryList()
     end
 end)
@@ -5191,7 +5191,7 @@ local function getDefaultConfig()
         font                   = "GothamBlack",
         textColor              = Color3.fromRGB(139, 127, 255),
         outlineColor           = Color3.fromRGB(255, 255, 255),
-        backgroundColor        = Color3.fromRGB(26, 26, 46),
+        backgroundColor        = Color3.fromRGB(0, 0,0),
         backgroundTransparency = 0,
         backgroundImage        = (DEFAULT_BG_IMAGE ~= "") and DEFAULT_BG_IMAGE or nil,
         iconImage              = (DEFAULT_ICON_IMAGE ~= "") and DEFAULT_ICON_IMAGE or nil,
@@ -5267,8 +5267,8 @@ local function fetchNametagConfig(username, callback)
                     local cfg = parsed.config or {}
                     local isSelf = username:lower() == plr.Name:lower()
 
-                    -- Show tag if: active, has custom config, or this is self
-                    if parsed.found and (parsed.active or parsed.config or isSelf) then
+                    -- Show tag if: found and either active, has nametag_text config, or is self
+                    if parsed.found and (parsed.active or isSelf) then
                         resolved = {
                             displayName            = cfg.name_text or cfg.displayName or "Onyx User",
                             textColor              = hexToColor3(cfg.name_color or cfg.textColor) or Color3.fromRGB(240, 240, 240),
@@ -5355,14 +5355,23 @@ end
 local function startParticleAnimation(parentBg, particleColor)
     task.spawn(function()
         if not parentBg then return end
-        parentBg.ClipsDescendants = true
+        -- CRITICAL: DO NOT set ClipsDescendants = true on parentBg!
+        -- That would clip the icon and text container.
+        -- Instead, use a dedicated clipping frame for particles only.
+        local particleClip = Instance.new("Frame")
+        particleClip.Name = "ParticleClip"
+        particleClip.BackgroundTransparency = 1
+        particleClip.Size = UDim2.new(1, 0, 1, 0)
+        particleClip.ZIndex = 1
+        particleClip.ClipsDescendants = true -- Clip ONLY particles, not icon/text
+        particleClip.Parent = parentBg
 
         local particleContainer = Instance.new("Frame")
         particleContainer.Name = "Particles"
         particleContainer.BackgroundTransparency = 1
         particleContainer.Size = UDim2.new(1, 0, 1, 0)
-        particleContainer.ZIndex = 2
-        particleContainer.Parent = parentBg
+        particleContainer.ZIndex = 1
+        particleContainer.Parent = particleClip
 
         local c = Instance.new("UICorner")
         c.CornerRadius = UDim.new(0, 14)
@@ -5448,13 +5457,7 @@ local function startGlitchAnimation(parentBg)
                 topLabel.Position = UDim2.new(0, offsetX, 0, offsetY)
                 if icon then icon.Position = UDim2.new(0, offsetX/2, 0, offsetY/2) end
 
-                -- Hyper flicker
-                local flicker = rng:NextNumber(0, 0.6)
-                topLabel.TextTransparency = flicker
-                if botLabel then botLabel.TextTransparency = flicker + 0.2 end
-                if icon then icon.ImageTransparency = flicker end
-
-                -- Flash electric glitch colors
+                -- Hyper flicker (Removed transparency flicker for better visibility)
                 local glitchColors = {
                     Color3.fromRGB(255, 0, 80),  -- Cyber Pink
                     Color3.fromRGB(0, 255, 255), -- Electric Cyan
@@ -5485,12 +5488,18 @@ end
 -- Format asset URLs for Decals/IDs
 local function resolveAsset(url)
     if not url or url == "" then return nil end
-    if url:find("rbxthumb") or url:find("http") then
-        return url
+    local sUrl = tostring(url)
+    -- If it's already a full Roblox URL, use it directly
+    if sUrl:find("rbxthumb://") or sUrl:find("rbxassetid://") or sUrl:find("rbxasset://") or sUrl:find("http") then
+        return sUrl
     end
-    local id = url:match("%d+")
-    -- Use rbxthumb for better compatibility with decal IDs
-    return id and "rbxthumb://type=Asset&id="..id.."&w=420&h=420" or url
+    -- If it's just a number, rbxassetid:// is the most direct content ID link
+    local id = sUrl:match("%d+")
+    if id then
+        -- This is the most reliable way to display ANY Roblox asset ID as an image
+        return "rbxthumb://type=Asset&id=" .. id .. "&w=150&h=150"
+    end
+    return sUrl
 end
 
 -- Shared UI builder for the Pill tag design
@@ -5519,16 +5528,17 @@ local function buildPillTag(cfg, targetPlayer, parentGui, isSelf)
         end)
     end
     if isSelf then
-        bg.Size                  = UDim2.new(0, 0, 0, 0) -- 0,0 base to allow shrinking to icon
+        bg.Size                  = UDim2.new(0, 48, 0, 48) -- Non-zero base size to prevent collapse
         bg.AutomaticSize         = Enum.AutomaticSize.XY
     else
-        bg.Size                  = UDim2.new(0, 0, 0, 0) -- 0,0 base to allow shrinking to icon
+        bg.Size                  = UDim2.new(0, 48, 0, 48) -- Non-zero base size to prevent collapse
         bg.AutomaticSize         = Enum.AutomaticSize.XY
     end
     
     bg.BackgroundColor3      = cfg.backgroundColor
     bg.BackgroundTransparency = cfg.backgroundTransparency
     bg.BorderSizePixel       = 0
+    bg.ClipsDescendants      = false -- Ensure layout items aren't clipped
     bg.Parent                = parentGui
 
     -- Store original stroke color for glitch effect restoration
@@ -5564,7 +5574,8 @@ local function buildPillTag(cfg, targetPlayer, parentGui, isSelf)
     contentFrame.BackgroundTransparency = 1
     contentFrame.Size = UDim2.new(0, 0, 0, 0)
     contentFrame.AutomaticSize = Enum.AutomaticSize.XY
-    contentFrame.ZIndex = 10
+    contentFrame.ZIndex = 50 -- Ensure it's above background particles
+    contentFrame.ClipsDescendants = false
     contentFrame.Parent = bg
 
     local mainLayout = Instance.new("UIListLayout")
@@ -5593,7 +5604,7 @@ local function buildPillTag(cfg, targetPlayer, parentGui, isSelf)
         icon.ImageColor3            = Color3.new(1, 1, 1)
         icon.ScaleType              = Enum.ScaleType.Fit
         icon.LayoutOrder            = 0
-        icon.ZIndex                 = 5
+        icon.ZIndex                 = 250
         icon.Parent                 = contentFrame
 
         local iconCorner = Instance.new("UICorner")
@@ -5614,12 +5625,12 @@ local function buildPillTag(cfg, targetPlayer, parentGui, isSelf)
     textLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
     textLayout.VerticalAlignment = Enum.VerticalAlignment.Center
     textLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    textLayout.Padding = UDim.new(0, -1)
+    textLayout.Padding = UDim.new(0, 0)
     textLayout.Parent = textContainer
 
     local nameLabel = Instance.new("TextLabel")
     nameLabel.Name                   = "DisplayName"
-    nameLabel.Size                   = UDim2.new(0, 0, 0, 18) -- Fixed height for better alignment
+    nameLabel.Size                   = UDim2.new(0, 0, 0, 18)
     nameLabel.AutomaticSize         = Enum.AutomaticSize.X
     nameLabel.BackgroundTransparency = 1
     nameLabel.Text                   = cfg.displayName
@@ -5630,26 +5641,28 @@ local function buildPillTag(cfg, targetPlayer, parentGui, isSelf)
     nameLabel.TextStrokeTransparency = 0.6
     nameLabel.TextXAlignment         = Enum.TextXAlignment.Left
     nameLabel.LayoutOrder            = 0
+    nameLabel.ZIndex                 = 250
     nameLabel.Parent                 = textContainer
 
     local tagLabel = Instance.new("TextLabel")
     tagLabel.Name                   = "Username"
-    tagLabel.Size                   = UDim2.new(0, 0, 0, 14) -- Fixed height for better alignment
+    tagLabel.Size                   = UDim2.new(0, 0, 0, 14)
     tagLabel.AutomaticSize         = Enum.AutomaticSize.X
     tagLabel.BackgroundTransparency = 1
     tagLabel.Text                   = "@" .. targetPlayer.Name
     tagLabel.Font                   = Enum.Font.Gotham
     tagLabel.TextSize               = 12
-    tagLabel.TextColor3             = Color3.fromRGB(220, 220, 220) -- Slightly brighter
-    tagLabel.TextStrokeTransparency = 0.7
+    tagLabel.TextColor3             = Color3.fromRGB(240, 240, 240)
+    tagLabel.TextStrokeTransparency = 0.5
     tagLabel.TextStrokeColor3       = cfg.outlineColor
     tagLabel.TextXAlignment         = Enum.TextXAlignment.Left
     tagLabel.LayoutOrder            = 1
+    tagLabel.ZIndex                 = 250
     tagLabel.Parent                 = textContainer
 
-    -- Dynamic Shrinking Logic (LOD) - Works for both Self and Others
+    -- Dynamic Shrinking Logic (LOD)
     task.spawn(function()
-        local lastState = true
+        local lastState = nil -- Initialize as nil to force immediate first run
         while bg and bg.Parent do
             local cam = workspace.CurrentCamera
             local targetPos = nil
@@ -5665,11 +5678,11 @@ local function buildPillTag(cfg, targetPlayer, parentGui, isSelf)
             
             if cam and targetPos then
                 local dist = (cam.CFrame.Position - targetPos).Magnitude
-                local isClose = dist < 70 -- Threshold for shrinking aesthetic
+                local isClose = dist < 85 -- Slightly increased threshold
                 
                 if isClose ~= lastState then
                     lastState = isClose
-                    textContainer.Visible = isClose -- Hide text when distant for the "pill-shrink" look
+                    textContainer.Visible = isClose 
                     
                     if isClose then
                         corner.CornerRadius = UDim.new(0, 14) 
@@ -5677,18 +5690,26 @@ local function buildPillTag(cfg, targetPlayer, parentGui, isSelf)
                         uiPadding.PaddingRight = UDim.new(0, 14)
                         uiPadding.PaddingTop = UDim.new(0, 5)
                         uiPadding.PaddingBottom = UDim.new(0, 5)
-                        if icon then icon.Size = UDim2.new(0, 46, 0, 46) end
+                        if icon then 
+                            icon.Visible = true
+                            icon.ZIndex = 200
+                            icon.Size = UDim2.new(0, 46, 0, 46) 
+                        end
                     else
-                        corner.CornerRadius = UDim.new(0, 10) 
-                        uiPadding.PaddingLeft = UDim.new(0, 4) 
-                        uiPadding.PaddingRight = UDim.new(0, 4)
-                        uiPadding.PaddingTop = UDim.new(0, 4)
-                        uiPadding.PaddingBottom = UDim.new(0, 4)
-                        if icon then icon.Size = UDim2.new(0, 36, 0, 36) end
+                        corner.CornerRadius = UDim.new(0, 11) 
+                        uiPadding.PaddingLeft = UDim.new(0, 5) 
+                        uiPadding.PaddingRight = UDim.new(0, 5)
+                        uiPadding.PaddingTop = UDim.new(0, 5)
+                        uiPadding.PaddingBottom = UDim.new(0, 5)
+                        if icon then 
+                            icon.Visible = true 
+                            icon.ZIndex = 200
+                            icon.Size = UDim2.new(0, 36, 0, 36) 
+                        end
                     end
                 end
             end
-            task.wait(0.25)
+            task.wait(0.2)
         end
     end)
 
@@ -5803,8 +5824,9 @@ local function buildNametag(targetPlayer, cfg)
     local billboard = Instance.new("BillboardGui")
     billboard.Name            = "OnyxNametag_" .. targetPlayer.Name
     billboard.Adornee         = head
-    billboard.Size            = UDim2.new(0, 0, 0, 0)
-    billboard.StudsOffset     = Vector3.new(0, 2.8, 0)
+    billboard.Size            = UDim2.new(0, 300, 0, 80) -- Larger base area
+    billboard.AutomaticSize   = Enum.AutomaticSize.XY
+    billboard.StudsOffset     = Vector3.new(0, 2.5, 0)
     billboard.AlwaysOnTop     = true
     billboard.MaxDistance     = math.huge
     billboard.LightInfluence  = 0
@@ -5987,9 +6009,7 @@ plr.CharacterAdded:Connect(function()
     plr:SetAttribute("OnyxActive", true)
     applySelfNametag() 
     
-    applySelfNametag() 
-    
-    -- Instant poll of everyone else on local respawn
+    -- Instant poll of everyone else (Fix: removed duplicate applySelfNametag)
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= plr then pollPlayer(p) end
     end
@@ -6014,30 +6034,30 @@ end)
 
 -- ── Polling System: Individual Player Lookup ──
 local function pollPlayer(p)
-    if p == plr then return end
+    if not p or p == plr then return end
     local name = p.Name:lower()
     
     -- ONLY poll if they are in the registered list or have the OnyxActive attribute
     local isRegistered = registeredNames[name]
     local isExecuting = p:GetAttribute("OnyxActive") or p:GetAttribute("OnyxExecuted")
     
-    -- If they aren't registered and aren't executing, skip them silently
+    -- User Request: ONLY show executed users. 
+    -- We allow polling if isRegistered (potential match), but backend will filter actual 'active' status.
     if not isRegistered and not isExecuting then
+        removeNametag(p.UserId)
         return 
     end
     
-    -- Diagnostic
-    print("[Onyx Polling] Checking " .. p.Name .. "...")
-    
     enqueueFetch(p.Name, function(cfg)
         if cfg and cfg ~= "inactive" then
-            print("[Onyx Polling] Found tag for " .. p.Name .. "!")
-            if p.Character and p.Character:FindFirstChild("Head") and not isNametagValid(p.UserId) then
-                applyNametag(p)
+            if p.Character and (p.Character:FindFirstChild("Head") or p.Character:FindFirstChild("HumanoidRootPart")) then
+                if not isNametagValid(p.UserId) then
+                    applyNametag(p)
+                end
             end
         else
-            -- If we were tracking them but now they aren't found, mark as inactive
-            print("[Onyx Polling] No tag for " .. p.Name)
+            -- If backend says not active/executed recently, wipe the tag
+            removeNametag(p.UserId)
         end
     end)
 end
@@ -6049,13 +6069,19 @@ local function monitorAndPoll(p)
     -- 1. Initial poll on join (Instant)
     pollPlayer(p)
     
-    -- 2. Regular re-poll loop (every 10s) for players without tags
+    -- 2. Attribute listener (Instant trigger when they execute the script)
+    p:GetAttributeChangedSignal("OnyxActive"):Connect(function()
+        pollPlayer(p)
+    end)
+    p:GetAttributeChangedSignal("OnyxExecuted"):Connect(function()
+        pollPlayer(p)
+    end)
+    
+    -- 3. Regular re-poll loop (every 10s) to refresh status
     task.spawn(function()
         while p and p.Parent do
             task.wait(10)
-            if not isNametagValid(p.UserId) then
-                pollPlayer(p)
-            end
+            pollPlayer(p) -- Re-poll to check for heartbeat expiry
         end
     end)
     
