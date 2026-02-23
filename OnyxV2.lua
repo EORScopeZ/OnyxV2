@@ -5131,7 +5131,7 @@ local function refreshDiscoveryList()
                         local lowerName = p.Name:lower()
                         -- Only re-poll if this player is now in the active list
                         if registeredNames[lowerName] and not isNametagValid(p.UserId) then
-                            task.spawn(function() pollPlayer(p, false) end)
+                            task.spawn(function() pollPlayer(p) end)
                         end
                     end
                 end
@@ -5277,8 +5277,8 @@ local function fetchNametagConfig(username, callback)
                     local cfg = parsed.config or {}
                     local isSelf = username:lower() == plr.Name:lower()
 
-                    -- Show tag if: found and either active, has nametag_text config, or is self
-                    if parsed.found and (parsed.active or isSelf) then
+                    -- Show tag if found in DB (registeredNames already gates active-only users before we get here)
+                    if parsed.found then
                         local iconImgVal = (cfg.icon_image and cfg.icon_image ~= "") and cfg.icon_image or nil
                         local bgImgVal   = (cfg.image_url and cfg.image_url ~= "") and cfg.image_url or nil
                         -- Diagnostic: Print to F9 console
@@ -6022,7 +6022,7 @@ plr.CharacterAdded:Connect(function()
     
     -- Instant poll of everyone else (Fix: removed duplicate applySelfNametag)
     for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= plr then pollPlayer(p, false) end
+        if p ~= plr then pollPlayer(p) end
     end
 end)
 
@@ -6044,20 +6044,17 @@ task.spawn(function()
 end)
 
 -- ── Polling System: Individual Player Lookup ──
-local function pollPlayer(p, forceCheck)
+local function pollPlayer(p)
     if not p or p == plr then return end
     local name = p.Name:lower()
-    
-    local isRegistered = registeredNames[name]
-    local isExecuting = p:GetAttribute("OnyxActive") or p:GetAttribute("OnyxExecuted")
-    
-    -- forceCheck=true: always query backend (used on initial join before registeredNames catches up)
-    -- Otherwise: skip if not registered or executing (saves HTTP requests)
-    if not forceCheck and not isRegistered and not isExecuting then
+
+    -- registeredNames is filtered server-side to heartbeat within last 2 minutes,
+    -- so this is the only gate needed: are they running Onyx right now?
+    if not registeredNames[name] then
         removeNametag(p.UserId)
-        return 
+        return
     end
-    
+
     enqueueFetch(p.Name, function(cfg)
         if cfg and cfg ~= "inactive" then
             if p.Character and (p.Character:FindFirstChild("Head") or p.Character:FindFirstChild("HumanoidRootPart")) then
@@ -6066,7 +6063,6 @@ local function pollPlayer(p, forceCheck)
                 end
             end
         else
-            -- If backend says not active/executed recently, wipe the tag
             removeNametag(p.UserId)
         end
     end)
@@ -6075,39 +6071,31 @@ end
 -- Monitor and Poll Loop
 local function monitorAndPoll(p)
     if p == plr then return end
-    
-    -- 1. Initial poll on join — force backend check even if registeredNames hasn't caught up
-    pollPlayer(p, true)
-    
-    -- 2. Attribute listener (Instant trigger when they execute the script)
-    p:GetAttributeChangedSignal("OnyxActive"):Connect(function()
-        pollPlayer(p, false)
-    end)
-    p:GetAttributeChangedSignal("OnyxExecuted"):Connect(function()
-        pollPlayer(p, false)
-    end)
-    
-    -- 3. Regular re-poll loop (every 10s) to refresh active status from backend
+
+    -- Initial poll — registeredNames may not have loaded yet, but the
+    -- refreshDiscoveryList loop runs every 8s and will catch them shortly.
+    pollPlayer(p)
+
+    -- Re-poll every 10s in case they just executed (heartbeat takes up to 10s to register)
     task.spawn(function()
         while p and p.Parent do
             task.wait(10)
-            -- Clear cache + poll (normal check, not force)
             local lowerName = p.Name:lower()
             if nametagConfigs[lowerName] ~= "loading" then
                 nametagConfigs[lowerName] = nil
             end
-            pollPlayer(p, false)
+            pollPlayer(p)
         end
     end)
-    
-    -- 4. Re-apply on respawn — always re-poll (don't use stale cache)
+
+    -- Re-apply tag on respawn
     p.CharacterAdded:Connect(function()
         task.wait(1.5)
         local lowerName = p.Name:lower()
         if nametagConfigs[lowerName] ~= "loading" then
             nametagConfigs[lowerName] = nil
         end
-        pollPlayer(p, true) -- Force check on respawn
+        pollPlayer(p)
     end)
 end
 
