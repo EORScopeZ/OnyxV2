@@ -6480,22 +6480,32 @@ end, "Misc")
 RegisterCommand({"re"}, function()
     local char = plr.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    local savedCFrame = hrp and hrp.CFrame or nil
-    plr:LoadCharacter()
-    if savedCFrame then
-        -- Wait for new character to load, then teleport back
-        task.spawn(function()
-            local newChar
-            for i = 1, 20 do
-                task.wait(0.1)
-                newChar = plr.Character
-                if newChar and newChar:FindFirstChild("HumanoidRootPart") then
-                    newChar.HumanoidRootPart.CFrame = savedCFrame
-                    break
-                end
-            end
-        end)
+    if not hrp then SendNotify("Respawn", "No character found", 2) return end
+
+    local savedCFrame = hrp.CFrame
+
+    -- Hook CharacterAdded BEFORE triggering the respawn so we never miss it
+    local conn
+    conn = plr.CharacterAdded:Connect(function(newChar)
+        conn:Disconnect()
+        -- Wait for HumanoidRootPart to exist and the character to fully load
+        local newHrp = newChar:WaitForChild("HumanoidRootPart", 10)
+        if newHrp then
+            -- Wait one more frame so Roblox doesn't override our CFrame on spawn
+            task.wait(0.15)
+            newHrp.CFrame = savedCFrame
+        end
+    end)
+
+    -- Kill the humanoid — this triggers a server-side respawn reliably
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.Health = 0
+    else
+        -- Fallback: try LoadCharacter
+        pcall(function() plr:LoadCharacter() end)
     end
+
     SendNotify("Respawn", "Respawned in place", 2)
 end, "Misc")
 
