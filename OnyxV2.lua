@@ -5288,9 +5288,9 @@ local function getDefaultConfig()
     return {
         displayName            = "Onyx User",
         font                   = "GothamBlack",
-        textColor              = Color3.fromRGB(139, 127, 255),
-        outlineColor           = Color3.fromRGB(255, 255, 255),
-        backgroundColor        = Color3.fromRGB(0, 0,0),
+        textColor              = Color3.fromRGB(255, 255, 255),
+        outlineColor           = Color3.fromRGB(o, o, o),
+        backgroundColor        = Color3.fromRGB(48, 25, 52),
         backgroundTransparency = 0,
         backgroundImage        = (DEFAULT_BG_IMAGE ~= "") and DEFAULT_BG_IMAGE or nil,
         iconImage              = (DEFAULT_ICON_IMAGE ~= "") and DEFAULT_ICON_IMAGE or nil,
