@@ -5111,42 +5111,24 @@ local nametagConfigs = {}   -- [username] = config OR "loading" OR "inactive"
 local WORKER_BASE = "https://onyx-backend-production-22fa.up.railway.app"
 local registeredNames = {} -- [username:lower()] = true
 
+-- refreshDiscoveryList is defined here but only CALLED after all other functions exist.
+-- It uses onDiscovery callback (set later) to avoid forward-reference nil crashes.
+local onDiscovery = nil  -- set after pollPlayer/removeNametag/isNametagValid are defined
+
 local function refreshDiscoveryList()
-    pcall(function()
-        local result = httpRequest({
+    local ok, result = pcall(function()
+        return httpRequest({
             Url    = WORKER_BASE .. "/registered-users?job_id=" .. game.JobId,
             Method = "GET",
         })
-        if result and result.StatusCode == 200 then
-            local decoded = HttpService:JSONDecode(result.Body)
-            if decoded and decoded.usernames then
-                local names = {}
-                for _, name in ipairs(decoded.usernames) do
-                    names[name:lower()] = true
-                end
-                registeredNames = names
-                -- Re-poll all current players now that we have fresh data
-                for _, p in ipairs(Players:GetPlayers()) do
-                    if p ~= plr then
-                        local lowerName = p.Name:lower()
-                        -- Only re-poll if this player is now in the active list
-                        if registeredNames[lowerName] and not isNametagValid(p.UserId) then
-                            task.spawn(function() pollPlayer(p) end)
-                        end
-                    end
-                end
-            end
-        end
     end)
-end
-
-refreshDiscoveryList() -- Initial fetch immediately
-task.spawn(function()
-    while true do
-        task.wait(8) -- Check every 8s for new Onyx users (was 15s)
-        refreshDiscoveryList()
+    if not ok or not result then return end
+    if result.StatusCode ~= 200 then return end
+    local decoded = HttpService:JSONDecode(result.Body)
+    if decoded and decoded.usernames and onDiscovery then
+        onDiscovery(decoded.usernames)
     end
-end)
+end
 
 local function GetHWID()
     local hwid = "Unknown"
@@ -6059,15 +6041,38 @@ local function pollPlayer(p)
     end
 
     enqueueFetch(p.Name, function(cfg)
-        if cfg and cfg ~= "inactive" then
-            if p.Character and (p.Character:FindFirstChild("Head") or p.Character:FindFirstChild("HumanoidRootPart")) then
-                if not isNametagValid(p.UserId) then
-                    applyNametag(p)
-                end
-            end
-        else
+        if not cfg or cfg == "inactive" then
             removeNametag(p.UserId)
+            return
         end
+        if isNametagValid(p.UserId) then return end
+
+        -- Wait for character + Head to be ready (async fetch may have completed before char loaded)
+        task.spawn(function()
+            local deadline = tick() + 10
+            while tick() < deadline do
+                local char = p.Character
+                if char and (char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart")) then
+                    if not isNametagValid(p.UserId) then
+                        local nametagData = buildNametag(p, cfg)
+                        if nametagData then
+                            removeNametag(p.UserId)
+                            nametagObjects[p.UserId] = nametagData
+                            -- Auto-cleanup when adornee is removed
+                            local adornee = nametagData.billboard and nametagData.billboard.Adornee
+                            if adornee then
+                                adornee.AncestryChanged:Connect(function(_, newParent)
+                                    if not newParent then removeNametag(p.UserId) end
+                                end)
+                            end
+                        else
+                        end
+                    end
+                    return
+                end
+                task.wait(0.5)
+            end
+        end)
     end)
 end
 
@@ -6101,6 +6106,36 @@ local function monitorAndPoll(p)
         pollPlayer(p)
     end)
 end
+
+-- All functions now defined — wire up the discovery callback and start the loop
+onDiscovery = function(usernames)
+    local names = {}
+    for _, name in ipairs(usernames) do
+        names[name:lower()] = true
+    end
+    registeredNames = names
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= plr then
+            local lowerName = p.Name:lower()
+            if registeredNames[lowerName] then
+                if not isNametagValid(p.UserId) then
+                    task.spawn(function() pollPlayer(p) end)
+                end
+            else
+                removeNametag(p.UserId)
+                nametagConfigs[lowerName] = nil
+            end
+        end
+    end
+end
+
+refreshDiscoveryList() -- Initial fetch immediately
+task.spawn(function()
+    while true do
+        task.wait(8)
+        refreshDiscoveryList()
+    end
+end)
 
 for _, p in ipairs(Players:GetPlayers()) do
     monitorAndPoll(p)
