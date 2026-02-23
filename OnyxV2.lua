@@ -5114,7 +5114,7 @@ local registeredNames = {} -- [username:lower()] = true
 local function refreshDiscoveryList()
     pcall(function()
         local result = httpRequest({
-            Url    = WORKER_BASE .. "/registered-users",
+            Url    = WORKER_BASE .. "/registered-users?job_id=" .. game.JobId,
             Method = "GET",
         })
         if result and result.StatusCode == 200 then
@@ -6036,7 +6036,10 @@ task.spawn(function()
                 Url    = WORKER_BASE .. "/register-onyx-user",
                 Method = "POST",
                 Headers = { ["Content-Type"] = "application/json" },
-                Body   = game:GetService("HttpService"):JSONEncode({ roblox_user = plr.Name })
+                Body   = game:GetService("HttpService"):JSONEncode({
+                    roblox_user = plr.Name,
+                    job_id      = game.JobId
+                })
             })
         end)
         task.wait(10) -- Less aggressive heartbeat
