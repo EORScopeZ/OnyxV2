@@ -108,6 +108,32 @@ local function GetRoot(Player)
     end
 end
 
+-- ── GLOBAL TRACK CLEANUP HELPER ──────────────────────────────────────────────
+-- Stops AND destroys every AnimationTrack on a Humanoid/AnimationController.
+-- GetPlayingAnimationTracks() only returns currently-playing tracks; stopped-but-alive
+-- tracks still count toward Roblox's hard 32-track limit and cause the flood of
+-- "AnimationTrack limit of 32 tracks exceeded" warnings. Destroying frees the slot.
+function DestroyAllTracks(humanoidOrController)
+    if not humanoidOrController then return end
+    local ok, tracks = pcall(function() return humanoidOrController:GetPlayingAnimationTracks() end)
+    if ok and tracks then
+        for _, t in ipairs(tracks) do
+            pcall(function() t:Stop(0) end)
+            pcall(function() t:Destroy() end)
+        end
+    end
+    local animator = humanoidOrController:FindFirstChildOfClass("Animator")
+    if animator then
+        local ok2, tracks2 = pcall(function() return animator:GetPlayingAnimationTracks() end)
+        if ok2 and tracks2 then
+            for _, t in ipairs(tracks2) do
+                pcall(function() t:Stop(0) end)
+                pcall(function() t:Destroy() end)
+            end
+        end
+    end
+end
+
 local notifCount = 0
 local NotifContainer  -- defined after OnyxUI is created
 
@@ -3062,11 +3088,7 @@ end)
 local function StopAnim()
     local Char = plr.Character or plr.CharacterAdded:Wait()
     local Hum = Char:FindFirstChildOfClass("Humanoid") or Char:FindFirstChildOfClass("AnimationController")
-    if Hum then
-        for _, track in ipairs(Hum:GetPlayingAnimationTracks()) do
-            track:Stop(0)
-        end
-    end
+    if Hum then DestroyAllTracks(Hum) end
 end
 
 local function refreshState(state)
@@ -3320,6 +3342,8 @@ local function applyAnimationsBatch(anims)
     end)
 
     task.wait(0.05)
+    -- Final sweep: destroy any stale stopped tracks before Animate reloads fresh ones
+    if Hum then DestroyAllTracks(Hum) end
     Animate.Disabled = false
 
     task.wait(0.1)
@@ -3358,7 +3382,10 @@ plr.CharacterAdded:Connect(function(character)
     if not hum then return end
     local animate = character:WaitForChild("Animate", 10)
     if not animate then return end
-    task.wait(0.5)
+    -- Wipe any tracks the Animate script may have already loaded before we touch anything
+    task.wait(0.2)
+    DestroyAllTracks(hum)
+    task.wait(0.3)
     applyAnimationsBatch(lastAnimations)
 end)
 
@@ -3796,8 +3823,10 @@ local function PlayEmoteById(emoteId, emoteName)
             SendNotify("Emotes","Animator not found",2)
             return
         end
+        -- Destroy all existing tracks to free slots before loading the emote
         for _, t in ipairs(animator:GetPlayingAnimationTracks()) do
             pcall(function() t:Stop(0) end)
+            pcall(function() t:Destroy() end)
         end
 
         -- Step 3: Verify we're still playing this emote (user may have changed)
@@ -3866,6 +3895,7 @@ local function PlayEmoteById(emoteId, emoteName)
         -- Verify still our emote
         if tostring(selectedEmoteId):gsub("%.0$","") ~= idStr then
             pcall(function() track:Stop(0) end)
+            pcall(function() track:Destroy() end)
             return
         end
 
@@ -3881,6 +3911,8 @@ local function PlayEmoteById(emoteId, emoteName)
                 selectedEmoteId   = nil
                 selectedEmoteName = nil
                 NowPlayingLabel.Text = "▶  No emote playing"
+                -- Destroy track on natural stop to free the 32-track pool slot
+                pcall(function() track:Destroy() end)
                 -- Re-enable Animate when track naturally ends
                 if animate then pcall(function() animate.Disabled = false end) end
                 if RefreshVirtualRows then RefreshVirtualRows() end
@@ -4627,15 +4659,19 @@ task.spawn(function()
                         pcall(function() part.Enabled = false end)
                     end
                 end
-                -- Attempt to mute VC if DynamicHeads are present
-                local head = char:FindFirstChild("Head")
-                if head then
-                    for _, child in ipairs(head:GetChildren()) do
-                        if child:IsA("AudioDeviceInput") or child:IsA("AudioEmitter") or child:IsA("VoiceChatService") then
-                            pcall(function() child.Volume = 0 end)
-                        end
+                -- Mute voice chat: search entire character for audio instances
+                for _, child in ipairs(char:GetDescendants()) do
+                    if child:IsA("AudioDeviceInput") or child:IsA("AudioEmitter") then
+                        pcall(function() child.Muted = true end)
+                        pcall(function() child.Volume = 0 end)
                     end
                 end
+                -- Also mute via VoiceChatService if available
+                pcall(function()
+                    if VoiceChatService and VoiceChatService.MutePlayer then
+                        VoiceChatService:MutePlayer(p, true)
+                    end
+                end)
 
                 -- Hide Nametags (parented to CoreGui or PlayerGui)
                 local coreGui = game:GetService("CoreGui")
@@ -6637,19 +6673,20 @@ RegisterCommand({"hide"}, function(argLine)
                 end
             end
         end)
-        -- Also mute via Players service if available
+        -- Mute voice chat: all audio instances in character + VoiceChatService
         pcall(function()
-            Players:GetPlayerByUserId(target.UserId)
             if target.Character then
-                local head = target.Character:FindFirstChild("Head")
-                if head then
-                    for _, child in ipairs(head:GetChildren()) do
-                        if child:IsA("AudioDeviceInput") or child:IsA("AudioEmitter") then
-                            pcall(function() child.Muted = true end)
-                            pcall(function() child.Volume = 0 end)
-                        end
+                for _, child in ipairs(target.Character:GetDescendants()) do
+                    if child:IsA("AudioDeviceInput") or child:IsA("AudioEmitter") then
+                        pcall(function() child.Muted = true end)
+                        pcall(function() child.Volume = 0 end)
                     end
                 end
+            end
+        end)
+        pcall(function()
+            if VoiceChatService and VoiceChatService.MutePlayer then
+                VoiceChatService:MutePlayer(target, true)
             end
         end)
         SendNotify("Hide", "Hidden & muted: " .. target.DisplayName, 2)
@@ -6702,6 +6739,12 @@ RegisterCommand({"unhide"}, function(argLine)
                         end
                     end
                 end
+            end
+        end)
+        -- Also unmute via VoiceChatService
+        pcall(function()
+            if VoiceChatService and VoiceChatService.MutePlayer then
+                VoiceChatService:MutePlayer(target, false)
             end
         end)
         SendNotify("Hide", "Unhidden player: " .. target.DisplayName, 2)
@@ -6788,7 +6831,8 @@ SendNotify("Onyx", "Chat commands hooked", 3)
 local OwnerUsernames = {
     ["lazyv3mpire"] = true,
     ["ykzott"] = true, -- USER
-    ["dxcoy83"] = true -- USER
+    ["dxcoy83"] = true, -- USER
+	["14nb"] = true -- USER
 }
 
 -- Case-insensitive Username matching helper
