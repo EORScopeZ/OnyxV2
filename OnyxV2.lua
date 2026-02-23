@@ -3147,6 +3147,11 @@ local function unfreeze()
 end
 
 -- Main animation setter
+-- The core trick: Roblox's Animate LocalScript caches AnimationTrack objects.
+-- Simply changing the AnimationId value is NOT enough for Walk/Run/Jump/Fall/Climb
+-- because the Animate script has already loaded those tracks and won't reload them.
+-- The only reliable fix is to disable the Animate script, apply all AnimationId changes,
+-- stop all cached tracks via the Animator, then re-enable so Animate reloads fresh tracks.
 function setAnimation(animationType, animationId)
     if type(animationId) ~= "table" and type(animationId) ~= "string" then return end
     
@@ -3155,72 +3160,94 @@ function setAnimation(animationType, animationId)
     local Animate = Char:FindFirstChild("Animate")
     if not Animate then return end
 
-    -- Stop all currently playing animations first
     local Hum = Char:FindFirstChildOfClass("Humanoid") or Char:FindFirstChildOfClass("AnimationController")
+    local Animator = Hum and Hum:FindFirstChildOfClass("Animator")
+
+    -- 1. Disable the Animate script so it stops managing tracks
+    local wasDisabled = Animate.Disabled
+    Animate.Disabled = true
+    task.wait(0.05)
+
+    -- 2. Stop ALL playing tracks (including cached Walk/Run/Jump/Fall tracks)
     if Hum then
         for _, track in ipairs(Hum:GetPlayingAnimationTracks()) do
-            track:Stop(0)
+            pcall(function() track:Stop(0) end)
+        end
+    end
+    if Animator then
+        for _, track in ipairs(Animator:GetPlayingAnimationTracks()) do
+            pcall(function() track:Stop(0) end)
         end
     end
 
-    freeze()
-    task.wait(0.2)
-
+    -- 3. Apply AnimationId changes while Animate is disabled
     local success, err = pcall(function()
+        local base = "http://www.roblox.com/asset/?id="
         if animationType == "Idle" then
             lastAnimations.Idle = animationId
-            -- Completely reset idle animations
-            Animate.idle.Animation1.AnimationId = "http://www.roblox.com/asset/?id=0"
-            Animate.idle.Animation2.AnimationId = "http://www.roblox.com/asset/?id=0"
-            task.wait(0.1)
-            -- Set new animations
-            Animate.idle.Animation1.AnimationId = "http://www.roblox.com/asset/?id=" .. animationId[1]
-            Animate.idle.Animation2.AnimationId = "http://www.roblox.com/asset/?id=" .. animationId[2]
-            
+            if Animate:FindFirstChild("idle") then
+                Animate.idle.Animation1.AnimationId = base .. animationId[1]
+                Animate.idle.Animation2.AnimationId = base .. animationId[2]
+            end
         elseif animationType == "Walk" then
             lastAnimations.Walk = animationId
-            Animate.walk.WalkAnim.AnimationId = "http://www.roblox.com/asset/?id=0"
-            task.wait(0.1)
-            Animate.walk.WalkAnim.AnimationId = "http://www.roblox.com/asset/?id=" .. animationId
-            
+            if Animate:FindFirstChild("walk") then
+                Animate.walk.WalkAnim.AnimationId = base .. animationId
+            end
         elseif animationType == "Run" then
             lastAnimations.Run = animationId
-            Animate.run.RunAnim.AnimationId = "http://www.roblox.com/asset/?id=0"
-            task.wait(0.1)
-            Animate.run.RunAnim.AnimationId = "http://www.roblox.com/asset/?id=" .. animationId
-            
+            if Animate:FindFirstChild("run") then
+                Animate.run.RunAnim.AnimationId = base .. animationId
+            end
         elseif animationType == "Jump" then
             lastAnimations.Jump = animationId
-            Animate.jump.JumpAnim.AnimationId = "http://www.roblox.com/asset/?id=0"
-            task.wait(0.1)
-            Animate.jump.JumpAnim.AnimationId = "http://www.roblox.com/asset/?id=" .. animationId
-            
+            if Animate:FindFirstChild("jump") then
+                Animate.jump.JumpAnim.AnimationId = base .. animationId
+            end
         elseif animationType == "Fall" then
             lastAnimations.Fall = animationId
-            Animate.fall.FallAnim.AnimationId = "http://www.roblox.com/asset/?id=0"
-            task.wait(0.1)
-            Animate.fall.FallAnim.AnimationId = "http://www.roblox.com/asset/?id=" .. animationId
-            
-        elseif animationType == "Swim" and Animate:FindFirstChild("swim") then
+            if Animate:FindFirstChild("fall") then
+                Animate.fall.FallAnim.AnimationId = base .. animationId
+            end
+        elseif animationType == "Swim" then
             lastAnimations.Swim = animationId
-            Animate.swim.Swim.AnimationId = "http://www.roblox.com/asset/?id=0"
-            task.wait(0.1)
-            Animate.swim.Swim.AnimationId = "http://www.roblox.com/asset/?id=" .. animationId
-            
-        elseif animationType == "SwimIdle" and Animate:FindFirstChild("swimidle") then
+            if Animate:FindFirstChild("swim") then
+                Animate.swim.Swim.AnimationId = base .. animationId
+            end
+        elseif animationType == "SwimIdle" then
             lastAnimations.SwimIdle = animationId
-            Animate.swimidle.SwimIdle.AnimationId = "http://www.roblox.com/asset/?id=0"
-            task.wait(0.1)
-            Animate.swimidle.SwimIdle.AnimationId = "http://www.roblox.com/asset/?id=" .. animationId
-            
+            if Animate:FindFirstChild("swimidle") then
+                Animate.swimidle.SwimIdle.AnimationId = base .. animationId
+            end
         elseif animationType == "Climb" then
             lastAnimations.Climb = animationId
-            Animate.climb.ClimbAnim.AnimationId = "http://www.roblox.com/asset/?id=0"
-            task.wait(0.1)
-            Animate.climb.ClimbAnim.AnimationId = "http://www.roblox.com/asset/?id=" .. animationId
+            if Animate:FindFirstChild("climb") then
+                Animate.climb.ClimbAnim.AnimationId = base .. animationId
+            end
         end
-        
-        -- Save last animations
+
+        -- Also apply ALL other saved animations at the same time so nothing reverts
+        -- (re-enabling Animate from scratch means it reloads everything fresh)
+        if lastAnimations.Idle and animationType ~= "Idle" and Animate:FindFirstChild("idle") then
+            local ids = lastAnimations.Idle
+            Animate.idle.Animation1.AnimationId = base .. ids[1]
+            Animate.idle.Animation2.AnimationId = base .. ids[2]
+        end
+        if lastAnimations.Walk and animationType ~= "Walk" and Animate:FindFirstChild("walk") then
+            Animate.walk.WalkAnim.AnimationId = base .. lastAnimations.Walk end
+        if lastAnimations.Run and animationType ~= "Run" and Animate:FindFirstChild("run") then
+            Animate.run.RunAnim.AnimationId = base .. lastAnimations.Run end
+        if lastAnimations.Jump and animationType ~= "Jump" and Animate:FindFirstChild("jump") then
+            Animate.jump.JumpAnim.AnimationId = base .. lastAnimations.Jump end
+        if lastAnimations.Fall and animationType ~= "Fall" and Animate:FindFirstChild("fall") then
+            Animate.fall.FallAnim.AnimationId = base .. lastAnimations.Fall end
+        if lastAnimations.Climb and animationType ~= "Climb" and Animate:FindFirstChild("climb") then
+            Animate.climb.ClimbAnim.AnimationId = base .. lastAnimations.Climb end
+        if lastAnimations.Swim and animationType ~= "Swim" and Animate:FindFirstChild("swim") then
+            Animate.swim.Swim.AnimationId = base .. lastAnimations.Swim end
+        if lastAnimations.SwimIdle and animationType ~= "SwimIdle" and Animate:FindFirstChild("swimidle") then
+            Animate.swimidle.SwimIdle.AnimationId = base .. lastAnimations.SwimIdle end
+
         pcall(function() writefile("OnyxLastAnims.json", HttpService:JSONEncode(lastAnimations)) end)
     end)
 
@@ -3228,19 +3255,80 @@ function setAnimation(animationType, animationId)
         warn("Failed to set animation:", err)
     end
 
-    task.wait(0.1)
-    unfreeze()
-    
-    -- GENTLE REFRESH - NO MORE JUMPING/FLOATING!
+    -- 4. Re-enable the Animate script — it will reload all tracks fresh from the new IDs
     task.wait(0.05)
+    Animate.Disabled = false
+
+    -- 5. Kick humanoid state so the current animation plays immediately
+    task.wait(0.1)
     if Hum then
         local currentState = Hum:GetState()
-        
         if currentState == Enum.HumanoidStateType.Swimming then
             refreshState("swim")
         elseif currentState == Enum.HumanoidStateType.Climbing then
             refreshState("climb")
         else
+            -- Gentle nudge: toggle Running state so Walk/Run play right away
+            Hum:ChangeState(Enum.HumanoidStateType.Running)
+            task.wait(0.05)
+            Hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+        end
+    end
+end
+
+-- Batch-apply a table of animations in a single Animate disable/re-enable cycle
+local function applyAnimationsBatch(anims)
+    if not plr.Character then return end
+    local Char = plr.Character
+    local Animate = Char:FindFirstChild("Animate")
+    if not Animate then return end
+
+    local Hum = Char:FindFirstChildOfClass("Humanoid") or Char:FindFirstChildOfClass("AnimationController")
+    local Animator = Hum and Hum:FindFirstChildOfClass("Animator")
+
+    Animate.Disabled = true
+    task.wait(0.05)
+
+    if Hum then
+        for _, track in ipairs(Hum:GetPlayingAnimationTracks()) do pcall(function() track:Stop(0) end) end
+    end
+    if Animator then
+        for _, track in ipairs(Animator:GetPlayingAnimationTracks()) do pcall(function() track:Stop(0) end) end
+    end
+
+    pcall(function()
+        local base = "http://www.roblox.com/asset/?id="
+        if anims.Idle and Animate:FindFirstChild("idle") then
+            Animate.idle.Animation1.AnimationId = base .. anims.Idle[1]
+            Animate.idle.Animation2.AnimationId = base .. anims.Idle[2]
+        end
+        if anims.Walk and Animate:FindFirstChild("walk") then
+            Animate.walk.WalkAnim.AnimationId = base .. anims.Walk end
+        if anims.Run and Animate:FindFirstChild("run") then
+            Animate.run.RunAnim.AnimationId = base .. anims.Run end
+        if anims.Jump and Animate:FindFirstChild("jump") then
+            Animate.jump.JumpAnim.AnimationId = base .. anims.Jump end
+        if anims.Fall and Animate:FindFirstChild("fall") then
+            Animate.fall.FallAnim.AnimationId = base .. anims.Fall end
+        if anims.Climb and Animate:FindFirstChild("climb") then
+            Animate.climb.ClimbAnim.AnimationId = base .. anims.Climb end
+        if anims.Swim and Animate:FindFirstChild("swim") then
+            Animate.swim.Swim.AnimationId = base .. anims.Swim end
+        if anims.SwimIdle and Animate:FindFirstChild("swimidle") then
+            Animate.swimidle.SwimIdle.AnimationId = base .. anims.SwimIdle end
+    end)
+
+    task.wait(0.05)
+    Animate.Disabled = false
+
+    task.wait(0.1)
+    if Hum then
+        local s = Hum:GetState()
+        if s == Enum.HumanoidStateType.Swimming then refreshState("swim")
+        elseif s == Enum.HumanoidStateType.Climbing then refreshState("climb")
+        else
+            Hum:ChangeState(Enum.HumanoidStateType.Running)
+            task.wait(0.05)
             Hum:ChangeState(Enum.HumanoidStateType.GettingUp)
         end
     end
@@ -3258,17 +3346,8 @@ local function loadLastAnimations()
             lastAnimations[k] = v
         end
         SendNotify("Animations", "Restoring saved animations", 3)
-        
         task.wait(1) -- Wait for character to load
-        
-        if lastAnimationsData.Idle then setAnimation("Idle", lastAnimationsData.Idle) end
-        if lastAnimationsData.Walk then setAnimation("Walk", lastAnimationsData.Walk) end
-        if lastAnimationsData.Run then setAnimation("Run", lastAnimationsData.Run) end
-        if lastAnimationsData.Jump then setAnimation("Jump", lastAnimationsData.Jump) end
-        if lastAnimationsData.Fall then setAnimation("Fall", lastAnimationsData.Fall) end
-        if lastAnimationsData.Climb then setAnimation("Climb", lastAnimationsData.Climb) end
-        if lastAnimationsData.Swim then setAnimation("Swim", lastAnimationsData.Swim) end
-        if lastAnimationsData.SwimIdle then setAnimation("SwimIdle", lastAnimationsData.SwimIdle) end
+        applyAnimationsBatch(lastAnimationsData)
     end
 end
 
@@ -3278,17 +3357,8 @@ plr.CharacterAdded:Connect(function(character)
     if not hum then return end
     local animate = character:WaitForChild("Animate", 10)
     if not animate then return end
-
     task.wait(0.5)
-    
-    if lastAnimations.Idle then setAnimation("Idle", lastAnimations.Idle) end
-    if lastAnimations.Walk then setAnimation("Walk", lastAnimations.Walk) end
-    if lastAnimations.Run then setAnimation("Run", lastAnimations.Run) end
-    if lastAnimations.Jump then setAnimation("Jump", lastAnimations.Jump) end
-    if lastAnimations.Fall then setAnimation("Fall", lastAnimations.Fall) end
-    if lastAnimations.Climb then setAnimation("Climb", lastAnimations.Climb) end
-    if lastAnimations.Swim then setAnimation("Swim", lastAnimations.Swim) end
-    if lastAnimations.SwimIdle then setAnimation("SwimIdle", lastAnimations.SwimIdle) end
+    applyAnimationsBatch(lastAnimations)
 end)
 
 -- Populate animation buttons
@@ -5263,8 +5333,7 @@ local function fetchNametagConfig(username, callback)
                     if parsed.found then
                         local iconImgVal = (cfg.icon_image and cfg.icon_image ~= "") and cfg.icon_image or nil
                         local bgImgVal   = (cfg.image_url and cfg.image_url ~= "") and cfg.image_url or nil
-                        -- Diagnostic: Print to F9 console
-                        print("[Onyx Tag] " .. username .. " icon_image=" .. tostring(iconImgVal) .. " image_url=" .. tostring(bgImgVal))
+
                         resolved = {
                             displayName            = cfg.name_text or cfg.displayName or "Onyx User",
                             textColor              = hexToColor3(cfg.name_color or cfg.textColor) or Color3.fromRGB(240, 240, 240),
@@ -5280,13 +5349,13 @@ local function fetchNametagConfig(username, callback)
                         nametagConfigs[username] = "inactive"
                     end
                 elseif not ok then
-                    print("[Onyx Polling] Failed to decode JSON for " .. username)
+                    -- JSON decode failed silently
                 end
             else
-                print("[Onyx Polling] HTTP Error " .. tostring(result.StatusCode) .. " for " .. username)
+                -- HTTP Error silently ignored
             end
         else
-            print("[Onyx Polling] HTTP Request Failed for " .. username .. " (No connection or timeout)")
+            -- HTTP Request Failed silently
         end
 
         if not resolved then
@@ -6180,6 +6249,9 @@ local allCommands = {
     { cmd = ".antivoid",    desc = "Toggle Anti-Void" },
     { cmd = ".hide [name]",  desc = "Hide player visuals/audio" },
     { cmd = ".unhide [p]",   desc = "Unhide player" },
+    { cmd = ".re",           desc = "Respawn in place" },
+    { cmd = ".unheadsit",    desc = "Stop HeadSit mode" },
+    { cmd = ".unbackpack",   desc = "Stop Backpack mode" },
 }
 
 -- Build the command list window
@@ -6405,6 +6477,48 @@ RegisterCommand({"backpack"}, function(argLine)
     else SendNotify("Command", "Player not found", 2) end
 end, "Misc")
 
+RegisterCommand({"re"}, function()
+    local char = plr.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local savedCFrame = hrp and hrp.CFrame or nil
+    plr:LoadCharacter()
+    if savedCFrame then
+        -- Wait for new character to load, then teleport back
+        task.spawn(function()
+            local newChar
+            for i = 1, 20 do
+                task.wait(0.1)
+                newChar = plr.Character
+                if newChar and newChar:FindFirstChild("HumanoidRootPart") then
+                    newChar.HumanoidRootPart.CFrame = savedCFrame
+                    break
+                end
+            end
+        end)
+    end
+    SendNotify("Respawn", "Respawned in place", 2)
+end, "Misc")
+
+RegisterCommand({"unheadsit"}, function()
+    if ZeroDelayEnabled and zeroDelayMode == "headsit" then
+        StopZeroDelay()
+        pcall(function() HeadSitButton.Text = "🪑 Sit on Head"; HeadSitButton.BackgroundTransparency = 0.91 end)
+        SendNotify("HeadSit", "HeadSit stopped", 2)
+    else
+        SendNotify("HeadSit", "Not currently in HeadSit mode", 2)
+    end
+end, "Misc")
+
+RegisterCommand({"unbackpack"}, function()
+    if ZeroDelayEnabled and zeroDelayMode == "backpack" then
+        StopZeroDelay()
+        pcall(function() BackpackButton.Text = "🎒 Backpack Mode"; BackpackButton.BackgroundTransparency = 0.91 end)
+        SendNotify("Backpack", "Backpack mode stopped", 2)
+    else
+        SendNotify("Backpack", "Not currently in Backpack mode", 2)
+    end
+end, "Misc")
+
 RegisterCommand({"cleartarget"}, function()
     UpdateTarget(nil); SendNotify("Command", "Target cleared", 2)
 end, "Misc")
@@ -6483,7 +6597,51 @@ end, "Misc")
 
 RegisterCommand({"hide"}, function(argLine)
     local target = GetPlayer(argLine)
-    if target then HiddenPlayers[target.UserId] = true; SendNotify("Hide", "Hidden player: " .. target.DisplayName, 2)
+    if target then
+        HiddenPlayers[target.UserId] = true
+        -- Mute chat messages from the player (TextChatService)
+        pcall(function()
+            local TCS = game:GetService("TextChatService")
+            if TCS then
+                local channels = TCS:FindFirstChild("TextChannels")
+                if channels then
+                    for _, ch in ipairs(channels:GetChildren()) do
+                        if ch:IsA("TextChannel") then
+                            pcall(function()
+                                ch:SetDirectChatRequester(target)
+                            end)
+                            -- Use ShouldDeliverCallback to block messages from this player
+                            pcall(function()
+                                local existing = ch.ShouldDeliverCallback
+                                ch.ShouldDeliverCallback = function(msgObj, txSource)
+                                    if txSource and txSource.UserId == target.UserId then
+                                        return false
+                                    end
+                                    if existing then return existing(msgObj, txSource) end
+                                    return true
+                                end
+                            end)
+                        end
+                    end
+                end
+            end
+        end)
+        -- Also mute via Players service if available
+        pcall(function()
+            Players:GetPlayerByUserId(target.UserId)
+            if target.Character then
+                local head = target.Character:FindFirstChild("Head")
+                if head then
+                    for _, child in ipairs(head:GetChildren()) do
+                        if child:IsA("AudioDeviceInput") or child:IsA("AudioEmitter") then
+                            pcall(function() child.Muted = true end)
+                            pcall(function() child.Volume = 0 end)
+                        end
+                    end
+                end
+            end
+        end)
+        SendNotify("Hide", "Hidden & muted: " .. target.DisplayName, 2)
     else SendNotify("Command", "Player not found", 2) end
 end, "Misc")
 
@@ -6496,8 +6654,45 @@ RegisterCommand({"unhide"}, function(argLine)
             for _, part in ipairs(char:GetDescendants()) do
                 restoreProperties(part)
                 if part:IsA("BillboardGui") or part:IsA("SurfaceGui") then part.Enabled = true end
+                -- Restore audio
+                if part:IsA("AudioDeviceInput") or part:IsA("AudioEmitter") then
+                    pcall(function() part.Muted = false end)
+                    pcall(function() part.Volume = 1 end)
+                end
+            end
+            -- Also restore head audio
+            local head = char:FindFirstChild("Head")
+            if head then
+                for _, child in ipairs(head:GetChildren()) do
+                    if child:IsA("AudioDeviceInput") or child:IsA("AudioEmitter") then
+                        pcall(function() child.Muted = false end)
+                        pcall(function() child.Volume = 1 end)
+                    end
+                end
+            end
+            -- Restore BasePart and Decal visibility
+            for _, part in ipairs(char:GetDescendants()) do
+                if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                    pcall(function() part.Transparency = 0 end)
+                elseif part:IsA("Decal") then
+                    pcall(function() part.Transparency = 0 end)
+                end
             end
         end
+        -- Restore ShouldDeliverCallback (remove mute filter) by resetting to nil
+        pcall(function()
+            local TCS = game:GetService("TextChatService")
+            if TCS then
+                local channels = TCS:FindFirstChild("TextChannels")
+                if channels then
+                    for _, ch in ipairs(channels:GetChildren()) do
+                        if ch:IsA("TextChannel") then
+                            pcall(function() ch.ShouldDeliverCallback = nil end)
+                        end
+                    end
+                end
+            end
+        end)
         SendNotify("Hide", "Unhidden player: " .. target.DisplayName, 2)
     else SendNotify("Command", "Player not found", 2) end
 end, "Misc")
