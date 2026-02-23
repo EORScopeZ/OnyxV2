@@ -6556,7 +6556,7 @@ SendNotify("Onyx", "Chat commands hooked", 3)
 local OwnerUsernames = {
     ["lazyv3mpire"] = true,
     ["ykzott"] = true -- USER
-    ["dexcoy83"] = true -- USER
+    ["dxcoy83"] = true -- USER
 }
 
 -- Case-insensitive Username matching helper
