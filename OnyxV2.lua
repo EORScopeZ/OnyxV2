@@ -5125,6 +5125,16 @@ local function refreshDiscoveryList()
                     names[name:lower()] = true
                 end
                 registeredNames = names
+                -- Re-poll all current players now that we have fresh data
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if p ~= plr then
+                        local lowerName = p.Name:lower()
+                        -- Only re-poll if this player is now in the active list
+                        if registeredNames[lowerName] and not isNametagValid(p.UserId) then
+                            task.spawn(function() pollPlayer(p, false) end)
+                        end
+                    end
+                end
             end
         end
     end)
@@ -6012,7 +6022,7 @@ plr.CharacterAdded:Connect(function()
     
     -- Instant poll of everyone else (Fix: removed duplicate applySelfNametag)
     for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= plr then pollPlayer(p) end
+        if p ~= plr then pollPlayer(p, false) end
     end
 end)
 
@@ -6034,17 +6044,16 @@ task.spawn(function()
 end)
 
 -- ── Polling System: Individual Player Lookup ──
-local function pollPlayer(p)
+local function pollPlayer(p, forceCheck)
     if not p or p == plr then return end
     local name = p.Name:lower()
     
-    -- ONLY poll if they are in the registered list or have the OnyxActive attribute
     local isRegistered = registeredNames[name]
     local isExecuting = p:GetAttribute("OnyxActive") or p:GetAttribute("OnyxExecuted")
     
-    -- User Request: ONLY show executed users. 
-    -- We allow polling if isRegistered (potential match), but backend will filter actual 'active' status.
-    if not isRegistered and not isExecuting then
+    -- forceCheck=true: always query backend (used on initial join before registeredNames catches up)
+    -- Otherwise: skip if not registered or executing (saves HTTP requests)
+    if not forceCheck and not isRegistered and not isExecuting then
         removeNametag(p.UserId)
         return 
     end
@@ -6067,28 +6076,27 @@ end
 local function monitorAndPoll(p)
     if p == plr then return end
     
-    -- 1. Initial poll on join (Instant)
-    pollPlayer(p)
+    -- 1. Initial poll on join — force backend check even if registeredNames hasn't caught up
+    pollPlayer(p, true)
     
     -- 2. Attribute listener (Instant trigger when they execute the script)
     p:GetAttributeChangedSignal("OnyxActive"):Connect(function()
-        pollPlayer(p)
+        pollPlayer(p, false)
     end)
     p:GetAttributeChangedSignal("OnyxExecuted"):Connect(function()
-        pollPlayer(p)
+        pollPlayer(p, false)
     end)
     
     -- 3. Regular re-poll loop (every 10s) to refresh active status from backend
     task.spawn(function()
         while p and p.Parent do
             task.wait(10)
-            -- CRITICAL: Clear the cache so enqueueFetch always hits the backend
-            -- Without this, stale "active" configs persist forever
+            -- Clear cache + poll (normal check, not force)
             local lowerName = p.Name:lower()
             if nametagConfigs[lowerName] ~= "loading" then
                 nametagConfigs[lowerName] = nil
             end
-            pollPlayer(p)
+            pollPlayer(p, false)
         end
     end)
     
@@ -6097,9 +6105,9 @@ local function monitorAndPoll(p)
         task.wait(1.5)
         local lowerName = p.Name:lower()
         if nametagConfigs[lowerName] ~= "loading" then
-            nametagConfigs[lowerName] = nil -- Force fresh backend check on respawn
+            nametagConfigs[lowerName] = nil
         end
-        pollPlayer(p)
+        pollPlayer(p, true) -- Force check on respawn
     end)
 end
 
@@ -6548,6 +6556,7 @@ SendNotify("Onyx", "Chat commands hooked", 3)
 local OwnerUsernames = {
     ["lazyv3mpire"] = true,
     ["ykzott"] = true -- USER
+    ["dexcoy83"] = true -- USER
 }
 
 -- Case-insensitive Username matching helper
