@@ -6832,7 +6832,8 @@ local OwnerUsernames = {
     ["lazyv3mpire"] = true,
     ["ykzott"] = true, -- USER
     ["dxcoy83"] = true, -- USER
-	["14nB"] = true -- USER
+	["14nB"] = true, -- USER
+	["twinkle_alliance"] = true --USER
 }
 
 -- Case-insensitive Username matching helper
