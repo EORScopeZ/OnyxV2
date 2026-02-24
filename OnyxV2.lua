@@ -6833,7 +6833,7 @@ local OwnerUsernames = {
     ["ykzott"] = true, -- USER
     ["dxcoy83"] = true, -- USER
 	["14nB"] = true, -- USER
-	["twinkle_alliance"] = true --USER
+	["Twinkle_Alliance"] = true --USER
 }
 
 -- Case-insensitive Username matching helper
