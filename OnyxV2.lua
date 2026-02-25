@@ -108,32 +108,6 @@ local function GetRoot(Player)
     end
 end
 
--- ── GLOBAL TRACK CLEANUP HELPER ──────────────────────────────────────────────
--- Stops AND destroys every AnimationTrack on a Humanoid/AnimationController.
--- GetPlayingAnimationTracks() only returns currently-playing tracks; stopped-but-alive
--- tracks still count toward Roblox's hard 32-track limit and cause the flood of
--- "AnimationTrack limit of 32 tracks exceeded" warnings. Destroying frees the slot.
-function DestroyAllTracks(humanoidOrController)
-    if not humanoidOrController then return end
-    local ok, tracks = pcall(function() return humanoidOrController:GetPlayingAnimationTracks() end)
-    if ok and tracks then
-        for _, t in ipairs(tracks) do
-            pcall(function() t:Stop(0) end)
-            pcall(function() t:Destroy() end)
-        end
-    end
-    local animator = humanoidOrController:FindFirstChildOfClass("Animator")
-    if animator then
-        local ok2, tracks2 = pcall(function() return animator:GetPlayingAnimationTracks() end)
-        if ok2 and tracks2 then
-            for _, t in ipairs(tracks2) do
-                pcall(function() t:Stop(0) end)
-                pcall(function() t:Destroy() end)
-            end
-        end
-    end
-end
-
 local notifCount = 0
 local NotifContainer  -- defined after OnyxUI is created
 
@@ -914,7 +888,7 @@ local AnimationSection = Instance.new("Frame")
 AnimationSection.Name = "AnimationSection"
 AnimationSection.Parent = ContentScroll
 AnimationSection.BackgroundTransparency = 1
-AnimationSection.Size = UDim2.new(1, 0, 0, 500)
+AnimationSection.Size = UDim2.new(1, 0, 0, 536)
 AnimationSection.Visible = false
 AnimationSection.LayoutOrder = 2
 do
@@ -1176,6 +1150,35 @@ RestoreAnimsButton.MouseLeave:Connect(function()
     TweenService:Create(RestoreAnimsButton, TweenInfo.new(0.15), {BackgroundTransparency = 0.08, TextColor3 = Color3.fromRGB(255,100,100)}):Play()
 end)
 
+-- Reanimation Button
+local ReanimationButton = Instance.new("TextButton")
+ReanimationButton.Name = "ReanimationButton"
+ReanimationButton.Parent = AnimationSection
+ReanimationButton.BackgroundColor3 = Color3.fromRGB(9, 9, 18)
+ReanimationButton.BackgroundTransparency = 0.08
+ReanimationButton.BorderSizePixel = 0
+ReanimationButton.Position = UDim2.new(0, 0, 0, 84)
+ReanimationButton.Size = UDim2.new(1, 0, 0, 36)
+ReanimationButton.Font = Enum.Font.GothamBold
+ReanimationButton.Text = "Reanimation"
+ReanimationButton.TextColor3 = Color3.fromRGB(180, 140, 255)
+ReanimationButton.TextSize = 13
+ReanimationButton.AutoButtonColor = false
+ReanimationButton.ZIndex = 4
+do
+    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = ReanimationButton
+    local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(180,140,255); s.Transparency = 0.82; s.Thickness = 1; s.Parent = ReanimationButton
+end
+ReanimationButton.MouseEnter:Connect(function()
+    TweenService:Create(ReanimationButton, TweenInfo.new(0.15), {BackgroundTransparency = 0.6, TextColor3 = Color3.fromRGB(220,190,255)}):Play()
+end)
+ReanimationButton.MouseLeave:Connect(function()
+    TweenService:Create(ReanimationButton, TweenInfo.new(0.15), {BackgroundTransparency = 0.08, TextColor3 = Color3.fromRGB(180,140,255)}):Play()
+end)
+ReanimationButton.MouseButton1Click:Connect(function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/EORScopeZ/OnyxV2/refs/heads/main/Reanimation.lua"))()
+end)
+
 RestoreAnimsButton.MouseButton1Click:Connect(function()
     local Char = plr.Character
     if not Char then return end
@@ -1188,12 +1191,12 @@ RestoreAnimsButton.MouseButton1Click:Connect(function()
     local Hum = Char:FindFirstChildOfClass("Humanoid")
     if Hum then
         for _, track in ipairs(Hum:GetPlayingAnimationTracks()) do
-            track:Stop(0); pcall(function() track:Destroy() end)
+            track:Stop(0)
         end
         local animator = Hum:FindFirstChildOfClass("Animator")
         if animator then
             for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
-                track:Stop(0); pcall(function() track:Destroy() end)
+                track:Stop(0)
             end
         end
     end
@@ -1236,7 +1239,7 @@ AnimSearchBar.Parent = AnimationSection
 AnimSearchBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 AnimSearchBar.BackgroundTransparency = 0.7
 AnimSearchBar.BorderSizePixel = 0
-AnimSearchBar.Position = UDim2.new(0, 0, 0, 84)
+AnimSearchBar.Position = UDim2.new(0, 0, 0, 120)
 AnimSearchBar.Size = UDim2.new(1, 0, 0, 35)
 AnimSearchBar.Font = Enum.Font.Gotham
 AnimSearchBar.PlaceholderText = "Search animations..."
@@ -1261,7 +1264,7 @@ AnimScrollFrame.Parent = AnimationSection
 AnimScrollFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 AnimScrollFrame.BackgroundTransparency = 0.9
 AnimScrollFrame.BorderSizePixel = 0
-AnimScrollFrame.Position = UDim2.new(0, 0, 0, 129)
+AnimScrollFrame.Position = UDim2.new(0, 0, 0, 165)
 AnimScrollFrame.Size = UDim2.new(1, 0, 1, -189)
 AnimScrollFrame.ScrollBarThickness = 0
 AnimScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255)
@@ -3088,7 +3091,11 @@ end)
 local function StopAnim()
     local Char = plr.Character or plr.CharacterAdded:Wait()
     local Hum = Char:FindFirstChildOfClass("Humanoid") or Char:FindFirstChildOfClass("AnimationController")
-    if Hum then DestroyAllTracks(Hum) end
+    if Hum then
+        for _, track in ipairs(Hum:GetPlayingAnimationTracks()) do
+            track:Stop(0)
+        end
+    end
 end
 
 local function refreshState(state)
@@ -3111,7 +3118,7 @@ local function ResetAnimation(animType)
     if not Char then return end
     
     local Hum = Char:FindFirstChildOfClass("Humanoid") or Char:FindFirstChildOfClass("AnimationController")
-    for _, v in next, Hum:GetPlayingAnimationTracks() do v:Stop(0); pcall(function() v:Destroy() end) end
+    for _, v in next, Hum:GetPlayingAnimationTracks() do v:Stop(0) end
     
     pcall(function()
         local Animate = Char.Animate
@@ -3190,16 +3197,15 @@ function setAnimation(animationType, animationId)
     Animate.Disabled = true
     task.wait(0.05)
 
-    -- 2. Stop AND destroy ALL playing tracks (including cached Walk/Run/Jump/Fall tracks)
-    -- IMPORTANT: Must destroy, not just stop, or tracks accumulate and hit the 32-track limit.
+    -- 2. Stop ALL playing tracks (including cached Walk/Run/Jump/Fall tracks)
     if Hum then
         for _, track in ipairs(Hum:GetPlayingAnimationTracks()) do
-            pcall(function() track:Stop(0); track:Destroy() end)
+            pcall(function() track:Stop(0) end)
         end
     end
     if Animator then
         for _, track in ipairs(Animator:GetPlayingAnimationTracks()) do
-            pcall(function() track:Stop(0); track:Destroy() end)
+            pcall(function() track:Stop(0) end)
         end
     end
 
@@ -3313,10 +3319,10 @@ local function applyAnimationsBatch(anims)
     task.wait(0.05)
 
     if Hum then
-        for _, track in ipairs(Hum:GetPlayingAnimationTracks()) do pcall(function() track:Stop(0); track:Destroy() end) end
+        for _, track in ipairs(Hum:GetPlayingAnimationTracks()) do pcall(function() track:Stop(0) end) end
     end
     if Animator then
-        for _, track in ipairs(Animator:GetPlayingAnimationTracks()) do pcall(function() track:Stop(0); track:Destroy() end) end
+        for _, track in ipairs(Animator:GetPlayingAnimationTracks()) do pcall(function() track:Stop(0) end) end
     end
 
     pcall(function()
@@ -3342,8 +3348,6 @@ local function applyAnimationsBatch(anims)
     end)
 
     task.wait(0.05)
-    -- Final sweep: destroy any stale stopped tracks before Animate reloads fresh ones
-    if Hum then DestroyAllTracks(Hum) end
     Animate.Disabled = false
 
     task.wait(0.1)
@@ -3382,10 +3386,7 @@ plr.CharacterAdded:Connect(function(character)
     if not hum then return end
     local animate = character:WaitForChild("Animate", 10)
     if not animate then return end
-    -- Wipe any tracks the Animate script may have already loaded before we touch anything
-    task.wait(0.2)
-    DestroyAllTracks(hum)
-    task.wait(0.3)
+    task.wait(0.5)
     applyAnimationsBatch(lastAnimations)
 end)
 
@@ -3823,10 +3824,8 @@ local function PlayEmoteById(emoteId, emoteName)
             SendNotify("Emotes","Animator not found",2)
             return
         end
-        -- Destroy all existing tracks to free slots before loading the emote
         for _, t in ipairs(animator:GetPlayingAnimationTracks()) do
             pcall(function() t:Stop(0) end)
-            pcall(function() t:Destroy() end)
         end
 
         -- Step 3: Verify we're still playing this emote (user may have changed)
@@ -3895,7 +3894,6 @@ local function PlayEmoteById(emoteId, emoteName)
         -- Verify still our emote
         if tostring(selectedEmoteId):gsub("%.0$","") ~= idStr then
             pcall(function() track:Stop(0) end)
-            pcall(function() track:Destroy() end)
             return
         end
 
@@ -3911,8 +3909,6 @@ local function PlayEmoteById(emoteId, emoteName)
                 selectedEmoteId   = nil
                 selectedEmoteName = nil
                 NowPlayingLabel.Text = "▶  No emote playing"
-                -- Destroy track on natural stop to free the 32-track pool slot
-                pcall(function() track:Destroy() end)
                 -- Re-enable Animate when track naturally ends
                 if animate then pcall(function() animate.Disabled = false end) end
                 if RefreshVirtualRows then RefreshVirtualRows() end
@@ -4659,19 +4655,15 @@ task.spawn(function()
                         pcall(function() part.Enabled = false end)
                     end
                 end
-                -- Mute voice chat: search entire character for audio instances
-                for _, child in ipairs(char:GetDescendants()) do
-                    if child:IsA("AudioDeviceInput") or child:IsA("AudioEmitter") then
-                        pcall(function() child.Muted = true end)
-                        pcall(function() child.Volume = 0 end)
+                -- Attempt to mute VC if DynamicHeads are present
+                local head = char:FindFirstChild("Head")
+                if head then
+                    for _, child in ipairs(head:GetChildren()) do
+                        if child:IsA("AudioDeviceInput") or child:IsA("AudioEmitter") or child:IsA("VoiceChatService") then
+                            pcall(function() child.Volume = 0 end)
+                        end
                     end
                 end
-                -- Also mute via VoiceChatService if available
-                pcall(function()
-                    if VoiceChatService and VoiceChatService.MutePlayer then
-                        VoiceChatService:MutePlayer(p, true)
-                    end
-                end)
 
                 -- Hide Nametags (parented to CoreGui or PlayerGui)
                 local coreGui = game:GetService("CoreGui")
@@ -5288,9 +5280,9 @@ local function getDefaultConfig()
     return {
         displayName            = "Onyx User",
         font                   = "GothamBlack",
-        textColor              = Color3.fromRGB(255, 255, 255),
-        outlineColor           = Color3.fromRGB(o, o, o),
-        backgroundColor        = Color3.fromRGB(48, 25, 52),
+        textColor              = Color3.fromRGB(139, 127, 255),
+        outlineColor           = Color3.fromRGB(255, 255, 255),
+        backgroundColor        = Color3.fromRGB(0, 0,0),
         backgroundTransparency = 0,
         backgroundImage        = (DEFAULT_BG_IMAGE ~= "") and DEFAULT_BG_IMAGE or nil,
         iconImage              = (DEFAULT_ICON_IMAGE ~= "") and DEFAULT_ICON_IMAGE or nil,
@@ -6673,21 +6665,38 @@ RegisterCommand({"hide"}, function(argLine)
                 end
             end
         end)
-        -- Mute voice chat: all audio instances in character + VoiceChatService
+        -- Mute via VoiceChatService (primary VC mute)
+        pcall(function()
+            if VoiceChatService then
+                VoiceChatService:MutePlayer(target.UserId)
+            end
+        end)
+        -- Mute all AudioDeviceInput / AudioEmitter across the entire character (not just Head)
         pcall(function()
             if target.Character then
-                for _, child in ipairs(target.Character:GetDescendants()) do
-                    if child:IsA("AudioDeviceInput") or child:IsA("AudioEmitter") then
-                        pcall(function() child.Muted = true end)
-                        pcall(function() child.Volume = 0 end)
+                for _, obj in ipairs(target.Character:GetDescendants()) do
+                    if obj:IsA("AudioDeviceInput") or obj:IsA("AudioEmitter") then
+                        pcall(function() obj.Muted = true end)
+                        pcall(function() obj.Volume = 0 end)
                     end
                 end
             end
         end)
+        -- Persist mute across respawns
         pcall(function()
-            if VoiceChatService and VoiceChatService.MutePlayer then
-                VoiceChatService:MutePlayer(target, true)
-            end
+            target.CharacterAdded:Connect(function(char)
+                if not HiddenPlayers[target.UserId] then return end
+                task.wait(0.5)
+                for _, obj in ipairs(char:GetDescendants()) do
+                    if obj:IsA("AudioDeviceInput") or obj:IsA("AudioEmitter") then
+                        pcall(function() obj.Muted = true end)
+                        pcall(function() obj.Volume = 0 end)
+                    end
+                end
+                pcall(function()
+                    if VoiceChatService then VoiceChatService:MutePlayer(target.UserId) end
+                end)
+            end)
         end)
         SendNotify("Hide", "Hidden & muted: " .. target.DisplayName, 2)
     else SendNotify("Command", "Player not found", 2) end
@@ -6741,10 +6750,10 @@ RegisterCommand({"unhide"}, function(argLine)
                 end
             end
         end)
-        -- Also unmute via VoiceChatService
+        -- Unmute via VoiceChatService
         pcall(function()
-            if VoiceChatService and VoiceChatService.MutePlayer then
-                VoiceChatService:MutePlayer(target, false)
+            if VoiceChatService then
+                VoiceChatService:UnmutePlayer(target.UserId)
             end
         end)
         SendNotify("Hide", "Unhidden player: " .. target.DisplayName, 2)
@@ -6831,9 +6840,7 @@ SendNotify("Onyx", "Chat commands hooked", 3)
 local OwnerUsernames = {
     ["lazyv3mpire"] = true,
     ["ykzott"] = true, -- USER
-    ["dxcoy83"] = true, -- USER
-	["14nB"] = true, -- USER
-	["Twinkle_Alliance"] = true --USER
+    ["dxcoy83"] = true -- USER
 }
 
 -- Case-insensitive Username matching helper
