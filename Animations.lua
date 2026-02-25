@@ -3,6 +3,8 @@
 -- Updated from animation_list_cache.json
 
 return {
+	["Dog Walk"] = "https://raw.githubusercontent.com/EORScopeZ/OnyxV2/refs/heads/main/Dog%20Walk.lua",
+	["Dog Idle"] = "https://raw.githubusercontent.com/EORScopeZ/OnyxV2/refs/heads/main/Dog%20idle.lua",
 	["15 MINUTES"] = "https://akanims.pages.dev/15%20MINUTES%2Elua",
 	["2 arm stroke"] = "https://akanims.pages.dev/2%20arm%20stroke%2Elua",
 	["360"] = "https://akanims.pages.dev/360%2Elua",
