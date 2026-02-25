@@ -144,7 +144,7 @@ local function SendNotify(title, message, duration)
         local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(255,255,255)
         s.Transparency = 0.76; s.Thickness = 1.2; s.Parent = card
         local bar = Instance.new("Frame"); bar.Parent = card
-        bar.BackgroundColor3 = Color3.fromRGB(140, 130, 255)
+        bar.BackgroundColor3 = Color3.fromRGB(200, 80, 255)
         bar.BorderSizePixel = 0; bar.Size = UDim2.new(0, 3, 1, 0); bar.ZIndex = 101
         do local bc = Instance.new("UICorner"); bc.CornerRadius = UDim.new(0,11); bc.Parent = bar end
         local overlay = Instance.new("Frame"); overlay.Parent = card
@@ -186,7 +186,7 @@ local function SendNotify(title, message, duration)
     do local pc = Instance.new("UICorner"); pc.CornerRadius = UDim.new(1,0); pc.Parent = progressBg end
 
     local progressFill = Instance.new("Frame"); progressFill.Parent = progressBg
-    progressFill.BackgroundColor3 = Color3.fromRGB(140, 130, 255)
+    progressFill.BackgroundColor3 = Color3.fromRGB(200, 80, 255)
     progressFill.BorderSizePixel = 0
     progressFill.Size = UDim2.new(1, 0, 1, 0); progressFill.ZIndex = 103
     do local pfc = Instance.new("UICorner"); pfc.CornerRadius = UDim.new(1,0); pfc.Parent = progressFill end
@@ -253,13 +253,13 @@ do
     l.Padding = UDim.new(0, 6)
 end
 
--- Main Frame (Glass Effect)
+-- Main Frame (Glass Effect — Orca dark style)
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
 MainFrame.Parent = OnyxUI
 MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-MainFrame.BackgroundColor3 = Color3.fromRGB(9, 9, 18)
-MainFrame.BackgroundTransparency = 0.1
+MainFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 20)
+MainFrame.BackgroundTransparency = 0.05
 MainFrame.BorderSizePixel = 0
 MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
 MainFrame.Size = UDim2.new(0, 560, 0, 415)
@@ -269,49 +269,50 @@ MainFrame.Active = true
 -- Corner for Main Frame
 do
     local MainCorner = Instance.new("UICorner")
-    MainCorner.CornerRadius = UDim.new(0, 13)
+    MainCorner.CornerRadius = UDim.new(0, 16)
     MainCorner.Parent = MainFrame
 
-    -- Stroke for glass effect border
+    -- Orca-style accent border: subtle purple/pink tint
     local MainStroke = Instance.new("UIStroke")
-    MainStroke.Color = Color3.fromRGB(255, 255, 255)
-    MainStroke.Transparency = 0.76
-    MainStroke.Thickness = 1.2
+    MainStroke.Color = Color3.fromRGB(180, 100, 255)
+    MainStroke.Transparency = 0.7
+    MainStroke.Thickness = 1.5
     MainStroke.Parent = MainFrame
 
-    -- Blur effect overlay
+    -- Frosted overlay — very subtle purple tint like Orca
     local BlurOverlay = Instance.new("Frame")
     BlurOverlay.Name = "BlurOverlay"
     BlurOverlay.Parent = MainFrame
-    BlurOverlay.BackgroundColor3 = Color3.fromRGB(185, 195, 255)
+    BlurOverlay.BackgroundColor3 = Color3.fromRGB(140, 80, 255)
     BlurOverlay.BackgroundTransparency = 0.97
     BlurOverlay.BorderSizePixel = 0
     BlurOverlay.Size = UDim2.new(1, 0, 1, 0)
     BlurOverlay.ZIndex = 1
     local BlurCorner = Instance.new("UICorner")
-    BlurCorner.CornerRadius = UDim.new(0, 13)
+    BlurCorner.CornerRadius = UDim.new(0, 16)
     BlurCorner.Parent = BlurOverlay
 end
 
--- Title Bar
+-- Title Bar — Orca style: deeper dark, purple-pink accent strip
 local TitleBar = Instance.new("Frame")
 TitleBar.Name = "TitleBar"
 TitleBar.Parent = MainFrame
-TitleBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-TitleBar.BackgroundTransparency = 0.96
+TitleBar.BackgroundColor3 = Color3.fromRGB(18, 18, 30)
+TitleBar.BackgroundTransparency = 0.0
 TitleBar.BorderSizePixel = 0
 TitleBar.Size = UDim2.new(1, 0, 0, 48)
 TitleBar.ZIndex = 2
 do
     local TitleBarCorner = Instance.new("UICorner")
-    TitleBarCorner.CornerRadius = UDim.new(0, 13)
+    TitleBarCorner.CornerRadius = UDim.new(0, 16)
     TitleBarCorner.Parent = TitleBar
-    -- Title Bar Bottom Border
+
+    -- Orca-style bottom separator with purple accent
     local TitleBorder = Instance.new("Frame")
     TitleBorder.Name = "TitleBorder"
     TitleBorder.Parent = TitleBar
-    TitleBorder.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    TitleBorder.BackgroundTransparency = 0.87
+    TitleBorder.BackgroundColor3 = Color3.fromRGB(160, 80, 255)
+    TitleBorder.BackgroundTransparency = 0.6
     TitleBorder.BorderSizePixel = 0
     TitleBorder.Position = UDim2.new(0, 12, 1, -1)
     TitleBorder.Size = UDim2.new(1, -24, 0, 1)
@@ -341,18 +342,18 @@ SubtitleText.Position = UDim2.new(0, 18, 0, 28)
 SubtitleText.Size = UDim2.new(0.5, 0, 0, 14)
 SubtitleText.Font = Enum.Font.Gotham
 SubtitleText.Text = "by Biscuit"
-SubtitleText.TextColor3 = Color3.fromRGB(135, 135, 175)
+SubtitleText.TextColor3 = Color3.fromRGB(160, 100, 255)
 SubtitleText.TextSize = 11
 SubtitleText.TextXAlignment = Enum.TextXAlignment.Left
 SubtitleText.ZIndex = 3
 
--- Minimize Button
+-- Minimize Button — Orca style
 local MinimizeButton = Instance.new("TextButton")
 MinimizeButton.Name = "MinimizeButton"
 MinimizeButton.Parent = TitleBar
 MinimizeButton.AnchorPoint = Vector2.new(1, 0.5)
-MinimizeButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-MinimizeButton.BackgroundTransparency = 0.88
+MinimizeButton.BackgroundColor3 = Color3.fromRGB(160, 80, 255)
+MinimizeButton.BackgroundTransparency = 0.75
 MinimizeButton.BorderSizePixel = 0
 MinimizeButton.Position = UDim2.new(1, -10, 0.5, 0)
 MinimizeButton.Size = UDim2.new(0, 26, 0, 26)
@@ -381,23 +382,23 @@ ContentContainer.Position = UDim2.new(0, 0, 0, 48)
 ContentContainer.Size = UDim2.new(1, 0, 1, -48)
 ContentContainer.ZIndex = 2
 
--- Tab Container
+-- Tab Container — Orca sidebar style
 local TabContainer = Instance.new("Frame")
 TabContainer.Name = "TabContainer"
 TabContainer.Parent = ContentContainer
-TabContainer.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-TabContainer.BackgroundTransparency = 0.965
+TabContainer.BackgroundColor3 = Color3.fromRGB(18, 18, 30)
+TabContainer.BackgroundTransparency = 0.0
 TabContainer.BorderSizePixel = 0
 TabContainer.Position = UDim2.new(0, 10, 0, 10)
 TabContainer.Size = UDim2.new(0, 118, 1, -20)
 TabContainer.ZIndex = 2
 do
     local TabCorner = Instance.new("UICorner")
-    TabCorner.CornerRadius = UDim.new(0, 10)
+    TabCorner.CornerRadius = UDim.new(0, 12)
     TabCorner.Parent = TabContainer
     local TabStroke = Instance.new("UIStroke")
-    TabStroke.Color = Color3.fromRGB(255, 255, 255)
-    TabStroke.Transparency = 0.88
+    TabStroke.Color = Color3.fromRGB(160, 80, 255)
+    TabStroke.Transparency = 0.82
     TabStroke.Thickness = 1
     TabStroke.Parent = TabContainer
 end
@@ -685,11 +686,10 @@ end
 local ViewButton = CreateActionButton(TargetActionsContainer, "ViewButton", UDim2.new(0, 0, 0, 0), "👁️ View Target", 1)
 local TeleportButton = CreateActionButton(TargetActionsContainer, "TeleportButton", UDim2.new(0, 0, 0, 0), "⚡ Teleport to Target", 2)
 local BringButton = CreateActionButton(TargetActionsContainer, "BringButton", UDim2.new(0, 0, 0, 0), "🔄 Bring Target to You", 3)
-local SpectateButton = CreateActionButton(TargetActionsContainer, "SpectateButton", UDim2.new(0, 0, 0, 0), "📹 Spectate Target", 4)
-local FocusButton = CreateActionButton(TargetActionsContainer, "FocusButton", UDim2.new(0, 0, 0, 0), "🎯 Focus Target (Loop TP)", 5)
-local HeadSitButton = CreateActionButton(TargetActionsContainer, "HeadSitButton", UDim2.new(0, 0, 0, 0), "🪑 Sit on Head", 6)
-local BackpackButton = CreateActionButton(TargetActionsContainer, "BackpackButton", UDim2.new(0, 0, 0, 0), "🎒 Backpack Mode", 7)
-local ClearTargetButton = CreateActionButton(TargetActionsContainer, "ClearTargetButton", UDim2.new(0, 0, 0, 0), "❌ Clear Target", 8)
+local FocusButton = CreateActionButton(TargetActionsContainer, "FocusButton", UDim2.new(0, 0, 0, 0), "🎯 Focus Target (Loop TP)", 4)
+local HeadSitButton = CreateActionButton(TargetActionsContainer, "HeadSitButton", UDim2.new(0, 0, 0, 0), "🪑 Sit on Head", 5)
+local BackpackButton = CreateActionButton(TargetActionsContainer, "BackpackButton", UDim2.new(0, 0, 0, 0), "🎒 Backpack Mode", 6)
+local ClearTargetButton = CreateActionButton(TargetActionsContainer, "ClearTargetButton", UDim2.new(0, 0, 0, 0), "❌ Clear Target", 7)
 
 -- HOME SECTION (Default visible)
 local HomeSection = Instance.new("Frame")
@@ -1487,6 +1487,87 @@ ActivateVCBtn.MouseLeave:Connect(function()
     tween:Play()
 end)
 
+-- ── Anti-VC Ban: Activate Protection handler ──────────────────────────────────
+local antiVCActive = false
+local antiVCThread = nil
+
+local function muteLocalVC()
+    -- Method 1: VoiceChatInternal (most reliable on supported executors)
+    if VoiceChatInternal then
+        pcall(function()
+            local ok, isPaused = pcall(function() return VoiceChatInternal:IsPublishPaused() end)
+            if ok and not isPaused then
+                VoiceChatInternal:PublishPause(true)
+            end
+        end)
+    end
+
+    -- Method 2: Mute all AudioDeviceInput objects in local character (works on newer VC)
+    pcall(function()
+        local char = plr.Character
+        if not char then return end
+        for _, obj in ipairs(char:GetDescendants()) do
+            if obj:IsA("AudioDeviceInput") then
+                obj.Muted = true
+            end
+        end
+    end)
+
+    -- Method 3: VoiceChatService direct mute
+    if VoiceChatService then
+        pcall(function() VoiceChatService:SetMicrophoneMuted(true) end)
+    end
+end
+
+ActivateVCBtn.MouseButton1Click:Connect(function()
+    antiVCActive = not antiVCActive
+
+    if antiVCActive then
+        ActivateVCBtn.Text = "✅ Protection Active"
+        TweenService:Create(ActivateVCBtn, TweenInfo.new(0.2), {BackgroundTransparency = 0.6}):Play()
+        MicIcon.ImageColor3 = Color3.fromRGB(100, 255, 100)
+        MicCrossLine.Visible = true
+        ScreenMicIndicator.Visible = true
+        ScreenMicCross.Visible = true
+
+        -- Run a continuous heartbeat loop to keep VC muted
+        -- This is far more reliable than a one-shot call
+        antiVCThread = RunService.Heartbeat:Connect(function()
+            if not antiVCActive then return end
+            muteLocalVC()
+        end)
+
+        SendNotify("Anti-VC Ban", "Protection ACTIVE — mic suppressed continuously", 3)
+    else
+        ActivateVCBtn.Text = "Activate Protection"
+        TweenService:Create(ActivateVCBtn, TweenInfo.new(0.2), {BackgroundTransparency = 0.9}):Play()
+        MicCrossLine.Visible = false
+        ScreenMicCross.Visible = false
+
+        if antiVCThread then
+            antiVCThread:Disconnect()
+            antiVCThread = nil
+        end
+
+        -- Re-enable mic
+        if VoiceChatInternal then
+            pcall(function() VoiceChatInternal:PublishPause(false) end)
+        end
+        pcall(function()
+            local char = plr.Character
+            if not char then return end
+            for _, obj in ipairs(char:GetDescendants()) do
+                if obj:IsA("AudioDeviceInput") then obj.Muted = false end
+            end
+        end)
+        if VoiceChatService then
+            pcall(function() VoiceChatService:SetMicrophoneMuted(false) end)
+        end
+
+        SendNotify("Anti-VC Ban", "Protection OFF — mic restored", 2)
+    end
+end)
+
 -- Dragging for Anti VC Window
 do
     local vcDragging, vcDragInput, vcDragStart, vcStartPos
@@ -2150,10 +2231,10 @@ local function setupTabButton(tabButton)
     tabButton.MouseButton1Click:Connect(function()
         for _, child in pairs(TabContainer:GetChildren()) do
             if child:IsA("TextButton") then
-                TweenService:Create(child, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {BackgroundTransparency = 1, TextColor3 = Color3.fromRGB(160, 160, 185)}):Play()
+                TweenService:Create(child, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {BackgroundTransparency = 1, TextColor3 = Color3.fromRGB(130, 130, 160)}):Play()
             end
         end
-        TweenService:Create(tabButton, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.82, TextColor3 = Color3.fromRGB(255, 255, 255)}):Play()
+        TweenService:Create(tabButton, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.6, TextColor3 = Color3.fromRGB(220, 180, 255)}):Play()
         local tabName = tabButton.Name:gsub("Tab", "")
         HomeSection.Visible = false; TargetSection.Visible = false; AnimationSection.Visible = false
         CombatSection.Visible = false; MiscSection.Visible = false; VisualSection.Visible = false
@@ -2418,7 +2499,6 @@ local function UpdateTarget(player)
         BackpackMode = false
         
         ViewButton.Text = "👁️ View Target"
-        SpectateButton.Text = "📹 Spectate Target"
         FocusButton.Text = "🎯 Focus Target (Loop TP)"
         HeadSitButton.Text = "🪑 Sit on Head"
         BackpackButton.Text = "🎒 Backpack Mode"
@@ -2504,34 +2584,6 @@ end)
 BringButton.MouseButton1Click:Connect(function()
     if TargetedPlayer then
         SendNotify("Bring Target", "This feature requires specific exploit capabilities", 3)
-    else
-        SendNotify("Error", "No target selected", 3)
-    end
-end)
-
--- Spectate Target Button
-SpectateButton.MouseButton1Click:Connect(function()
-    if TargetedPlayer then
-        local target = Players:FindFirstChild(TargetedPlayer)
-        if target then
-            SpectatingTarget = not SpectatingTarget
-            
-            if SpectatingTarget then
-                pcall(function()
-                    local hum = target.Character and target.Character:FindFirstChildOfClass("Humanoid")
-                    if hum then workspace.CurrentCamera.CameraSubject = hum end
-                end)
-                SendNotify("Spectate", "Now spectating " .. target.DisplayName, 2)
-                SpectateButton.Text = "📹 Stop Spectating"
-            else
-                pcall(function()
-                    local hum = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
-                    if hum then workspace.CurrentCamera.CameraSubject = hum end
-                end)
-                SendNotify("Spectate", "Stopped spectating", 2)
-                SpectateButton.Text = "📹 Spectate Target"
-            end
-        end
     else
         SendNotify("Error", "No target selected", 3)
     end
@@ -5020,68 +5072,51 @@ local function doTrip()
     humanoid.AutoRotate    = false
     humanoid.PlatformStand = true   -- stops Humanoid from correcting pose
 
-    -- 2. Disable Animate script so no animation overrides the stiff pose
-    local animateScript = char:FindFirstChild("Animate")
-    if animateScript then animateScript.Disabled = true end
+    -- 2. Do NOT disable Motor6D joints — that causes death in games with joint-break detection.
+    --    PlatformStand alone is enough to suppress Humanoid corrections.
 
-    -- 3. Disable all Motor6D joints so character goes stiff/rigid
-    local disabledJoints = {}
-    for _, desc in ipairs(char:GetDescendants()) do
-        if desc:IsA("Motor6D") and desc.Name ~= "RootJoint" then
-            desc.Enabled = false
-            table.insert(disabledJoints, desc)
-        end
-    end
-
-    -- 4. Launch forward and upward
+    -- 3. Launch forward and upward
     local lookDir = hrp.CFrame.LookVector
     hrp.AssemblyLinearVelocity = Vector3.new(
-        lookDir.X * 60,
-        55,
-        lookDir.Z * 60
+        lookDir.X * 55,
+        50,
+        lookDir.Z * 55
     )
     humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
 
     SendNotify("Trip", "Tripped!", 1)
 
-    -- 5. Tumble spin while airborne
+    -- 4. Tumble spin while airborne (won't kill because joints stay intact)
     task.spawn(function()
-        for i = 1, 10 do
-            task.wait(0.07)
+        for i = 1, 12 do
+            task.wait(0.06)
             if hrp and hrp.Parent then
                 hrp.AssemblyAngularVelocity = Vector3.new(
-                    math.random(-18, 18),
-                    math.random(-10, 10),
-                    math.random(-18, 18)
+                    math.random(-14, 14),
+                    math.random(-8, 8),
+                    math.random(-14, 14)
                 )
             end
         end
     end)
 
-    -- 6. Recover after 2 seconds
+    -- 5. Recover after 2 seconds
     task.delay(2, function()
         if not char or not char.Parent then tripActive = false return end
         if not humanoid or not humanoid.Parent then tripActive = false return end
-
-        -- Re-enable joints
-        for _, joint in ipairs(disabledJoints) do
-            pcall(function() joint.Enabled = true end)
-        end
-
-        -- Re-enable Animate
-        if animateScript and animateScript.Parent then
-            animateScript.Disabled = false
-        end
 
         -- Restore humanoid state
         humanoid.PlatformStand = false
         humanoid.AutoRotate    = origAutoRotate
         humanoid.WalkSpeed     = origWalkSpeed
         humanoid.JumpPower     = origJumpPower
-        humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+        pcall(function() humanoid:ChangeState(Enum.HumanoidStateType.GettingUp) end)
 
         -- Stop leftover spin
-        pcall(function() hrp.AssemblyAngularVelocity = Vector3.zero end)
+        pcall(function()
+            hrp.AssemblyAngularVelocity = Vector3.zero
+            hrp.AssemblyLinearVelocity  = Vector3.zero
+        end)
 
         tripActive = false
     end)
@@ -5625,15 +5660,16 @@ local function buildPillTag(cfg, targetPlayer, parentGui, isSelf)
         bg.AnchorPoint       = Vector2.new(0.5, 0.5)
         bg.Position          = UDim2.new(0.5, 0, 0.5, 0)
         
-        -- Click to Teleport logic
+        -- Click to Teleport: snap directly onto target
         bg.MouseButton1Click:Connect(function()
             local char = plr.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
             local tChar = targetPlayer.Character
             local tHrp = tChar and tChar:FindFirstChild("HumanoidRootPart")
             if hrp and tHrp then
-                hrp.CFrame = tHrp.CFrame * CFrame.new(0, 0, 3)
-                SendNotify("👑 Onyx", "Teleported to " .. targetPlayer.DisplayName, 3)
+                -- Land right on top of them (same X/Z, +2 Y so we don't clip inside)
+                hrp.CFrame = CFrame.new(tHrp.Position + Vector3.new(0, 2, 0))
+                SendNotify("👑 Onyx", "Teleported to " .. targetPlayer.DisplayName, 2)
             end
         end)
     end
@@ -6241,6 +6277,63 @@ end
 Players.PlayerAdded:Connect(monitorAndPoll)
 end
 task.spawn(setupOnyxNametags)
+
+-- =====================================================
+-- CLICK-TO-TELEPORT: ANY PLAYER NAMETAG (ANY DISTANCE)
+-- Click within ~55px of any player's head on screen to teleport onto them.
+-- Works regardless of distance, walls, or whether they run Onyx.
+-- =====================================================
+do
+    local CLICK_RADIUS_PX = 55  -- screen-space pixel radius to detect a click near a player's head
+
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        -- Only fire on left mouse click that isn't eaten by UI
+        if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+        if gameProcessed then return end
+
+        local cam = workspace.CurrentCamera
+        if not cam then return end
+
+        local mousePos = UserInputService:GetMouseLocation()
+        local closestPlayer = nil
+        local closestDist   = CLICK_RADIUS_PX
+
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p == plr then continue end
+            local char = p.Character
+            if not char then continue end
+
+            -- Use Head if available, otherwise HumanoidRootPart
+            local head = char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart")
+            if not head then continue end
+
+            -- Project the head (+ a small Y offset so we're at the nametag position) to screen
+            local worldPos = head.Position + Vector3.new(0, 2.5, 0)
+            local screenPos, onScreen = cam:WorldToViewportPoint(worldPos)
+            if not onScreen then continue end
+
+            local dx = screenPos.X - mousePos.X
+            local dy = screenPos.Y - mousePos.Y
+            local dist = math.sqrt(dx*dx + dy*dy)
+
+            if dist < closestDist then
+                closestDist   = dist
+                closestPlayer = p
+            end
+        end
+
+        if closestPlayer then
+            local char = plr.Character
+            local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+            local tChar = closestPlayer.Character
+            local tHrp  = tChar and tChar:FindFirstChild("HumanoidRootPart")
+            if hrp and tHrp then
+                hrp.CFrame = tHrp.CFrame * CFrame.new(0, 2, 0)
+                SendNotify("⚡ Teleport", "Jumped to " .. closestPlayer.DisplayName, 2)
+            end
+        end
+    end)
+end
 -- =====================================================
 
 -- =====================================================
@@ -6446,13 +6539,13 @@ RegisterCommand({"spectate"}, function(argLine)
                 local hum = target.Character and target.Character:FindFirstChildOfClass("Humanoid")
                 if hum then workspace.CurrentCamera.CameraSubject = hum end
             end)
-            SpectateButton.Text = "📹 Stop Spectating"; SendNotify("Spectate", "Now spectating " .. target.DisplayName, 2)
+            SendNotify("Spectate", "Now spectating " .. target.DisplayName, 2)
         else
             pcall(function()
                 local hum = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
                 if hum then workspace.CurrentCamera.CameraSubject = hum end
             end)
-            SpectateButton.Text = "📹 Spectate Target"; SendNotify("Spectate", "Stopped", 2)
+            SendNotify("Spectate", "Stopped", 2)
         end
     else SendNotify("Command", "Player not found", 2) end
 end, "Visual")
@@ -6917,11 +7010,11 @@ local function PerformFEAction(cmd, targetPlayer)
     end
     
     if cmd == ".kill" or cmd == ".fling" then
-        -- Force reset for kill
-        if cmd == ".kill" then
-            pcall(function() targetPlayer.Character:BreakJoints() end)
-            local targetHum = targetPlayer.Character:FindFirstChildOfClass("Humanoid")
-            if targetHum then pcall(function() targetHum.Health = 0 end) end
+        -- .kill is ONLY permitted on fellow Onyx users (FE physics can't kill non-script users anyway)
+        if cmd == ".kill" and not targetPlayer:GetAttribute("OnyxExecuted") then
+            SendNotify("👑 Kill", "Skipped " .. targetPlayer.DisplayName .. " (not an Onyx user)", 2)
+            if renderConn then renderConn:Disconnect() end
+            return
         end
 
         -- FE Fling Physics (Robust)
@@ -6937,8 +7030,8 @@ local function PerformFEAction(cmd, targetPlayer)
         
         hum.PlatformStand = true
 
-        -- Instant Registration: Increased to 4 frames for better reliability
-        local hits = 4 
+        -- Instant Registration: 2 frames is enough for physics registration
+        local hits = 2 
         for i = 1, hits do
             if not targetPlayer.Character or not targetPlayer.Character:FindFirstChild("HumanoidRootPart") then break end
             hrp.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
@@ -7351,8 +7444,10 @@ if isOwner then
                     msg = msg .. " " .. textBox.Text
                 end
             end
-            sendHiddenChat(msg)
-            handleOwnerCommand(plr, msg) -- Force immediate local execution for FE effects
+            -- ZERO DELAY: Execute locally first (no chat round-trip lag)
+            handleOwnerCommand(plr, msg)
+            -- Then broadcast via chat so other Onyx users can receive the signal
+            task.defer(function() sendHiddenChat(msg) end)
             SendNotify("👑 Owner", "Executed: " .. msg, 2)
         end)
     end
