@@ -81,6 +81,10 @@ end
 -- Target Variables
 local TargetedPlayer = nil
 
+-- Tracks userIds of players who currently have an active Onyx nametag.
+-- Written by setupOnyxNametags so the click handler below can gate on it.
+local activeOnyxTagIds = {}
+
 -- Utility Functions
 local function GetPlayer(UserDisplay)
     if UserDisplay ~= "" then
@@ -5871,6 +5875,7 @@ local function removeNametag(userId)
         if data.selfGui    and data.selfGui.Parent    then data.selfGui:Destroy()        end
         if data.renderConn                            then data.renderConn:Disconnect()  end
         nametagObjects[userId] = nil
+        activeOnyxTagIds[userId] = nil
     end
 end
 
@@ -6070,8 +6075,7 @@ local function applyNametag(targetPlayer)
         end
 
         nametagObjects[userId] = nametagData
-        
-        -- Auto-cleanup: destroy the nametag when the adornee part is removed
+        if targetPlayer ~= plr then activeOnyxTagIds[userId] = true end
         local adornee = nil
         if nametagData.billboard then adornee = nametagData.billboard.Adornee end
         if adornee then
@@ -6192,6 +6196,7 @@ local function pollPlayer(p)
                         if nametagData then
                             removeNametag(p.UserId)
                             nametagObjects[p.UserId] = nametagData
+                            activeOnyxTagIds[p.UserId] = true
                             -- Auto-cleanup when adornee is removed
                             local adornee = nametagData.billboard and nametagData.billboard.Adornee
                             if adornee then
@@ -6279,15 +6284,15 @@ end
 task.spawn(setupOnyxNametags)
 
 -- =====================================================
--- CLICK-TO-TELEPORT: ANY PLAYER NAMETAG (ANY DISTANCE)
--- Click within ~55px of any player's head on screen to teleport onto them.
--- Works regardless of distance, walls, or whether they run Onyx.
+-- CLICK-TO-TELEPORT: ONYX NAMETAG USERS ONLY
+-- Screen-space click detection — BillboardGui TextButton clicks are
+-- unreliable when parented to CoreGui, so we handle it here instead.
+-- Only teleports if the target player has an active Onyx nametag.
 -- =====================================================
 do
-    local CLICK_RADIUS_PX = 55  -- screen-space pixel radius to detect a click near a player's head
+    local CLICK_RADIUS_PX = 55
 
     UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        -- Only fire on left mouse click that isn't eaten by UI
         if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
         if gameProcessed then return end
 
@@ -6300,14 +6305,14 @@ do
 
         for _, p in ipairs(Players:GetPlayers()) do
             if p == plr then continue end
+            -- Only consider players with an active Onyx nametag
+            if not activeOnyxTagIds[p.UserId] then continue end
+
             local char = p.Character
             if not char then continue end
-
-            -- Use Head if available, otherwise HumanoidRootPart
             local head = char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart")
             if not head then continue end
 
-            -- Project the head (+ a small Y offset so we're at the nametag position) to screen
             local worldPos = head.Position + Vector3.new(0, 2.5, 0)
             local screenPos, onScreen = cam:WorldToViewportPoint(worldPos)
             if not onScreen then continue end
