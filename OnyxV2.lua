@@ -694,6 +694,7 @@ local FocusButton = CreateActionButton(TargetActionsContainer, "FocusButton", UD
 local HeadSitButton = CreateActionButton(TargetActionsContainer, "HeadSitButton", UDim2.new(0, 0, 0, 0), "🪑 Sit on Head", 5)
 local BackpackButton = CreateActionButton(TargetActionsContainer, "BackpackButton", UDim2.new(0, 0, 0, 0), "🎒 Backpack Mode", 6)
 local ClearTargetButton = CreateActionButton(TargetActionsContainer, "ClearTargetButton", UDim2.new(0, 0, 0, 0), "❌ Clear Target", 7)
+local CharCloneButton = CreateActionButton(TargetActionsContainer, "CharCloneButton", UDim2.new(0, 0, 0, 0), "🦸 Clone Char: OFF", 8)
 
 -- HOME SECTION (Default visible)
 local HomeSection = Instance.new("Frame")
@@ -1007,7 +1008,9 @@ local TimeReverseButton = CreateActionButton(MiscActionsContainer, "TimeReverseB
 -- Trip Button (NEW)
 local TripButton = CreateActionButton(MiscActionsContainer, "TripButton", UDim2.new(0, 0, 0, 0), "🤸 Trip (T): OFF", 6)
 
-local UnloadScriptButton = CreateActionButton(MiscActionsContainer, "UnloadScriptButton", UDim2.new(0, 0, 0, 0), "❌ Unload Script", 7)
+local SupermanFlyButton = CreateActionButton(MiscActionsContainer, "SupermanFlyButton", UDim2.new(0, 0, 0, 0), "🦸 Superman Fly (G): OFF", 7)
+
+local UnloadScriptButton = CreateActionButton(MiscActionsContainer, "UnloadScriptButton", UDim2.new(0, 0, 0, 0), "❌ Unload Script", 8)
 
 local CommandsButton = CreateActionButton(MiscActionsContainer, "CommandsButton", UDim2.new(0, 0, 0, 0), "⌨️ Command List", 9)
 
@@ -5131,6 +5134,441 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if input.KeyCode == Enum.KeyCode.T and TripEnabled then
         doTrip()
     end
+    if input.KeyCode == Enum.KeyCode.G then
+        if SupermanFlyEnabled then stopSupermanFly(); SendNotify("Superman Fly", "Disabled", 2)
+        else startSupermanFly(); SendNotify("Superman Fly", "On — WASD·Space/Ctrl·Shift boost", 3) end
+    end
+end)
+
+-- =====================================================
+-- SUPERMAN FLY  (UI + Logic)
+-- G or window button to toggle. WASD = camera-relative.
+-- Space = ascend, Ctrl = descend, Shift = boost speed.
+-- =====================================================
+
+local SupermanFlyEnabled = false
+local superFlyConn       = nil
+local superBodyVel       = nil
+local superBodyGyro      = nil
+
+-- Speed getters — overwritten by slider callbacks when window builds
+local getFlySpeed      = function() return 80  end
+local getFlyBoostSpeed = function() return 220 end
+
+-- ── Fly Window (FaceBang style) ───────────────────────────────────────────
+local FlyWindow, FlyTitleBar, FlyStatusLabel, FlyToggleBtn
+do
+    FlyWindow = Instance.new("Frame")
+    FlyWindow.Name = "FlyWindow"; FlyWindow.Parent = OnyxUI
+    FlyWindow.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+    FlyWindow.BackgroundTransparency = 0.3; FlyWindow.BorderSizePixel = 0
+    FlyWindow.Position = UDim2.new(0.5, -140, 0.5, -100)
+    FlyWindow.Size = UDim2.new(0, 280, 0, 240)
+    FlyWindow.Visible = false; FlyWindow.Active = true
+    FlyWindow.ZIndex = 20; FlyWindow.ClipsDescendants = true
+    do
+        local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 16); c.Parent = FlyWindow
+        local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(255,255,255)
+        s.Transparency = 0.8; s.Thickness = 1; s.Parent = FlyWindow
+    end
+
+    FlyTitleBar = Instance.new("Frame")
+    FlyTitleBar.Name = "TitleBar"; FlyTitleBar.Parent = FlyWindow
+    FlyTitleBar.BackgroundColor3 = Color3.fromRGB(255,255,255)
+    FlyTitleBar.BackgroundTransparency = 0.95; FlyTitleBar.BorderSizePixel = 0
+    FlyTitleBar.Size = UDim2.new(1,0,0,40); FlyTitleBar.ZIndex = 21
+    do
+        local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,16); c.Parent = FlyTitleBar
+        local t = Instance.new("TextLabel"); t.Parent = FlyTitleBar
+        t.BackgroundTransparency = 1; t.Position = UDim2.new(0,15,0,0)
+        t.Size = UDim2.new(1,-80,1,0); t.Font = Enum.Font.GothamBold
+        t.Text = "ð¦¸ Superman Fly"; t.TextColor3 = Color3.fromRGB(255,255,255)
+        t.TextSize = 16; t.TextXAlignment = Enum.TextXAlignment.Left; t.ZIndex = 22
+    end
+
+    do
+        local flyClose = Instance.new("TextButton")
+        flyClose.Name = "CloseBtn"; flyClose.Parent = FlyTitleBar
+        flyClose.BackgroundColor3 = Color3.fromRGB(255,80,80); flyClose.BackgroundTransparency = 0.3
+        flyClose.BorderSizePixel = 0; flyClose.AnchorPoint = Vector2.new(1,0.5)
+        flyClose.Position = UDim2.new(1,-10,0.5,0); flyClose.Size = UDim2.new(0,25,0,25)
+        flyClose.Font = Enum.Font.GothamBold; flyClose.Text = "Ã"
+        flyClose.TextColor3 = Color3.fromRGB(255,255,255); flyClose.TextSize = 18
+        flyClose.ZIndex = 22; flyClose.AutoButtonColor = false
+        do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,8); c.Parent = flyClose end
+        flyClose.MouseButton1Click:Connect(function() FlyWindow.Visible = false end)
+
+        local flyMin = Instance.new("TextButton")
+        flyMin.Name = "MinimizeBtn"; flyMin.Parent = FlyTitleBar
+        flyMin.BackgroundColor3 = Color3.fromRGB(255,255,255); flyMin.BackgroundTransparency = 0.9
+        flyMin.BorderSizePixel = 0; flyMin.AnchorPoint = Vector2.new(1,0.5)
+        flyMin.Position = UDim2.new(1,-45,0.5,0); flyMin.Size = UDim2.new(0,25,0,25)
+        flyMin.Font = Enum.Font.GothamBold; flyMin.Text = "â"
+        flyMin.TextColor3 = Color3.fromRGB(255,255,255); flyMin.TextSize = 18
+        flyMin.ZIndex = 22; flyMin.AutoButtonColor = false
+        do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,8); c.Parent = flyMin end
+        local flyMinimized = false
+        flyMin.MouseButton1Click:Connect(function()
+            flyMinimized = not flyMinimized
+            local ti = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+            TweenService:Create(FlyWindow, ti, {
+                Size = flyMinimized and UDim2.new(0,280,0,40) or UDim2.new(0,280,0,240)
+            }):Play()
+            flyMin.Text = flyMinimized and "+" or "â"
+        end)
+    end
+
+    FlyStatusLabel = Instance.new("TextLabel")
+    FlyStatusLabel.Parent = FlyWindow; FlyStatusLabel.BackgroundTransparency = 1
+    FlyStatusLabel.Position = UDim2.new(0,15,0,48); FlyStatusLabel.Size = UDim2.new(1,-30,0,18)
+    FlyStatusLabel.Font = Enum.Font.Gotham
+    FlyStatusLabel.Text = "Status: Off  |  WASD  |  Space/Ctrl  |  Shift boost"
+    FlyStatusLabel.TextColor3 = Color3.fromRGB(150,150,180); FlyStatusLabel.TextSize = 11
+    FlyStatusLabel.TextXAlignment = Enum.TextXAlignment.Left; FlyStatusLabel.ZIndex = 21
+    FlyStatusLabel.TextTruncate = Enum.TextTruncate.AtEnd
+
+    local function BuildFlySlider(yPos, labelText, minVal, maxVal, defaultVal)
+        local val = defaultVal
+        local row = Instance.new("Frame")
+        row.Parent = FlyWindow; row.BackgroundTransparency = 1
+        row.Position = UDim2.new(0,15,0,yPos); row.Size = UDim2.new(1,-30,0,52); row.ZIndex = 21
+
+        local lbl = Instance.new("TextLabel")
+        lbl.Parent = row; lbl.BackgroundTransparency = 1
+        lbl.Size = UDim2.new(0.6,0,0,18); lbl.Font = Enum.Font.GothamMedium
+        lbl.Text = labelText; lbl.TextColor3 = Color3.fromRGB(220,220,240)
+        lbl.TextSize = 12; lbl.TextXAlignment = Enum.TextXAlignment.Left; lbl.ZIndex = 22
+
+        local valLbl = Instance.new("TextLabel")
+        valLbl.Parent = row; valLbl.BackgroundTransparency = 1
+        valLbl.AnchorPoint = Vector2.new(1,0); valLbl.Position = UDim2.new(1,0,0,0)
+        valLbl.Size = UDim2.new(0.38,0,0,18); valLbl.Font = Enum.Font.GothamBold
+        valLbl.Text = tostring(defaultVal); valLbl.TextColor3 = Color3.fromRGB(180,170,255)
+        valLbl.TextSize = 12; valLbl.TextXAlignment = Enum.TextXAlignment.Right; valLbl.ZIndex = 22
+
+        local track = Instance.new("Frame")
+        track.Parent = row; track.BackgroundColor3 = Color3.fromRGB(255,255,255)
+        track.BackgroundTransparency = 0.88; track.BorderSizePixel = 0
+        track.Position = UDim2.new(0,0,0,26); track.Size = UDim2.new(1,0,0,8); track.ZIndex = 22
+        do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1,0); c.Parent = track end
+
+        local pct0 = (defaultVal - minVal) / (maxVal - minVal)
+        local fill = Instance.new("Frame")
+        fill.Parent = track; fill.BackgroundColor3 = Color3.fromRGB(140,130,255)
+        fill.BorderSizePixel = 0; fill.Size = UDim2.new(pct0,0,1,0); fill.ZIndex = 23
+        do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1,0); c.Parent = fill end
+
+        local knob = Instance.new("Frame")
+        knob.Parent = track; knob.BackgroundColor3 = Color3.fromRGB(200,195,255)
+        knob.BorderSizePixel = 0; knob.AnchorPoint = Vector2.new(0.5,0.5)
+        knob.Position = UDim2.new(pct0,0,0.5,0); knob.Size = UDim2.new(0,16,0,16); knob.ZIndex = 24
+        do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1,0); c.Parent = knob end
+
+        local btn = Instance.new("TextButton")
+        btn.Parent = track; btn.BackgroundTransparency = 1
+        btn.Size = UDim2.new(1,0,1,0); btn.Text = ""; btn.ZIndex = 25; btn.AutoButtonColor = false
+
+        local sliding = false
+        local function setFromX(x)
+            local p = math.clamp((x - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
+            val = math.round(minVal + (maxVal - minVal) * p)
+            fill.Size = UDim2.new(p,0,1,0)
+            knob.Position = UDim2.new(p,0,0.5,0)
+            valLbl.Text = tostring(val)
+        end
+
+        btn.MouseButton1Down:Connect(function() sliding = true; setFromX(plr:GetMouse().X) end)
+        UserInputService.InputChanged:Connect(function(inp)
+            if sliding and inp.UserInputType == Enum.UserInputType.MouseMovement then setFromX(inp.Position.X) end
+        end)
+        UserInputService.InputEnded:Connect(function(inp)
+            if inp.UserInputType == Enum.UserInputType.MouseButton1 then sliding = false end
+        end)
+
+        return function() return val end
+    end
+
+    getFlySpeed      = BuildFlySlider(72,  "â¡ Speed",       10, 300, 80)
+    getFlyBoostSpeed = BuildFlySlider(132, "ð Boost Speed",  10, 600, 220)
+
+    FlyToggleBtn = Instance.new("TextButton")
+    FlyToggleBtn.Parent = FlyWindow
+    FlyToggleBtn.BackgroundColor3 = Color3.fromRGB(255,255,255)
+    FlyToggleBtn.BackgroundTransparency = 0.88; FlyToggleBtn.BorderSizePixel = 0
+    FlyToggleBtn.Position = UDim2.new(0.1,0,0,188); FlyToggleBtn.Size = UDim2.new(0.8,0,0,38)
+    FlyToggleBtn.Font = Enum.Font.GothamBold; FlyToggleBtn.Text = "â¶ Start Fly (G)"
+    FlyToggleBtn.TextColor3 = Color3.fromRGB(255,255,255); FlyToggleBtn.TextSize = 14
+    FlyToggleBtn.ZIndex = 21; FlyToggleBtn.AutoButtonColor = false
+    do
+        local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,10); c.Parent = FlyToggleBtn
+        local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(255,255,255)
+        s.Transparency = 0.88; s.Thickness = 1; s.Parent = FlyToggleBtn
+    end
+    FlyToggleBtn.MouseEnter:Connect(function()
+        TweenService:Create(FlyToggleBtn, TweenInfo.new(0.15), {BackgroundTransparency = 0.65}):Play()
+    end)
+    FlyToggleBtn.MouseLeave:Connect(function()
+        TweenService:Create(FlyToggleBtn, TweenInfo.new(0.15), {
+            BackgroundTransparency = SupermanFlyEnabled and 0 or 0.88
+        }):Play()
+    end)
+
+    -- Drag
+    do
+        local flyDragging, flyDragInput, flyDragStart, flyStartPos
+        FlyTitleBar.InputBegan:Connect(function(inp)
+            if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+                flyDragging = true; flyDragStart = inp.Position; flyStartPos = FlyWindow.Position
+                inp.Changed:Connect(function() if inp.UserInputState == Enum.UserInputState.End then flyDragging = false end end)
+            end
+        end)
+        FlyTitleBar.InputChanged:Connect(function(inp)
+            if inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch then
+                flyDragInput = inp
+            end
+        end)
+        UserInputService.InputChanged:Connect(function(inp)
+            if inp == flyDragInput and flyDragging then
+                local d = inp.Position - flyDragStart
+                FlyWindow.Position = UDim2.new(flyStartPos.X.Scale, flyStartPos.X.Offset + d.X, flyStartPos.Y.Scale, flyStartPos.Y.Offset + d.Y)
+            end
+        end)
+    end
+
+    -- Misc button opens the window
+    SupermanFlyButton.MouseButton1Click:Connect(function()
+        FlyWindow.Visible = not FlyWindow.Visible
+    end)
+end
+
+-- ── Superman Fly Logic ────────────────────────────────────────────────────
+
+local function stopSupermanFly()
+    SupermanFlyEnabled = false
+    if superFlyConn then superFlyConn:Disconnect(); superFlyConn = nil end
+    if superBodyVel  then pcall(function() superBodyVel:Destroy()  end); superBodyVel  = nil end
+    if superBodyGyro then pcall(function() superBodyGyro:Destroy() end); superBodyGyro = nil end
+    local char = plr.Character
+    local hum  = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then hum.PlatformStand = false; hum.AutoRotate = true end
+    pcall(function()
+        SupermanFlyButton.Text = "ð¦¸ Superman Fly (G): OFF"
+        SupermanFlyButton.BackgroundTransparency = 0.9
+    end)
+    pcall(function()
+        FlyToggleBtn.Text = "â¶ Start Fly (G)"
+        TweenService:Create(FlyToggleBtn, TweenInfo.new(0.2), {
+            BackgroundColor3 = Color3.fromRGB(255,255,255), BackgroundTransparency = 0.88
+        }):Play()
+        FlyStatusLabel.Text = "Status: Off  |  WASD  |  Space/Ctrl  |  Shift boost"
+    end)
+end
+
+local function startSupermanFly()
+    local char = plr.Character
+    local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+    local hum  = char and char:FindFirstChildOfClass("Humanoid")
+    if not hrp or not hum then return end
+
+    SupermanFlyEnabled = true
+    hum.PlatformStand = true
+    hum.AutoRotate    = false
+
+    superBodyVel = Instance.new("BodyVelocity")
+    superBodyVel.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+    superBodyVel.Velocity  = Vector3.zero
+    superBodyVel.Parent    = hrp
+
+    superBodyGyro = Instance.new("BodyGyro")
+    superBodyGyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+    superBodyGyro.D         = 120; superBodyGyro.P = 1e5
+    superBodyGyro.CFrame    = hrp.CFrame
+    superBodyGyro.Parent    = hrp
+
+    pcall(function()
+        SupermanFlyButton.Text = "ð¦¸ Superman Fly (G): ON"
+        SupermanFlyButton.BackgroundTransparency = 0.7
+    end)
+    pcall(function()
+        FlyToggleBtn.Text = "â  Stop Fly (G)"
+        TweenService:Create(FlyToggleBtn, TweenInfo.new(0.2), {
+            BackgroundColor3 = Color3.fromRGB(100,220,120), BackgroundTransparency = 0
+        }):Play()
+    end)
+
+    superFlyConn = RunService.RenderStepped:Connect(function()
+        local c2   = plr.Character
+        local hrp2 = c2 and c2:FindFirstChild("HumanoidRootPart")
+        if not hrp2 or not superBodyVel or not superBodyVel.Parent then
+            stopSupermanFly(); return
+        end
+
+        local cam   = workspace.CurrentCamera
+        local camCF = cam.CFrame
+        local moveDir = Vector3.zero
+        local UIS = UserInputService
+        if UIS:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + Vector3.new(camCF.LookVector.X,  0, camCF.LookVector.Z).Unit  end
+        if UIS:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - Vector3.new(camCF.LookVector.X,  0, camCF.LookVector.Z).Unit  end
+        if UIS:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - Vector3.new(camCF.RightVector.X, 0, camCF.RightVector.Z).Unit end
+        if UIS:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + Vector3.new(camCF.RightVector.X, 0, camCF.RightVector.Z).Unit end
+
+        local vertical = 0
+        if UIS:IsKeyDown(Enum.KeyCode.Space) then vertical = 1 end
+        if UIS:IsKeyDown(Enum.KeyCode.LeftControl) or UIS:IsKeyDown(Enum.KeyCode.RightControl) then vertical = -1 end
+
+        local isBoosting = UIS:IsKeyDown(Enum.KeyCode.LeftShift) or UIS:IsKeyDown(Enum.KeyCode.RightShift)
+        local speed = isBoosting and getFlyBoostSpeed() or getFlySpeed()
+
+        pcall(function()
+            FlyStatusLabel.Text = (isBoosting and "ð Boosting" or "Flying") .. "  " .. speed .. " st/s  |  Shift = boost"
+        end)
+
+        local horizontalVel = moveDir.Magnitude > 0 and (moveDir.Unit * speed) or Vector3.zero
+        superBodyVel.Velocity = Vector3.new(horizontalVel.X, vertical * speed * 0.6, horizontalVel.Z)
+
+        local travelDir = Vector3.new(horizontalVel.X, 0, horizontalVel.Z)
+        local targetCF
+        if travelDir.Magnitude > 0.1 then
+            local pitchDown = vertical < 0 and 0.3 or 0.6
+            local tiltedLook = (travelDir.Unit + Vector3.new(0, -pitchDown, 0)).Unit
+            targetCF = CFrame.lookAt(hrp2.Position, hrp2.Position + tiltedLook)
+        elseif vertical ~= 0 then
+            local lookFlat = Vector3.new(camCF.LookVector.X, 0, camCF.LookVector.Z)
+            if lookFlat.Magnitude > 0.01 then
+                targetCF = CFrame.lookAt(hrp2.Position, hrp2.Position + (lookFlat.Unit + Vector3.new(0, vertical * 0.5, 0)).Unit)
+            else
+                targetCF = hrp2.CFrame
+            end
+        else
+            local _, yaw, _ = camCF:ToEulerAnglesYXZ()
+            targetCF = CFrame.new(hrp2.Position) * CFrame.Angles(0, yaw, 0)
+        end
+        superBodyGyro.CFrame = targetCF
+    end)
+end
+
+FlyToggleBtn.MouseButton1Click:Connect(function()
+    if SupermanFlyEnabled then stopSupermanFly() else startSupermanFly() end
+end)
+
+-- Respawn cleanup
+plr.CharacterAdded:Connect(function()
+    if SupermanFlyEnabled then
+        task.wait(0.5)
+        stopSupermanFly()
+    end
+end)
+
+-- =====================================================
+-- FE CHARACTER CLONER
+-- .char <name> copies a player's HumanoidDescription
+-- (outfit, scales, body colors) AND their animation IDs
+-- onto YOUR character — visible to everyone on the server.
+-- .char reset restores your original appearance.
+-- =====================================================
+
+local charCloneActive   = false
+local originalDesc      = nil   -- saved before first clone
+local charCloneTarget   = nil   -- name string
+
+local function applyAnimationsFromDesc(desc)
+    -- Applies the animation IDs from a HumanoidDescription to the local Animate script
+    local char = plr.Character
+    if not char then return end
+    local animate = char:FindFirstChild("Animate")
+    if not animate then return end
+
+    local animMap = {
+        idle       = { desc.IdleAnimationId,   desc.IdleAnimationId   },
+        walk       = { desc.WalkAnimationId                            },
+        run        = { desc.RunAnimationId                             },
+        jump       = { desc.JumpAnimationId                            },
+        fall       = { desc.FallAnimationId                            },
+        climb      = { desc.ClimbAnimationId                           },
+        swim       = { desc.SwimAnimationId                            },
+        swimidle   = { desc.SwimIdleAnimationId                        },
+    }
+
+    for scriptChildName, ids in pairs(animMap) do
+        local folder = animate:FindFirstChild(scriptChildName)
+        if not folder then continue end
+        local anims = folder:GetChildren()
+        for i, anim in ipairs(anims) do
+            if anim:IsA("Animation") and ids[i] and ids[i] ~= 0 then
+                anim.AnimationId = "rbxassetid://" .. tostring(ids[i])
+            end
+        end
+    end
+end
+
+local function doCharClone(targetPlayer)
+    local char = plr.Character
+    local hum  = char and char:FindFirstChildOfClass("Humanoid")
+    if not hum then SendNotify("Char Clone", "No humanoid found", 2) return end
+
+    -- Save original description once before any clone
+    if not originalDesc then
+        local ok, desc = pcall(function()
+            return Players:GetHumanoidDescriptionFromUserId(plr.UserId)
+        end)
+        if ok and desc then originalDesc = desc end
+    end
+
+    local ok, targetDesc = pcall(function()
+        return Players:GetHumanoidDescriptionFromUserId(targetPlayer.UserId)
+    end)
+    if not ok or not targetDesc then
+        SendNotify("Char Clone", "Failed to fetch appearance for " .. targetPlayer.DisplayName, 3)
+        return
+    end
+
+    -- Apply appearance — HumanoidDescription changes replicate to server so everyone sees it
+    pcall(function() hum:ApplyDescription(targetDesc) end)
+    -- Swap in their animations too
+    applyAnimationsFromDesc(targetDesc)
+
+    charCloneActive = true
+    charCloneTarget = targetPlayer.Name
+    pcall(function()
+        CharCloneButton.Text = "🦸 Clone Char: ON (" .. targetPlayer.Name .. ")"
+        CharCloneButton.BackgroundTransparency = 0.7
+    end)
+    SendNotify("🦸 Char Clone", "Cloned " .. targetPlayer.DisplayName .. "'s appearance", 3)
+end
+
+local function resetCharClone()
+    if not originalDesc then
+        SendNotify("Char Clone", "No saved appearance to restore", 2)
+        return
+    end
+    local char = plr.Character
+    local hum  = char and char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+
+    pcall(function() hum:ApplyDescription(originalDesc) end)
+    applyAnimationsFromDesc(originalDesc)
+    charCloneActive = false
+    charCloneTarget = nil
+    pcall(function()
+        CharCloneButton.Text = "🦸 Clone Char: OFF"
+        CharCloneButton.BackgroundTransparency = 0.9
+    end)
+    SendNotify("Char Clone", "Appearance restored", 2)
+end
+
+CharCloneButton.MouseButton1Click:Connect(function()
+    if charCloneActive then
+        resetCharClone()
+    else
+        -- Try to use currently targeted player
+        local target = TargetedPlayer and GetPlayer(TargetedPlayer)
+        if not target then target = GetPlayer(TargetNameInput.Text) end
+        if target then
+            doCharClone(target)
+        else
+            SendNotify("Char Clone", "Set a target first or use .char <name>", 3)
+        end
+    end
 end)
 
 -- =====================================================
@@ -5172,6 +5610,8 @@ UnloadScriptButton.MouseButton1Click:Connect(function()
         AimlockEnabled = false
         TimeReverseEnabled = false
         TripEnabled = false
+        if SupermanFlyEnabled then stopSupermanFly() end
+        if charCloneActive then resetCharClone() end
         
         -- Clean up ESP
         for _, espData in pairs(espObjects) do
@@ -6370,6 +6810,8 @@ local allCommands = {
     { cmd = ".baseplate",   desc = "Toggle Infinite Baseplate" },
     { cmd = ".timereverse", desc = "Toggle Time Reverse" },
     { cmd = ".trip",        desc = "Toggle Trip" },
+    { cmd = ".fly",         desc = "Toggle Superman Fly" },
+    { cmd = ".char [name]", desc = "Clone player char (reset to undo)" },
     { cmd = ".minimize",    desc = "Toggle Minimize GUI" },
     { cmd = ".rj",          desc = "Rejoin same server" },
     { cmd = ".cmds",        desc = "Show/hide Command List" },
@@ -6721,6 +7163,29 @@ RegisterCommand({"trip"}, function()
         TripButton.Text = "🤸 Trip (T): OFF"; TripButton.BackgroundTransparency = 0.9; SendNotify("Trip", "Disabled", 2)
     end
 end, "Movement")
+
+RegisterCommand({"fly", "superman"}, function()
+    if SupermanFlyEnabled then
+        stopSupermanFly()
+        SendNotify("Superman Fly", "Disabled", 2)
+    else
+        startSupermanFly()
+        SendNotify("Superman Fly", "Enabled — WASD · Space/Ctrl · Shift boost", 3)
+    end
+end, "Movement")
+
+RegisterCommand({"char"}, function(argLine)
+    if argLine == "" or argLine:lower() == "reset" or argLine:lower() == "off" then
+        resetCharClone()
+    else
+        local target = GetPlayer(argLine)
+        if target then
+            doCharClone(target)
+        else
+            SendNotify("Char Clone", "Player not found: " .. argLine, 2)
+        end
+    end
+end, "Player")
 
 RegisterCommand({"minimize"}, function() MinimizeButton.MouseButton1Click:Fire() end, "Misc")
 RegisterCommand({"rj", "rejoin"}, function()
