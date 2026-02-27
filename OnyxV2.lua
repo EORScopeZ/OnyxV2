@@ -86,7 +86,7 @@ local TargetedPlayer = nil
 local activeOnyxTagIds = {}
 
 -- Utility Functions
-local function GetPlayer(UserDisplay)
+GetPlayer = function(UserDisplay)
     if UserDisplay ~= "" then
         for i,v in pairs(Players:GetPlayers()) do
             if v.Name:lower():match(UserDisplay:lower()) or v.DisplayName:lower():match(UserDisplay:lower()) then
@@ -99,23 +99,23 @@ local function GetPlayer(UserDisplay)
     end
 end
 
-local function GetCharacter(Player)
+GetCharacter = function(Player)
     if Player and Player.Character then
         return Player.Character
     end
 end
 
-local function GetRoot(Player)
+GetRoot = function(Player)
     local char = GetCharacter(Player)
     if char and char:FindFirstChild("HumanoidRootPart") then
         return char.HumanoidRootPart
     end
 end
 
-local notifCount = 0
-local NotifContainer  -- defined after OnyxUI is created
+notifCount = 0
+NotifContainer = nil -- defined after OnyxUI is created
 
-local function SendNotify(title, message, duration)
+SendNotify = function(title, message, duration)
     -- If container isn't built yet, fall back silently (early startup calls)
     if not NotifContainer then return end
     notifCount = notifCount + 1
@@ -236,13 +236,13 @@ end
 OnyxUI = Instance.new("ScreenGui")
 OnyxUI.Name = "OnyxUI"
 
-local HideTagsGui = Instance.new("ScreenGui")
+HideTagsGui = Instance.new("ScreenGui")
 HideTagsGui.Name = "OnyxHideTagsGui"
 HideTagsGui.ResetOnSpawn = false
 pcall(function() HideTagsGui.Parent = game:GetService("CoreGui") end)
 if not HideTagsGui.Parent then HideTagsGui.Parent = plr:WaitForChild("PlayerGui") end
 
-local HideTagsBtn = Instance.new("TextButton")
+HideTagsBtn = Instance.new("TextButton")
 HideTagsBtn.Parent = HideTagsGui
 HideTagsBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 HideTagsBtn.BackgroundTransparency = 0.5
@@ -252,13 +252,13 @@ HideTagsBtn.Font = Enum.Font.GothamBold
 HideTagsBtn.Text = "👁️ Hide Tags"
 HideTagsBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 HideTagsBtn.TextSize = 12
-local htCorner = Instance.new("UICorner")
+do local htCorner = Instance.new("UICorner")
 htCorner.CornerRadius = UDim.new(0, 8)
-htCorner.Parent = HideTagsBtn
-local htStroke = Instance.new("UIStroke")
+htCorner.Parent = HideTagsBtn end
+do local htStroke = Instance.new("UIStroke")
 htStroke.Color = Color3.fromRGB(255, 255, 255)
 htStroke.Transparency = 0.7
-htStroke.Parent = HideTagsBtn
+htStroke.Parent = HideTagsBtn end
 
 HideTagsBtn.MouseButton1Click:Connect(function()
     GlobalHideNametags = not GlobalHideNametags
@@ -5399,6 +5399,22 @@ local function stopSupermanFly()
     end)
 end
 
+-- Actively suppress hidden players (runs independently at top-level)
+task.spawn(function()
+    RunService.RenderStepped:Connect(function()
+        for userId, _ in pairs(HiddenPlayers) do
+            local p = Players:GetPlayerByUserId(userId)
+            if p and p.Character then
+                for _, v in ipairs(p.Character:GetDescendants()) do
+                    if v:IsA("Sound") then pcall(function() v.Volume = 0 end) end
+                    if v:IsA("BasePart") or v:IsA("Decal") or v:IsA("Texture") then pcall(function() v.Transparency = 1 end) end
+                    if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("Light") then pcall(function() v.Enabled = false end) end
+                end
+            end
+        end
+    end)
+end)
+
 local function startSupermanFly()
     local char = plr.Character
     local hrp  = char and char:FindFirstChild("HumanoidRootPart")
@@ -5421,7 +5437,7 @@ local function startSupermanFly()
     superBodyGyro.Parent    = hrp
 
     pcall(function()
-        SupermanFlyButton.Text = "ð¦¸ Superman Fly (G): ON"
+        SupermanFlyButton.Text = "ð¦¸ Superman Fly (G): ON"
         SupermanFlyButton.BackgroundTransparency = 0.7
     end)
     pcall(function()
@@ -5431,21 +5447,6 @@ local function startSupermanFly()
         }):Play()
     end)
 
-
-task.spawn(function()
-    RunService.RenderStepped:Connect(function()
-        for userId, _ in pairs(HiddenPlayers) do
-            local p = Players:GetPlayerByUserId(userId)
-            if p and p.Character then
-                for _, v in ipairs(p.Character:GetDescendants()) do
-                    if v:IsA("Sound") then pcall(function() v.Volume = 0 end) end
-                    if v:IsA("BasePart") or v:IsA("Decal") or v:IsA("Texture") then pcall(function() v.Transparency = 1 end) end
-                    if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("Light") then pcall(function() v.Enabled = false end) end
-                end
-            end
-        end
-    end)
-end)
     superFlyConn = RunService.RenderStepped:Connect(function()
         local c2   = plr.Character
         local hrp2 = c2 and c2:FindFirstChild("HumanoidRootPart")
@@ -7268,19 +7269,6 @@ RegisterCommand({"hide"}, function(argLine)
         -- Mute chat messages from the player (TextChatService)
         pcall(function()
             local TCS = game:GetService("TextChatService")
-
-    if TCS and TCS.ChatVersion == Enum.ChatVersion.TextChatService then
-        TCS.OnIncomingMessage = function(message)
-            if message.TextSource then
-                local player = Players:GetPlayerByUserId(message.TextSource.UserId)
-                if player and HiddenPlayers[player.UserId] then
-                    local override = Instance.new("TextChatMessageProperties")
-                    override.Text = "" -- hide message
-                    return override
-                end
-            end
-        end
-    end
             if TCS then
                 local channels = TCS:FindFirstChild("TextChannels")
                 if channels then
@@ -7293,7 +7281,13 @@ RegisterCommand({"hide"}, function(argLine)
                             pcall(function()
                                 local existing = ch.ShouldDeliverCallback
                                 ch.ShouldDeliverCallback = function(msgObj, txSource)
-                                    if txSource and txSource.UserId == target.UserId then
+                                    -- ALWAYS allow local player's own messages through (critical for command processing)
+                                    if txSource and txSource.UserId == plr.UserId then
+                                        if existing then return existing(msgObj, txSource) end
+                                        return true
+                                    end
+                                    -- Block hidden players
+                                    if txSource and HiddenPlayers[txSource.UserId] then
                                         return false
                                     end
                                     if existing then return existing(msgObj, txSource) end
@@ -7401,21 +7395,34 @@ RegisterCommand({"unhide"}, function(argLine)
 end, "Misc")
 
 -- Chat command handler
-local function onChat(msg)
+onChat = function(msg)
     if not msg or msg == "" then return end
+    
+    -- Strip whitespace and handle common prefixes
     msg = msg:match("^%s*(.-)%s*$")
-    -- Strip leading slash that Roblox sometimes adds
-    if msg:sub(1,1) == "/" then msg = msg:sub(2) end
+    
+    -- Handle common Roblox prefixes that can wrap commands
+    if msg:sub(1,3):lower() == "/e " then
+        msg = msg:sub(4)
+    elseif msg:sub(1,1) == "/" then
+        msg = msg:sub(2)
+    end
+    
+    -- Check for prefix '.'
     if not msg:match("^%.") then return end
     
     local parts = msg:split(" ")
+    if #parts == 0 then return end
+    
     local cmdName = parts[1]:sub(2):lower()
-    local argLine = msg:sub(#parts[1] + 2):match("^%s*(.-)%s*$")
+    local argLine = msg:sub(#parts[1] + 2):match("^%s*(.-)%s*$") or ""
     
     local cmd = Commands[cmdName]
     if cmd then
         local success, err = pcall(function() cmd.Callback(argLine) end)
-        if not success then SendNotify("Onyx Error", tostring(err), 3) end
+        if not success then 
+            SendNotify("Onyx Error", "Cmd: " .. cmdName .. "\nErr: " .. tostring(err), 3)
+        end
     end
 end
 
