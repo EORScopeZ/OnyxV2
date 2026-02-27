@@ -17,7 +17,7 @@ local mouse = plr:GetMouse()
 -- regardless of whether this script was loadstring'd from a loader or run directly.
 -- Each candidate is wrapped in pcall so accessing undefined globals (e.g. syn, fluxus)
 -- doesn't crash on Xeno, which throws errors on undefined global access.
-local httpRequest
+-- local httpRequest
 do
     local candidates = {
         function() return request end,
@@ -233,8 +233,66 @@ local function TeleportTO(player)
 end
 
 -- Create ScreenGui
-local OnyxUI = Instance.new("ScreenGui")
+OnyxUI = Instance.new("ScreenGui")
 OnyxUI.Name = "OnyxUI"
+
+local HideTagsGui = Instance.new("ScreenGui")
+HideTagsGui.Name = "OnyxHideTagsGui"
+HideTagsGui.ResetOnSpawn = false
+pcall(function() HideTagsGui.Parent = game:GetService("CoreGui") end)
+if not HideTagsGui.Parent then HideTagsGui.Parent = plr:WaitForChild("PlayerGui") end
+
+local HideTagsBtn = Instance.new("TextButton")
+HideTagsBtn.Parent = HideTagsGui
+HideTagsBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+HideTagsBtn.BackgroundTransparency = 0.5
+HideTagsBtn.Position = UDim2.new(1, -120, 0, 10)
+HideTagsBtn.Size = UDim2.new(0, 110, 0, 30)
+HideTagsBtn.Font = Enum.Font.GothamBold
+HideTagsBtn.Text = "👁️ Hide Tags"
+HideTagsBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+HideTagsBtn.TextSize = 12
+local htCorner = Instance.new("UICorner")
+htCorner.CornerRadius = UDim.new(0, 8)
+htCorner.Parent = HideTagsBtn
+local htStroke = Instance.new("UIStroke")
+htStroke.Color = Color3.fromRGB(255, 255, 255)
+htStroke.Transparency = 0.7
+htStroke.Parent = HideTagsBtn
+
+HideTagsBtn.MouseButton1Click:Connect(function()
+    GlobalHideNametags = not GlobalHideNametags
+    HideTagsBtn.Text = GlobalHideNametags and "🚫 Show Tags" or "👁️ Hide Tags"
+    SendNotify("Nametags", GlobalHideNametags and "All nametags hidden" or "Nametags visible", 2)
+    -- Scan CoreGui (where other players' tags live)
+    pcall(function()
+        for _, tag in ipairs(game:GetService("CoreGui"):GetDescendants()) do
+            if tag:IsA("BillboardGui") and (tag.Name:sub(1, 12) == "OnyxNametag_" or tag.Name == "OnyxSelfTag") then
+                tag.Enabled = not GlobalHideNametags
+            end
+        end
+    end)
+    -- Scan PlayerGui (where self-tag lives)
+    pcall(function()
+        for _, tag in ipairs(plr.PlayerGui:GetDescendants()) do
+            if tag:IsA("BillboardGui") and (tag.Name == "OnyxSelfTag" or tag.Name:sub(1, 12) == "OnyxNametag_") then
+                tag.Enabled = not GlobalHideNametags
+            end
+        end
+    end)
+    -- Scan workspace characters (fallback location for tags)
+    pcall(function()
+        for _, p in ipairs(game:GetService("Players"):GetPlayers()) do
+            if p.Character then
+                for _, tag in ipairs(p.Character:GetDescendants()) do
+                    if tag:IsA("BillboardGui") and (tag.Name:sub(1, 12) == "OnyxNametag_" or tag.Name == "OnyxSelfTag") then
+                        tag.Enabled = not GlobalHideNametags
+                    end
+                end
+            end
+        end
+    end)
+end)
 OnyxUI.Parent = game.CoreGui
 OnyxUI.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 OnyxUI.ResetOnSpawn = false
@@ -258,7 +316,7 @@ do
 end
 
 -- Main Frame (Glass Effect — Orca dark style)
-local MainFrame = Instance.new("Frame")
+MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
 MainFrame.Parent = OnyxUI
 MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -298,7 +356,7 @@ do
 end
 
 -- Title Bar — Orca style: deeper dark, purple-pink accent strip
-local TitleBar = Instance.new("Frame")
+TitleBar = Instance.new("Frame")
 TitleBar.Name = "TitleBar"
 TitleBar.Parent = MainFrame
 TitleBar.BackgroundColor3 = Color3.fromRGB(18, 18, 30)
@@ -324,7 +382,7 @@ do
 end
 
 -- Title Text
-local TitleText = Instance.new("TextLabel")
+TitleText = Instance.new("TextLabel")
 TitleText.Name = "TitleText"
 TitleText.Parent = TitleBar
 TitleText.BackgroundTransparency = 1
@@ -338,7 +396,7 @@ TitleText.TextXAlignment = Enum.TextXAlignment.Left
 TitleText.ZIndex = 3
 
 -- Subtitle Text
-local SubtitleText = Instance.new("TextLabel")
+SubtitleText = Instance.new("TextLabel")
 SubtitleText.Name = "SubtitleText"
 SubtitleText.Parent = TitleBar
 SubtitleText.BackgroundTransparency = 1
@@ -352,7 +410,7 @@ SubtitleText.TextXAlignment = Enum.TextXAlignment.Left
 SubtitleText.ZIndex = 3
 
 -- Minimize Button — Orca style
-local MinimizeButton = Instance.new("TextButton")
+MinimizeButton = Instance.new("TextButton")
 MinimizeButton.Name = "MinimizeButton"
 MinimizeButton.Parent = TitleBar
 MinimizeButton.AnchorPoint = Vector2.new(1, 0.5)
@@ -377,7 +435,7 @@ end
 
 
 -- Content Container
-local ContentContainer = Instance.new("Frame")
+ContentContainer = Instance.new("Frame")
 ContentContainer.Name = "ContentContainer"
 ContentContainer.Parent = MainFrame
 ContentContainer.BackgroundTransparency = 1
@@ -387,7 +445,7 @@ ContentContainer.Size = UDim2.new(1, 0, 1, -48)
 ContentContainer.ZIndex = 2
 
 -- Tab Container — Orca sidebar style
-local TabContainer = Instance.new("Frame")
+TabContainer = Instance.new("Frame")
 TabContainer.Name = "TabContainer"
 TabContainer.Parent = ContentContainer
 TabContainer.BackgroundColor3 = Color3.fromRGB(18, 18, 30)
@@ -452,19 +510,19 @@ local function CreateTab(name, order)
 end
 
 -- Create Tabs
-local HomeTab = CreateTab("Home", 1)
-local PlayerTab = CreateTab("Player", 2)
-local AnimationTab = CreateTab("Animation", 3)
-local CombatTab = CreateTab("Combat", 4)
-local VisualTab = CreateTab("Visual", 5)
-local MiscTab = CreateTab("Misc", 6)
+HomeTab = CreateTab("Home", 1)
+PlayerTab = CreateTab("Player", 2)
+AnimationTab = CreateTab("Animation", 3)
+CombatTab = CreateTab("Combat", 4)
+VisualTab = CreateTab("Visual", 5)
+MiscTab = CreateTab("Misc", 6)
 
 -- Set Home tab as default selected
 HomeTab.BackgroundTransparency = 0.82
 HomeTab.TextColor3 = Color3.fromRGB(255, 255, 255)
 
 -- Main Content Area
-local MainContent = Instance.new("Frame")
+MainContent = Instance.new("Frame")
 MainContent.Name = "MainContent"
 MainContent.Parent = ContentContainer
 MainContent.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -495,7 +553,7 @@ do
 end
 
 -- Scrolling Frame for content
-local ContentScroll = Instance.new("ScrollingFrame")
+ContentScroll = Instance.new("ScrollingFrame")
 ContentScroll.Name = "ContentScroll"
 ContentScroll.Parent = MainContent
 ContentScroll.BackgroundTransparency = 1
@@ -508,7 +566,7 @@ ContentScroll.ScrollBarImageTransparency = 0.8
 ContentScroll.ZIndex = 3
 
 -- Auto-resize canvas
-local ContentLayout = Instance.new("UIListLayout")
+ContentLayout = Instance.new("UIListLayout")
 ContentLayout.Parent = ContentScroll
 ContentLayout.SortOrder = Enum.SortOrder.LayoutOrder
 ContentLayout.Padding = UDim.new(0, 10)
@@ -518,7 +576,7 @@ ContentLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 end)
 
 -- TARGET SECTION (Hidden by default, shown when Player tab clicked)
-local TargetSection = Instance.new("Frame")
+TargetSection = Instance.new("Frame")
 TargetSection.Name = "TargetSection"
 TargetSection.Parent = ContentScroll
 TargetSection.BackgroundTransparency = 1
@@ -527,7 +585,7 @@ TargetSection.Visible = false
 TargetSection.LayoutOrder = 1
 do
 -- Target Header (local to this block, not used elsewhere)
-local TargetHeader = Instance.new("TextLabel")
+TargetHeader = Instance.new("TextLabel")
 TargetHeader.Name = "TargetHeader"
 TargetHeader.Parent = TargetSection
 TargetHeader.BackgroundTransparency = 1
@@ -541,7 +599,7 @@ TargetHeader.ZIndex = 3
 end -- header do
 
 -- Target Info Container
-local TargetInfoContainer = Instance.new("Frame")
+TargetInfoContainer = Instance.new("Frame")
 TargetInfoContainer.Name = "TargetInfoContainer"
 TargetInfoContainer.Parent = TargetSection
 TargetInfoContainer.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -562,7 +620,7 @@ do
 end
 
 -- Target Avatar Image
-local TargetImage = Instance.new("ImageLabel")
+TargetImage = Instance.new("ImageLabel")
 TargetImage.Name = "TargetImage"
 TargetImage.Parent = TargetInfoContainer
 TargetImage.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
@@ -579,7 +637,7 @@ do
 end
 
 -- Target Name Input
-local TargetNameInput = Instance.new("TextBox")
+TargetNameInput = Instance.new("TextBox")
 TargetNameInput.Name = "TargetNameInput"
 TargetNameInput.Parent = TargetInfoContainer
 TargetNameInput.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -604,7 +662,7 @@ do
 end
 
 -- Target Info Label
-local TargetInfoLabel = Instance.new("TextLabel")
+TargetInfoLabel = Instance.new("TextLabel")
 TargetInfoLabel.Name = "TargetInfoLabel"
 TargetInfoLabel.Parent = TargetInfoContainer
 TargetInfoLabel.BackgroundTransparency = 1
@@ -671,7 +729,7 @@ local function CreateActionButton(parent, name, position, text, layoutOrder)
 end
 
 -- Target Actions Container
-local TargetActionsContainer = Instance.new("Frame")
+TargetActionsContainer = Instance.new("Frame")
 TargetActionsContainer.Name = "TargetActionsContainer"
 TargetActionsContainer.Parent = TargetSection
 TargetActionsContainer.BackgroundTransparency = 1
@@ -687,17 +745,17 @@ do
 end
 
 -- Create Target Action Buttons
-local ViewButton = CreateActionButton(TargetActionsContainer, "ViewButton", UDim2.new(0, 0, 0, 0), "👁️ View Target", 1)
-local TeleportButton = CreateActionButton(TargetActionsContainer, "TeleportButton", UDim2.new(0, 0, 0, 0), "⚡ Teleport to Target", 2)
-local BringButton = CreateActionButton(TargetActionsContainer, "BringButton", UDim2.new(0, 0, 0, 0), "🔄 Bring Target to You", 3)
-local FocusButton = CreateActionButton(TargetActionsContainer, "FocusButton", UDim2.new(0, 0, 0, 0), "🎯 Focus Target (Loop TP)", 4)
-local HeadSitButton = CreateActionButton(TargetActionsContainer, "HeadSitButton", UDim2.new(0, 0, 0, 0), "🪑 Sit on Head", 5)
-local BackpackButton = CreateActionButton(TargetActionsContainer, "BackpackButton", UDim2.new(0, 0, 0, 0), "🎒 Backpack Mode", 6)
-local ClearTargetButton = CreateActionButton(TargetActionsContainer, "ClearTargetButton", UDim2.new(0, 0, 0, 0), "❌ Clear Target", 7)
-local CharCloneButton = CreateActionButton(TargetActionsContainer, "CharCloneButton", UDim2.new(0, 0, 0, 0), "🦸 Clone Char: OFF", 8)
+ViewButton = CreateActionButton(TargetActionsContainer, "ViewButton", UDim2.new(0, 0, 0, 0), "👁️ View Target", 1)
+TeleportButton = CreateActionButton(TargetActionsContainer, "TeleportButton", UDim2.new(0, 0, 0, 0), "⚡ Teleport to Target", 2)
+BringButton = CreateActionButton(TargetActionsContainer, "BringButton", UDim2.new(0, 0, 0, 0), "🔄 Bring Target to You", 3)
+FocusButton = CreateActionButton(TargetActionsContainer, "FocusButton", UDim2.new(0, 0, 0, 0), "🎯 Focus Target (Loop TP)", 4)
+HeadSitButton = CreateActionButton(TargetActionsContainer, "HeadSitButton", UDim2.new(0, 0, 0, 0), "🪑 Sit on Head", 5)
+BackpackButton = CreateActionButton(TargetActionsContainer, "BackpackButton", UDim2.new(0, 0, 0, 0), "🎒 Backpack Mode", 6)
+ClearTargetButton = CreateActionButton(TargetActionsContainer, "ClearTargetButton", UDim2.new(0, 0, 0, 0), "❌ Clear Target", 7)
+CharCloneButton = CreateActionButton(TargetActionsContainer, "CharCloneButton", UDim2.new(0, 0, 0, 0), "🦸 Clone Char: OFF", 8)
 
 -- HOME SECTION (Default visible)
-local HomeSection = Instance.new("Frame")
+HomeSection = Instance.new("Frame")
 HomeSection.Name = "HomeSection"
 HomeSection.Parent = ContentScroll
 HomeSection.BackgroundTransparency = 1
@@ -706,9 +764,9 @@ HomeSection.Visible = true
 HomeSection.LayoutOrder = 0
 
 -- Build Home section UI in a do block to avoid polluting top-level local scope
-local UpdatesScroll, UpdatesLayout
+-- local UpdatesScroll, UpdatesLayout
 do
-local WelcomeText = Instance.new("TextLabel")
+WelcomeText = Instance.new("TextLabel")
 WelcomeText.Name = "WelcomeText"
 WelcomeText.Parent = HomeSection
 WelcomeText.BackgroundTransparency = 1
@@ -720,21 +778,21 @@ WelcomeText.TextSize = 24
 WelcomeText.TextXAlignment = Enum.TextXAlignment.Left
 WelcomeText.ZIndex = 3
 
-local WelcomeSubtext = Instance.new("TextLabel")
+WelcomeSubtext = Instance.new("TextLabel")
 WelcomeSubtext.Name = "WelcomeSubtext"
 WelcomeSubtext.Parent = HomeSection
 WelcomeSubtext.BackgroundTransparency = 1
 WelcomeSubtext.Position = UDim2.new(0, 0, 0, 45)
 WelcomeSubtext.Size = UDim2.new(1, 0, 0, 20)
 WelcomeSubtext.Font = Enum.Font.Gotham
-WelcomeSubtext.Text = "Version 2.1 | By Biscuit"
+WelcomeSubtext.Text = "Version 2.5 | By Biscuit"
 WelcomeSubtext.TextColor3 = Color3.fromRGB(180, 180, 180)
 WelcomeSubtext.TextSize = 13
 WelcomeSubtext.TextXAlignment = Enum.TextXAlignment.Left
 WelcomeSubtext.ZIndex = 3
 
 -- Updates Container
-local UpdatesContainer = Instance.new("Frame")
+UpdatesContainer = Instance.new("Frame")
 UpdatesContainer.Name = "UpdatesContainer"
 UpdatesContainer.Parent = HomeSection
 UpdatesContainer.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -744,18 +802,18 @@ UpdatesContainer.Position = UDim2.new(0, 0, 0, 75)
 UpdatesContainer.Size = UDim2.new(1, 0, 0, 500)
 UpdatesContainer.ZIndex = 3
 
-local UpdatesCorner = Instance.new("UICorner")
+UpdatesCorner = Instance.new("UICorner")
 UpdatesCorner.CornerRadius = UDim.new(0, 10)
 UpdatesCorner.Parent = UpdatesContainer
 
-local UpdatesStroke = Instance.new("UIStroke")
+UpdatesStroke = Instance.new("UIStroke")
 UpdatesStroke.Color = Color3.fromRGB(255, 255, 255)
 UpdatesStroke.Transparency = 0.9
 UpdatesStroke.Thickness = 1
 UpdatesStroke.Parent = UpdatesContainer
 
 -- Updates Title
-local UpdatesTitle = Instance.new("TextLabel")
+UpdatesTitle = Instance.new("TextLabel")
 UpdatesTitle.Name = "UpdatesTitle"
 UpdatesTitle.Parent = UpdatesContainer
 UpdatesTitle.BackgroundTransparency = 1
@@ -889,7 +947,7 @@ CreateUpdateEntry("v2.0", "Major Overhaul",
 end -- end Home section do block
 
 -- ANIMATION SECTION (NEW)
-local AnimationSection = Instance.new("Frame")
+AnimationSection = Instance.new("Frame")
 AnimationSection.Name = "AnimationSection"
 AnimationSection.Parent = ContentScroll
 AnimationSection.BackgroundTransparency = 1
@@ -911,7 +969,7 @@ do
 end
 
 -- COMBAT SECTION (NEW)
-local CombatSection = Instance.new("Frame")
+CombatSection = Instance.new("Frame")
 CombatSection.Name = "CombatSection"
 CombatSection.Parent = ContentScroll
 CombatSection.BackgroundTransparency = 1
@@ -933,7 +991,7 @@ do
 end
 
 -- Combat Actions Container
-local CombatActionsContainer = Instance.new("Frame")
+CombatActionsContainer = Instance.new("Frame")
 CombatActionsContainer.Name = "CombatActionsContainer"
 CombatActionsContainer.Parent = CombatSection
 CombatActionsContainer.BackgroundTransparency = 1
@@ -948,13 +1006,13 @@ do
 end
 
 -- ESP Button
-local ESPButton = CreateActionButton(CombatActionsContainer, "ESPButton", UDim2.new(0, 0, 0, 0), "👁️ ESP: OFF", 1)
+ESPButton = CreateActionButton(CombatActionsContainer, "ESPButton", UDim2.new(0, 0, 0, 0), "👁️ ESP: OFF", 1)
 
 -- Aimlock Button
-local AimlockButton = CreateActionButton(CombatActionsContainer, "AimlockButton", UDim2.new(0, 0, 0, 0), "🎯 Aimlock: OFF", 2)
+AimlockButton = CreateActionButton(CombatActionsContainer, "AimlockButton", UDim2.new(0, 0, 0, 0), "🎯 Aimlock: OFF", 2)
 
 -- MISC SECTION
-local MiscSection = Instance.new("Frame")
+MiscSection = Instance.new("Frame")
 MiscSection.Name = "MiscSection"
 MiscSection.Parent = ContentScroll
 MiscSection.BackgroundTransparency = 1
@@ -976,7 +1034,7 @@ do
 end
 
 -- Misc Actions Container
-local MiscActionsContainer = Instance.new("Frame")
+MiscActionsContainer = Instance.new("Frame")
 MiscActionsContainer.Name = "MiscActionsContainer"
 MiscActionsContainer.Parent = MiscSection
 MiscActionsContainer.BackgroundTransparency = 1
@@ -991,34 +1049,34 @@ do
 end
 
 -- Anti VC Ban Button
-local AntiVCButton = CreateActionButton(MiscActionsContainer, "AntiVCButton", UDim2.new(0, 0, 0, 0), "🎤 Open Anti VC Ban", 1)
+AntiVCButton = CreateActionButton(MiscActionsContainer, "AntiVCButton", UDim2.new(0, 0, 0, 0), "🎤 Open Anti VC Ban", 1)
 
 -- Face Bang Button
-local FaceBangButton = CreateActionButton(MiscActionsContainer, "FaceBangButton", UDim2.new(0, 0, 0, 0), "💀 Open Face Bang (Z)", 2)
+FaceBangButton = CreateActionButton(MiscActionsContainer, "FaceBangButton", UDim2.new(0, 0, 0, 0), "💀 Open Face Bang (Z)", 2)
 
 -- Click Teleport Button
-local ClickTeleportButton = CreateActionButton(MiscActionsContainer, "ClickTeleportButton", UDim2.new(0, 0, 0, 0), "📍 Click Teleport (F): OFF", 3)
+ClickTeleportButton = CreateActionButton(MiscActionsContainer, "ClickTeleportButton", UDim2.new(0, 0, 0, 0), "📍 Click Teleport (F): OFF", 3)
 
 -- Infinite Baseplate Button
-local InfiniteBaseplateButton = CreateActionButton(MiscActionsContainer, "InfiniteBaseplateButton", UDim2.new(0, 0, 0, 0), "🟦 Infinite Baseplate: OFF", 4)
+InfiniteBaseplateButton = CreateActionButton(MiscActionsContainer, "InfiniteBaseplateButton", UDim2.new(0, 0, 0, 0), "🟦 Infinite Baseplate: OFF", 4)
 
 -- Time Reverse Button (moved from Combat)
-local TimeReverseButton = CreateActionButton(MiscActionsContainer, "TimeReverseButton", UDim2.new(0, 0, 0, 0), "⏮️ Time Reverse (C): OFF", 5)
+TimeReverseButton = CreateActionButton(MiscActionsContainer, "TimeReverseButton", UDim2.new(0, 0, 0, 0), "⏮️ Time Reverse (C): OFF", 5)
 
 -- Trip Button (NEW)
-local TripButton = CreateActionButton(MiscActionsContainer, "TripButton", UDim2.new(0, 0, 0, 0), "🤸 Trip (T): OFF", 6)
+TripButton = CreateActionButton(MiscActionsContainer, "TripButton", UDim2.new(0, 0, 0, 0), "🤸 Trip (T): OFF", 6)
 
-local SupermanFlyButton = CreateActionButton(MiscActionsContainer, "SupermanFlyButton", UDim2.new(0, 0, 0, 0), "🦸 Superman Fly (G): OFF", 7)
+SupermanFlyButton = CreateActionButton(MiscActionsContainer, "SupermanFlyButton", UDim2.new(0, 0, 0, 0), "🦸 Superman Fly (G): OFF", 7)
 
-local UnloadScriptButton = CreateActionButton(MiscActionsContainer, "UnloadScriptButton", UDim2.new(0, 0, 0, 0), "❌ Unload Script", 8)
+UnloadScriptButton = CreateActionButton(MiscActionsContainer, "UnloadScriptButton", UDim2.new(0, 0, 0, 0), "❌ Unload Script", 8)
 
-local CommandsButton = CreateActionButton(MiscActionsContainer, "CommandsButton", UDim2.new(0, 0, 0, 0), "⌨️ Command List", 9)
+CommandsButton = CreateActionButton(MiscActionsContainer, "CommandsButton", UDim2.new(0, 0, 0, 0), "⌨️ Command List", 9)
 
 -- Minimize Keybind Changer
-local minimizeKey = Enum.KeyCode.B -- default
-local minimizeKeyListening = false
+minimizeKey = Enum.KeyCode.B -- default
+minimizeKeyListening = false
 
-local MinimizeKeyRow = Instance.new("Frame")
+MinimizeKeyRow = Instance.new("Frame")
 MinimizeKeyRow.Name = "MinimizeKeyRow"
 MinimizeKeyRow.Parent = MiscActionsContainer
 MinimizeKeyRow.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -1029,7 +1087,7 @@ MinimizeKeyRow.LayoutOrder = 8
 MinimizeKeyRow.ZIndex = 3
 do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = MinimizeKeyRow end
 
-local MinimizeKeyLabel = Instance.new("TextLabel")
+MinimizeKeyLabel = Instance.new("TextLabel")
 MinimizeKeyLabel.Parent = MinimizeKeyRow
 MinimizeKeyLabel.BackgroundTransparency = 1
 MinimizeKeyLabel.Position = UDim2.new(0, 10, 0, 0)
@@ -1041,7 +1099,7 @@ MinimizeKeyLabel.TextSize = 13
 MinimizeKeyLabel.TextXAlignment = Enum.TextXAlignment.Left
 MinimizeKeyLabel.ZIndex = 4
 
-local MinimizeKeyBtn = Instance.new("TextButton")
+MinimizeKeyBtn = Instance.new("TextButton")
 MinimizeKeyBtn.Parent = MinimizeKeyRow
 MinimizeKeyBtn.AnchorPoint = Vector2.new(1, 0.5)
 MinimizeKeyBtn.Position = UDim2.new(1, -10, 0.5, 0)
@@ -1065,7 +1123,7 @@ MinimizeKeyBtn.MouseButton1Click:Connect(function()
 end)
 
 -- VISUAL SECTION
-local VisualSection = Instance.new("Frame")
+VisualSection = Instance.new("Frame")
 VisualSection.Name = "VisualSection"
 VisualSection.Parent = ContentScroll
 VisualSection.BackgroundTransparency = 1
@@ -1087,7 +1145,7 @@ do
 end
 
 -- Visual Actions Container
-local VisualActionsContainer = Instance.new("Frame")
+VisualActionsContainer = Instance.new("Frame")
 VisualActionsContainer.Name = "VisualActionsContainer"
 VisualActionsContainer.Parent = VisualSection
 VisualActionsContainer.BackgroundTransparency = 1
@@ -1102,11 +1160,11 @@ do
 end
 
 -- Shaders Button (with loadstring)
-local ShadersButton = CreateActionButton(VisualActionsContainer, "ShadersButton", UDim2.new(0, 0, 0, 0), "🌟 Shaders", 1)
+ShadersButton = CreateActionButton(VisualActionsContainer, "ShadersButton", UDim2.new(0, 0, 0, 0), "🌟 Shaders", 1)
 
 
 -- Emotes Button (in Animation tab, above search)
-local EmotesButton = Instance.new("TextButton")
+EmotesButton = Instance.new("TextButton")
 EmotesButton.Name = "EmotesButton"
 EmotesButton.Parent = AnimationSection
 EmotesButton.BackgroundColor3 = Color3.fromRGB(9, 9, 18)
@@ -1132,7 +1190,7 @@ EmotesButton.MouseLeave:Connect(function()
 end)
 
 -- Stop Animations Button
-local RestoreAnimsButton = Instance.new("TextButton")
+RestoreAnimsButton = Instance.new("TextButton")
 RestoreAnimsButton.Name = "RestoreAnimsButton"
 RestoreAnimsButton.Parent = AnimationSection
 RestoreAnimsButton.BackgroundColor3 = Color3.fromRGB(9, 9, 18)
@@ -1158,7 +1216,7 @@ RestoreAnimsButton.MouseLeave:Connect(function()
 end)
 
 -- Reanimation Button
-local ReanimationButton = Instance.new("TextButton")
+ReanimationButton = Instance.new("TextButton")
 ReanimationButton.Name = "ReanimationButton"
 ReanimationButton.Parent = AnimationSection
 ReanimationButton.BackgroundColor3 = Color3.fromRGB(9, 9, 18)
@@ -1254,7 +1312,7 @@ RestoreAnimsButton.MouseButton1Click:Connect(function()
 end)
 
 -- Animation Changer UI Components (for Animation Tab)
-local AnimSearchBar = Instance.new("TextBox")
+AnimSearchBar = Instance.new("TextBox")
 AnimSearchBar.Name = "AnimSearchBar"
 AnimSearchBar.Parent = AnimationSection
 AnimSearchBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
@@ -1279,7 +1337,7 @@ do
 end
 
 -- Animation Scroll Frame
-local AnimScrollFrame = Instance.new("ScrollingFrame")
+AnimScrollFrame = Instance.new("ScrollingFrame")
 AnimScrollFrame.Name = "AnimScrollFrame"
 AnimScrollFrame.Parent = AnimationSection
 AnimScrollFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
@@ -1298,7 +1356,7 @@ do
     AnimScrollCorner.Parent = AnimScrollFrame
 end
 
-local AnimScrollLayout = Instance.new("UIListLayout")
+AnimScrollLayout = Instance.new("UIListLayout")
 AnimScrollLayout.Parent = AnimScrollFrame
 AnimScrollLayout.SortOrder = Enum.SortOrder.LayoutOrder
 AnimScrollLayout.Padding = UDim.new(0, 5)
@@ -1312,7 +1370,7 @@ do
 end
 
 -- Animation Info Label
-local AnimInfoLabel = Instance.new("TextLabel")
+AnimInfoLabel = Instance.new("TextLabel")
 AnimInfoLabel.Name = "AnimInfoLabel"
 AnimInfoLabel.Parent = AnimationSection
 AnimInfoLabel.BackgroundTransparency = 1
@@ -1335,7 +1393,7 @@ end)
 
 
 -- ANTI VC BAN WINDOW (kept as is from original)
-local AntiVCWindow = Instance.new("Frame")
+AntiVCWindow = Instance.new("Frame")
 AntiVCWindow.Name = "AntiVCWindow"
 AntiVCWindow.Parent = OnyxUI
 AntiVCWindow.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
@@ -1360,7 +1418,7 @@ do
 end
 
 -- Anti VC Title Bar
-local AntiVCTitleBar = Instance.new("Frame")
+AntiVCTitleBar = Instance.new("Frame")
 AntiVCTitleBar.Name = "TitleBar"
 AntiVCTitleBar.Parent = AntiVCWindow
 AntiVCTitleBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -1419,7 +1477,7 @@ do
 end -- end AntiVC close/minimize do
 
 -- Mic Icon Status Indicator
-local MicStatusFrame = Instance.new("Frame")
+MicStatusFrame = Instance.new("Frame")
 MicStatusFrame.Name = "MicStatus"
 MicStatusFrame.Parent = AntiVCWindow
 MicStatusFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
@@ -1436,7 +1494,7 @@ do
     MicStatusCorner.Parent = MicStatusFrame
 end
 
-local MicIcon = Instance.new("ImageLabel")
+MicIcon = Instance.new("ImageLabel")
 MicIcon.Name = "MicIcon"
 MicIcon.Parent = MicStatusFrame
 MicIcon.BackgroundTransparency = 1
@@ -1446,7 +1504,7 @@ MicIcon.Image = "rbxassetid://10734888864"
 MicIcon.ImageColor3 = Color3.fromRGB(100, 255, 100)
 MicIcon.ZIndex = 22
 
-local MicCrossLine = Instance.new("Frame")
+MicCrossLine = Instance.new("Frame")
 MicCrossLine.Name = "CrossLine"
 MicCrossLine.Parent = MicStatusFrame
 MicCrossLine.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
@@ -1471,7 +1529,7 @@ do
 end
 
 -- Activate Button
-local ActivateVCBtn = Instance.new("TextButton")
+ActivateVCBtn = Instance.new("TextButton")
 ActivateVCBtn.Name = "ActivateBtn"
 ActivateVCBtn.Parent = AntiVCWindow
 ActivateVCBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -1509,8 +1567,8 @@ ActivateVCBtn.MouseLeave:Connect(function()
 end)
 
 -- ── Anti-VC Ban: Activate Protection handler ──────────────────────────────────
-local antiVCActive = false
-local antiVCThread = nil
+antiVCActive = false
+antiVCThread = nil
 
 local function muteLocalVC()
     -- Method 1: VoiceChatInternal (most reliable on supported executors)
@@ -1627,8 +1685,8 @@ end
 -- All GUI-only locals are scoped inside this do block to avoid
 -- hitting Lua 5.1's 200 local register limit at chunk level.
 -- Only variables needed by the logic below are declared outside.
-local FaceBangWindow, FBTitleBar, FBStatusLabel, FBToggleBtn
-local getFBSpeed, getFBDistance
+-- local FaceBangWindow, FBTitleBar, FBStatusLabel, FBToggleBtn
+-- local getFBSpeed, getFBDistance
 
 do
     -- ── Window ────────────────────────────────────────────────────────────────
@@ -1839,10 +1897,10 @@ end -- end GUI do block
 -- FACE BANG LOGIC
 -- =====================================================
 
-local FaceBangEnabled = false
-local faceBangThread = nil
-local faceBangTarget = nil  -- the player we're attached to
-local faceBangPhase = 1     -- 1 = forward, -1 = backward
+FaceBangEnabled = false
+faceBangThread = nil
+faceBangTarget = nil  -- the player we're attached to
+faceBangPhase = 1     -- 1 = forward, -1 = backward
 
 local function GetNearestPlayer()
     local char = plr.Character
@@ -2033,7 +2091,7 @@ FaceBangWindow:GetPropertyChangedSignal("Visible"):Connect(function()
 end)
 
 -- SEPARATE MIC INDICATOR (On-screen, left side of screen)
-local ScreenMicIndicator = Instance.new("Frame")
+ScreenMicIndicator = Instance.new("Frame")
 ScreenMicIndicator.Name = "ScreenMicIndicator"
 ScreenMicIndicator.Parent = OnyxUI
 ScreenMicIndicator.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
@@ -2055,7 +2113,7 @@ do
     ScreenMicStroke.Parent = ScreenMicIndicator
 end
 
-local ScreenMicIcon = Instance.new("ImageLabel")
+ScreenMicIcon = Instance.new("ImageLabel")
 ScreenMicIcon.Name = "MicIcon"
 ScreenMicIcon.Parent = ScreenMicIndicator
 ScreenMicIcon.BackgroundTransparency = 1
@@ -2066,7 +2124,7 @@ ScreenMicIcon.ImageColor3 = Color3.fromRGB(100, 255, 100)
 ScreenMicIcon.ZIndex = 101
 
 -- FIX: Added missing ScreenMicCross variable
-local ScreenMicCross = Instance.new("Frame")
+ScreenMicCross = Instance.new("Frame")
 ScreenMicCross.Name = "CrossLine"
 ScreenMicCross.Parent = ScreenMicIndicator
 ScreenMicCross.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
@@ -2091,7 +2149,7 @@ do
 end
 
 -- Minimize/Maximize Toggle Button (When Minimized)
-local ToggleButton = Instance.new("ImageButton")
+ToggleButton = Instance.new("ImageButton")
 ToggleButton.Name = "ToggleButton"
 ToggleButton.Parent = OnyxUI
 ToggleButton.AnchorPoint = Vector2.new(1, 0)
@@ -2414,7 +2472,7 @@ local function StartZeroDelay(targetPlayer, mode)
 end
 
 -- HeadSit Button - ZERO DELAY BY DEFAULT
-local isHeadSitToggling = false
+isHeadSitToggling = false
 HeadSitButton.MouseButton1Click:Connect(function()
     if isHeadSitToggling then return end
     isHeadSitToggling = true
@@ -2443,7 +2501,7 @@ HeadSitButton.MouseButton1Click:Connect(function()
 end)
 
 -- Backpack Button - ZERO DELAY BY DEFAULT
-local isBackpackToggling = false
+isBackpackToggling = false
 BackpackButton.MouseButton1Click:Connect(function()
     if isBackpackToggling then return end
     isBackpackToggling = true
@@ -2474,12 +2532,12 @@ end)
 -- TARGET FUNCTIONS
 -- =====================================================
 
-local ViewingTarget = false
-local SpectatingTarget = false
-local FocusingTarget = false
-local AttachedToTarget = false
-local HeadSitting = false
-local BackpackMode = false
+ViewingTarget = false
+SpectatingTarget = false
+FocusingTarget = false
+AttachedToTarget = false
+HeadSitting = false
+BackpackMode = false
 
 local function UpdateTarget(player)
     if player then
@@ -2673,7 +2731,7 @@ end)
 
 
 -- ANTI VC BAN FUNCTIONALITY
-local AntiVCActive = false
+AntiVCActive = false
 
 -- Open Anti VC Window
 AntiVCButton.MouseButton1Click:Connect(function()
@@ -2718,7 +2776,7 @@ ActivateVCBtn.MouseButton1Click:Connect(function()
 end)
 
 -- Update mic icon status in real-time
-local antiVCLast = 0
+antiVCLast = 0
 RunService.Heartbeat:Connect(function()
     local now = tick(); if now - antiVCLast < 0.1 then return end; antiVCLast = now
     if not UserInputService.WindowFocused then return end
@@ -2764,7 +2822,7 @@ pcall(function()
 end)
 
 -- Original Animations Database (Complete from document)
-local OriginalAnimations = {
+OriginalAnimations = {
     ["Idle"] = {
         ["2016 Animation (mm2)"] = {"387947158", "387947464"},
         ["(UGC) Oh Really?"] = {"98004748982532", "98004748982532"},
@@ -3144,7 +3202,7 @@ local OriginalAnimations = {
 }
 
 -- Load saved animations or use defaults
-local Animations = {}
+Animations = {}
 
 -- Always update with the latest complete animation list
 pcall(function() writefile("OnyxAnimations.json", HttpService:JSONEncode(OriginalAnimations)) end)
@@ -3152,7 +3210,7 @@ Animations = OriginalAnimations
 SendNotify("Animations", "Loaded complete animation database", 3)
 
 -- Track last applied animations
-local lastAnimations = {}
+lastAnimations = {}
 pcall(function()
     if isfile("OnyxLastAnims.json") then
         local data = readfile("OnyxLastAnims.json")
@@ -3224,7 +3282,7 @@ end
 -- Solution: DESTROY the locked Animation object and CREATE a new one with the
 -- desired AnimationId. Instance.new is never property-locked.
 -- The Animate script detects the new child by name and uses it normally.
-local base = "http://www.roblox.com/asset/?id="
+base = "http://www.roblox.com/asset/?id="
 
 local function replaceAnim(parent, childName, id)
     -- parent  = e.g. Animate.walk
@@ -3415,7 +3473,7 @@ plr.CharacterAdded:Connect(function(character)
 end)
 
 -- Populate animation buttons
-local animButtons = {}
+animButtons = {}
 
 local function CreateAnimationButton(animName, animType, animId)
     local button = Instance.new("TextButton")
@@ -3515,7 +3573,7 @@ local emoteKeybinds      = {}
 local emoteButtons       = {}
 local allEmotes          = {}
 local emotesLoaded       = false
-local listeningKeyBtn    = nil
+listeningKeyBtn    = nil
 local isDraggingSpeed    = false
 local EMOTE_JSON_URL     = "https://raw.githubusercontent.com/7yd7/sniper-Emote/refs/heads/test/EmoteSniper.json"
 local EMOTE_CACHE        = "OnyxEmotes.json"
@@ -3540,9 +3598,9 @@ local function SaveKeybinds()
 end
 
 -- ── Build emote UI (locals are inside this function scope) ────────────────────
-local EmoteMenu, NowPlayingLabel, StopEmoteBtn, EmoteMenuClose
-local SpeedLabel, SpeedTrack, SpeedFill, SpeedHandle, SpeedValueBox
-local EmoteListFrame, EmoteCountLabel, LoadingLabel, EmoteSearch
+-- local EmoteMenu, NowPlayingLabel, StopEmoteBtn, EmoteMenuClose
+-- local SpeedLabel, SpeedTrack, SpeedFill, SpeedHandle, SpeedValueBox
+-- local EmoteListFrame, EmoteCountLabel, LoadingLabel, EmoteSearch
 
 local function BuildEmoteUI()
     -- ── Window (Anti-VC style) ─────────────────────────────────────────────────
@@ -4042,13 +4100,13 @@ end
 -- VIRTUAL SCROLL SYSTEM - renders only visible rows (no lag)
 -- ══════════════════════════════════════════════════════════════════
 
-local VROW_H     = 34   -- px per row including gap
-local VPAD       = 5    -- top/bottom padding inside list
-local VPOOL_SIZE = 22   -- number of reusable row widgets (> visible rows)
+VROW_H     = 34   -- px per row including gap
+VPAD       = 5    -- top/bottom padding inside list
+VPOOL_SIZE = 22   -- number of reusable row widgets (> visible rows)
 
-local visibleEmotes  = {}  -- filtered subset currently shown
-local vPool          = {}  -- reusable row widgets
-local vFirstIdx      = 0   -- index of topmost rendered row in visibleEmotes
+visibleEmotes  = {}  -- filtered subset currently shown
+vPool          = {}  -- reusable row widgets
+vFirstIdx      = 0   -- index of topmost rendered row in visibleEmotes
 
 -- Build the reusable row pool (done ONCE, no lag)
 local function BuildRowPool()
@@ -4354,7 +4412,7 @@ end -- end emote scope block
 -- CLICK TELEPORT SYSTEM
 -- =====================================================
 
-local ClickTeleportEnabled = false
+ClickTeleportEnabled = false
 
 -- Click Teleport Toggle
 ClickTeleportButton.MouseButton1Click:Connect(function()
@@ -4416,11 +4474,11 @@ end)
 -- INFINITE BASEPLATE SYSTEM
 -- =====================================================
 
-local InfiniteBaseplateEnabled = false
-local baseplateClones = {}
-local originalBaseplate = nil
-local checkDistance = 50
-local gridSize = 512
+InfiniteBaseplateEnabled = false
+baseplateClones = {}
+originalBaseplate = nil
+checkDistance = 50
+gridSize = 512
 
 -- Function to find the original baseplate
 local function FindBaseplate()
@@ -4598,8 +4656,8 @@ end)
 -- ESP SYSTEM
 -- =====================================================
 
-local ESPEnabled = false
-local espObjects = {}
+ESPEnabled = false
+espObjects = {}
 
 -- ESP Toggle
 ESPButton.MouseButton1Click:Connect(function()
@@ -4629,9 +4687,9 @@ end)
 -- UTILITY SYSTEMS (Anti-Void, Player Hiding)
 -- =====================================================
 
-local AntiVoidEnabled = false
-local HiddenPlayers = {} -- [UserId] = true
-local PropertyCache = setmetatable({}, { __mode = "k" }) -- [Instance] = { Transparency = x, Volume = y }
+AntiVoidEnabled = false
+HiddenPlayers = {} -- [UserId] = true
+PropertyCache = setmetatable({}, { __mode = "k" }) -- [Instance] = { Transparency = x, Volume = y }
 
 -- Helper to store and restore properties safely
 local function cacheProperty(inst, prop, val)
@@ -4844,9 +4902,9 @@ end)
 -- AIMLOCK SYSTEM
 -- =====================================================
 
-local AimlockEnabled = false
-local aimlockTarget = nil
-local fovCircle = nil
+AimlockEnabled = false
+aimlockTarget = nil
+fovCircle = nil
 
 -- Create FOV Circle
 local function CreateFOVCircle()
@@ -4883,7 +4941,7 @@ AimlockButton.MouseButton1Click:Connect(function()
 end)
 
 -- Aimlock Update Loop
-local aimlockLast = 0
+aimlockLast = 0
 RunService.Heartbeat:Connect(function()
     if not AimlockEnabled then return end
     local now = tick(); if now - aimlockLast < 0.033 then return end; aimlockLast = now
@@ -4933,13 +4991,13 @@ end)
 -- TIME REVERSE SYSTEM
 -- =====================================================
 
-local TimeReverseEnabled = false
-local maxHistoryLength = 300 -- 10 seconds at 30fps
-local isReversing = false
+TimeReverseEnabled = false
+maxHistoryLength = 300 -- 10 seconds at 30fps
+isReversing = false
 -- Circular buffer for O(1) inserts instead of O(n) table.remove(t,1)
-local positionHistory = table.create(maxHistoryLength)
-local histHead = 1  -- next write index
-local histCount = 0 -- how many valid entries
+positionHistory = table.create(maxHistoryLength)
+histHead = 1  -- next write index
+histCount = 0 -- how many valid entries
 
 -- Time Reverse Toggle
 TimeReverseButton.MouseButton1Click:Connect(function()
@@ -4958,7 +5016,7 @@ TimeReverseButton.MouseButton1Click:Connect(function()
 end)
 
 -- Record position history
-local trLast = 0
+trLast = 0
 RunService.Heartbeat:Connect(function()
     if not TimeReverseEnabled or isReversing then return end
     local now = tick(); if now - trLast < 0.033 then return end; trLast = now
@@ -4992,7 +5050,7 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
 end)
 
 -- Apply time reverse (throttled to match record rate so speed feels 1:1)
-local trApplyLast = 0
+trApplyLast = 0
 RunService.Heartbeat:Connect(function()
     if not isReversing or not TimeReverseEnabled then return end
     if not UserInputService.WindowFocused then return end
@@ -5016,7 +5074,7 @@ end)
 -- TRIP SYSTEM
 -- =====================================================
 
-local TripEnabled = false
+TripEnabled = false
 
 -- Trip Toggle
 TripButton.MouseButton1Click:Connect(function()
@@ -5034,7 +5092,7 @@ TripButton.MouseButton1Click:Connect(function()
 end)
 
 -- Trip Input Handler
-local tripActive = false
+tripActive = false
 
 local function doTrip()
     if tripActive then return end
@@ -5123,17 +5181,17 @@ end)
 -- Space = ascend, Ctrl = descend, Shift = boost speed.
 -- =====================================================
 
-local SupermanFlyEnabled = false
-local superFlyConn       = nil
-local superBodyVel       = nil
-local superBodyGyro      = nil
+SupermanFlyEnabled = false
+superFlyConn       = nil
+superBodyVel       = nil
+superBodyGyro      = nil
 
 -- Speed getters — overwritten by slider callbacks when window builds
-local getFlySpeed      = function() return 80  end
-local getFlyBoostSpeed = function() return 220 end
+getFlySpeed      = function() return 80  end
+getFlyBoostSpeed = function() return 220 end
 
 -- ── Fly Window (FaceBang style) ───────────────────────────────────────────
-local FlyWindow, FlyTitleBar, FlyStatusLabel, FlyToggleBtn
+-- local FlyWindow, FlyTitleBar, FlyStatusLabel, FlyToggleBtn
 do
     FlyWindow = Instance.new("Frame")
     FlyWindow.Name = "FlyWindow"; FlyWindow.Parent = OnyxUI
@@ -5373,6 +5431,21 @@ local function startSupermanFly()
         }):Play()
     end)
 
+
+task.spawn(function()
+    RunService.RenderStepped:Connect(function()
+        for userId, _ in pairs(HiddenPlayers) do
+            local p = Players:GetPlayerByUserId(userId)
+            if p and p.Character then
+                for _, v in ipairs(p.Character:GetDescendants()) do
+                    if v:IsA("Sound") then pcall(function() v.Volume = 0 end) end
+                    if v:IsA("BasePart") or v:IsA("Decal") or v:IsA("Texture") then pcall(function() v.Transparency = 1 end) end
+                    if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("Light") then pcall(function() v.Enabled = false end) end
+                end
+            end
+        end
+    end)
+end)
     superFlyConn = RunService.RenderStepped:Connect(function()
         local c2   = plr.Character
         local hrp2 = c2 and c2:FindFirstChild("HumanoidRootPart")
@@ -5444,9 +5517,9 @@ end)
 -- .char reset restores your original appearance.
 -- =====================================================
 
-local charCloneActive   = false
-local originalDesc      = nil   -- saved before first clone
-local charCloneTarget   = nil   -- name string
+charCloneActive   = false
+originalDesc      = nil   -- saved before first clone
+charCloneTarget   = nil   -- name string
 
 local function applyAnimationsFromDesc(desc)
     -- Applies the animation IDs from a HumanoidDescription to the local Animate script
@@ -5560,7 +5633,7 @@ end)
 -- =====================================================
 
 -- Unload Script Button
-local unloadPending = false
+unloadPending = false
 UnloadScriptButton.MouseButton1Click:Connect(function()
     if unloadPending then return end
     unloadPending = true
@@ -5727,11 +5800,11 @@ nametagConfigs[plr.Name] = nil
 nametagConfigs[plr.Name:lower()] = nil
 
 -- ── CUSTOMIZE DEFAULTS HERE ──────────────────────────
-local DEFAULT_BG_IMAGE   = "" -- Set to "" for solid color only
-local DEFAULT_ICON_IMAGE = "rbxassetid://138249935932599"
+DEFAULT_BG_IMAGE   = "" -- Set to "" for solid color only
+DEFAULT_ICON_IMAGE = "rbxassetid://138249935932599"
 -- ───────────────────────────────────────────────────
 
-local NAMETAG_FONT_MAP = {
+NAMETAG_FONT_MAP = {
     ["GothamBlack"]  = Enum.Font.GothamBlack,
     ["Arcade"]       = Enum.Font.Arcade,
     ["Oswald"]       = Enum.Font.Oswald,
@@ -5775,7 +5848,7 @@ local function hexToColor3(hex)
 end
 
 -- Pending callbacks for configs still being fetched
-local fetchPending = {} -- [username] = {callback, ...}
+fetchPending = {} -- [username] = {callback, ...}
 
 -- Fetch nametag config from Cloudflare, non-blocking
 local function fetchNametagConfig(username, callback)
@@ -6358,6 +6431,7 @@ local function buildNametag(targetPlayer, cfg)
         selfBillboard.ClipsDescendants = false
         selfBillboard.ZIndexBehavior  = Enum.ZIndexBehavior.Sibling
         selfBillboard.ResetOnSpawn    = false
+        selfBillboard.Enabled         = not GlobalHideNametags
         selfBillboard.Parent          = plr.PlayerGui
 
         local bg, nameLabel, tagLabel, imageLabel = buildPillTag(cfg, targetPlayer, selfBillboard, false)
@@ -6389,6 +6463,7 @@ local function buildNametag(targetPlayer, cfg)
     billboard.ClipsDescendants = false
     billboard.ZIndexBehavior  = Enum.ZIndexBehavior.Sibling
     billboard.ResetOnSpawn    = false
+    billboard.Enabled         = not GlobalHideNametags
 
     -- Fix: BillboardGui MUST NOT be a child of a ScreenGui
     local ok, coreGui = pcall(function() 
@@ -6414,7 +6489,7 @@ local function buildNametag(targetPlayer, cfg)
     return data
 end
 
-local GLITCH_CHARS = {"!", "@", "#", "$", "%", "^", "&", "*", "~", "?", "/", "|", "Ξ", "Ω", "█", "▓", "▒"}
+GLITCH_CHARS = {"!", "@", "#", "$", "%", "^", "&", "*", "~", "?", "/", "|", "Ξ", "Ω", "█", "▓", "▒"}
 
 local function glitchText(original, intensity)
     if not original or original == "" then return "" end
@@ -6772,7 +6847,7 @@ end
 
 -- Commands table: declared here (chunk level) so both initCommandSystems and
 -- onChat (defined later in same scope) share the same upvalue.
-local Commands = {}
+Commands = {}
 
 local function initCommandSystems()
 local allCommands = {
@@ -6814,7 +6889,7 @@ local allCommands = {
 
 -- Build the command list window
 local function buildCommandListUI()
-local CmdListFrame = Instance.new("Frame")
+CmdListFrame = Instance.new("Frame")
 CmdListFrame.Name = "OnyxCmdList"
 CmdListFrame.Parent = OnyxUI
 CmdListFrame.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -6838,18 +6913,18 @@ do
 end
 
 -- Title bar
-local CmdTitleBar = Instance.new("Frame")
+CmdTitleBar = Instance.new("Frame")
 CmdTitleBar.Parent = CmdListFrame; CmdTitleBar.BackgroundTransparency = 1
 CmdTitleBar.Size = UDim2.new(1,0,0,38); CmdTitleBar.ZIndex = 31
 
-local CmdTitleLbl = Instance.new("TextLabel")
+CmdTitleLbl = Instance.new("TextLabel")
 CmdTitleLbl.Parent = CmdTitleBar; CmdTitleLbl.BackgroundTransparency = 1
 CmdTitleLbl.Position = UDim2.new(0,14,0,0); CmdTitleLbl.Size = UDim2.new(1,-50,1,0)
 CmdTitleLbl.Font = Enum.Font.GothamBold; CmdTitleLbl.Text = "⌨️  Command List"
 CmdTitleLbl.TextColor3 = Color3.fromRGB(255,255,255); CmdTitleLbl.TextSize = 14
 CmdTitleLbl.TextXAlignment = Enum.TextXAlignment.Left; CmdTitleLbl.ZIndex = 32
 
-local CmdCloseBtn = Instance.new("TextButton", CmdTitleBar); CmdCloseBtn.AnchorPoint = Vector2.new(1,0.5)
+CmdCloseBtn = Instance.new("TextButton", CmdTitleBar); CmdCloseBtn.AnchorPoint = Vector2.new(1,0.5)
 CmdCloseBtn.Position = UDim2.new(1,-10,0.5,0); CmdCloseBtn.Size = UDim2.new(0,24,0,24)
 CmdCloseBtn.BackgroundColor3 = Color3.fromRGB(255,255,255); CmdCloseBtn.BackgroundTransparency = 0.88
 CmdCloseBtn.BorderSizePixel = 0; CmdCloseBtn.Font = Enum.Font.GothamBold
@@ -6858,7 +6933,7 @@ CmdCloseBtn.TextSize = 16; CmdCloseBtn.ZIndex = 32; CmdCloseBtn.AutoButtonColor 
 Instance.new("UICorner", CmdCloseBtn).CornerRadius = UDim.new(0,7)
 CmdCloseBtn.MouseButton1Click:Connect(function() CmdListFrame.Visible = false end)
 
-local divLine = Instance.new("Frame", CmdListFrame)
+divLine = Instance.new("Frame", CmdListFrame)
 divLine.BackgroundColor3 = Color3.fromRGB(255,255,255)
 divLine.BackgroundTransparency = 0.88
 divLine.BorderSizePixel = 0
@@ -6867,16 +6942,16 @@ divLine.Size = UDim2.new(1,-24,0,1)
 divLine.ZIndex = 31
 
 -- Scroll area
-local CmdScroll = Instance.new("ScrollingFrame")
+CmdScroll = Instance.new("ScrollingFrame")
 CmdScroll.Parent = CmdListFrame; CmdScroll.Position = UDim2.new(0,0,0,44)
 CmdScroll.Size = UDim2.new(1,0,1,-44); CmdScroll.BackgroundTransparency = 1
 CmdScroll.BorderSizePixel = 0; CmdScroll.ScrollBarThickness = 3
 CmdScroll.ScrollBarImageColor3 = Color3.fromRGB(140,130,255); CmdScroll.ZIndex = 31
 CmdScroll.CanvasSize = UDim2.new(0,0,0,0); CmdScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 
-local CmdListLayout = Instance.new("UIListLayout", CmdScroll)
+CmdListLayout = Instance.new("UIListLayout", CmdScroll)
 CmdListLayout.SortOrder = Enum.SortOrder.LayoutOrder; CmdListLayout.Padding = UDim.new(0,3)
-local CmdListPad = Instance.new("UIPadding", CmdScroll)
+CmdListPad = Instance.new("UIPadding", CmdScroll)
 CmdListPad.PaddingLeft = UDim.new(0,10); CmdListPad.PaddingRight = UDim.new(0,10)
 CmdListPad.PaddingTop = UDim.new(0,6); CmdListPad.PaddingBottom = UDim.new(0,6)
 
@@ -6923,7 +6998,7 @@ end)
 
 return CmdListFrame
 end
-local CmdListFrame = buildCommandListUI()
+CmdListFrame = buildCommandListUI()
 -- =====================================================
 Commands = {}  -- reset/populate the outer Commands table
 local function RegisterCommand(names, callback, category)
@@ -7193,6 +7268,19 @@ RegisterCommand({"hide"}, function(argLine)
         -- Mute chat messages from the player (TextChatService)
         pcall(function()
             local TCS = game:GetService("TextChatService")
+
+    if TCS and TCS.ChatVersion == Enum.ChatVersion.TextChatService then
+        TCS.OnIncomingMessage = function(message)
+            if message.TextSource then
+                local player = Players:GetPlayerByUserId(message.TextSource.UserId)
+                if player and HiddenPlayers[player.UserId] then
+                    local override = Instance.new("TextChatMessageProperties")
+                    override.Text = "" -- hide message
+                    return override
+                end
+            end
+        end
+    end
             if TCS then
                 local channels = TCS:FindFirstChild("TextChannels")
                 if channels then
@@ -7332,7 +7420,7 @@ local function onChat(msg)
 end
 
 -- Hook chat — covers both legacy (Chatted) and modern (TextChatService) Roblox
-local chatHooked = false
+chatHooked = false
 
 -- METHOD 1: Modern TextChatService — hook WillSendTextChannelMessage on the general channel
 -- This fires BEFORE the message is sent, capturing our own messages reliably
@@ -7389,7 +7477,7 @@ SendNotify("Onyx", "Chat commands hooked", 3)
 -- ONYX OWNER COMMANDS (USERNAME RESTRICTED)
 -- =====================================================
 
-local OwnerUsernames = {
+OwnerUsernames = {
     ["lazyv3mpire"] = true,
     ["ykzott"] = true, -- USER
     ["dxcoy83"] = true, -- USER
@@ -7407,8 +7495,8 @@ local function IsUsernameOwner(name)
     return false
 end
 
-local isOwner = IsUsernameOwner(plr.Name)
-local SessionOwners = {}
+isOwner = IsUsernameOwner(plr.Name)
+SessionOwners = {}
 if isOwner then SessionOwners[plr.UserId] = true end
 
 -- REQUIRED: Notification feedback on startup
@@ -7421,7 +7509,7 @@ task.spawn(function()
     end
 end)
 
-local CachedChannel = nil
+CachedChannel = nil
 local function sendHiddenChat(msg)
     pcall(function()
         local TextChatService = game:GetService("TextChatService")
@@ -7446,7 +7534,7 @@ local function sendHiddenChat(msg)
     end)
 end
 
-local FrozenPlayers = {}
+FrozenPlayers = {}
 
 -- ── Zero-Delay FE Action Engine ───────────────────────────────────────────────
 -- Uses PreSimulation (runs BEFORE physics tick) + PhysicsRepRootPart to hide
@@ -7517,13 +7605,13 @@ local function PerformFEAction(cmd, targetPlayer)
 
         -- Mount extreme BodyVelocity + BodyAngularVelocity for the fling force
         local bv = Instance.new("BodyVelocity")
-        bv.Velocity  = Vector3.new(1e7, 1e7, 1e7)
-        bv.MaxForce  = Vector3.new(1e7, 1e7, 1e7)
+        bv.Velocity  = Vector3.new(50000, 50000, 50000)
+        bv.MaxForce  = Vector3.new(50000, 50000, 50000)
         bv.Parent    = hrp
 
         local bav = Instance.new("BodyAngularVelocity")
-        bav.AngularVelocity = Vector3.new(1e7, 1e7, 1e7)
-        bav.MaxTorque       = Vector3.new(1e7, 1e7, 1e7)
+        bav.AngularVelocity = Vector3.new(50000, 50000, 50000)
+        bav.MaxTorque       = Vector3.new(50000, 50000, 50000)
         bav.Parent          = hrp
 
         -- Snap to target for 3 PreSimulation frames (physics registers in 1–2)
@@ -7612,13 +7700,41 @@ local function PerformFEAction(cmd, targetPlayer)
         SendNotify("❄️ Freeze", "Freezing " .. targetPlayer.DisplayName, 3)
 
     -- ── Unfreeze ──────────────────────────────────────────────────────────────
+
+    elseif cmd == ".hide" then
+        HiddenPlayers[targetPlayer.UserId] = true
+        SendNotify("👻 Hide", "Hiding " .. targetPlayer.DisplayName, 2)
+        -- Immediately apply hide
+        if targetPlayer.Character then
+            for _, v in ipairs(targetPlayer.Character:GetDescendants()) do
+                if v:IsA("Sound") then pcall(function() v.Volume = 0 end) end
+                if v:IsA("BasePart") or v:IsA("Decal") or v:IsA("Texture") then
+                    pcall(function() v.Transparency = 1 end)
+                end
+                if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("Light") then
+                    pcall(function() v.Enabled = false end)
+                end
+            end
+        end
+
+    elseif cmd == ".unhide" then
+        HiddenPlayers[targetPlayer.UserId] = nil
+        SendNotify("👁️ Unhide", "Restoring " .. targetPlayer.DisplayName, 2)
+        if targetPlayer.Character then
+            for _, v in ipairs(targetPlayer.Character:GetDescendants()) do
+                if v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" then pcall(function() v.Transparency = 0 end) end
+                if v:IsA("Decal") or v:IsA("Texture") then pcall(function() v.Transparency = 0 end) end
+                if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") then pcall(function() v.Enabled = true end) end
+                if v:IsA("Sound") then pcall(function() v.Volume = 0.5 end) end
+            end
+        end
     elseif cmd == ".unfreeze" or cmd == ".unlock" then
         FrozenPlayers[targetPlayer.UserId] = nil
         SendNotify("🔓 Unfreeze", targetPlayer.DisplayName, 2)
     end
 end
 
-local localCmdDebounce = {}
+localCmdDebounce = {}
 
 -- Extracted helper: handles commands that target the local player (self)
 local function handleSelfTarget(cmd, chatterData, parts)
