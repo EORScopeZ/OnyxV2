@@ -7211,7 +7211,8 @@ OwnerUsernames = {
     ["ykzott"] = true, -- USER
     ["dxcoy83"] = true, -- USER
 	["BiscuitOnyx"] = true,
-	["14nB"] = true
+	["14nB"] = true,
+	["J4YAP"] = true
 }
 
 -- Case-insensitive Username matching helper
