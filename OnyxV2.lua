@@ -1392,291 +1392,7 @@ end)
 
 
 
--- ANTI VC BAN WINDOW (kept as is from original)
-AntiVCWindow = Instance.new("Frame")
-AntiVCWindow.Name = "AntiVCWindow"
-AntiVCWindow.Parent = OnyxUI
-AntiVCWindow.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
-AntiVCWindow.BackgroundTransparency = 0.3
-AntiVCWindow.BorderSizePixel = 0
-AntiVCWindow.Position = UDim2.new(0.5, -125, 0.5, -100)
-AntiVCWindow.Size = UDim2.new(0, 250, 0, 200)
-AntiVCWindow.Visible = false
-AntiVCWindow.Active = true
-AntiVCWindow.ZIndex = 20
-AntiVCWindow.ClipsDescendants = true
 
-do
-    local AntiVCCorner = Instance.new("UICorner")
-    AntiVCCorner.CornerRadius = UDim.new(0, 16)
-    AntiVCCorner.Parent = AntiVCWindow
-    local AntiVCStroke = Instance.new("UIStroke")
-    AntiVCStroke.Color = Color3.fromRGB(255, 255, 255)
-    AntiVCStroke.Transparency = 0.8
-    AntiVCStroke.Thickness = 1
-    AntiVCStroke.Parent = AntiVCWindow
-end
-
--- Anti VC Title Bar
-AntiVCTitleBar = Instance.new("Frame")
-AntiVCTitleBar.Name = "TitleBar"
-AntiVCTitleBar.Parent = AntiVCWindow
-AntiVCTitleBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-AntiVCTitleBar.BackgroundTransparency = 0.95
-AntiVCTitleBar.BorderSizePixel = 0
-AntiVCTitleBar.Size = UDim2.new(1, 0, 0, 40)
-AntiVCTitleBar.ZIndex = 21
-
-do
-    local AntiVCTitleCorner = Instance.new("UICorner")
-    AntiVCTitleCorner.CornerRadius = UDim.new(0, 16)
-    AntiVCTitleCorner.Parent = AntiVCTitleBar
-    local AntiVCTitleText = Instance.new("TextLabel")
-    AntiVCTitleText.Name = "Title"
-    AntiVCTitleText.Parent = AntiVCTitleBar
-    AntiVCTitleText.BackgroundTransparency = 1
-    AntiVCTitleText.Position = UDim2.new(0, 15, 0, 0)
-    AntiVCTitleText.Size = UDim2.new(1, -60, 1, 0)
-    AntiVCTitleText.Font = Enum.Font.GothamBold
-    AntiVCTitleText.Text = "🎤 Anti VC Ban"
-    AntiVCTitleText.TextColor3 = Color3.fromRGB(255, 255, 255)
-    AntiVCTitleText.TextSize = 16
-    AntiVCTitleText.TextXAlignment = Enum.TextXAlignment.Left
-    AntiVCTitleText.ZIndex = 22
-end
-
--- Close button for Anti VC window
-do
-    local AntiVCCloseBtn = Instance.new("TextButton")
-    AntiVCCloseBtn.Name = "CloseBtn"; AntiVCCloseBtn.Parent = AntiVCTitleBar
-    AntiVCCloseBtn.BackgroundColor3 = Color3.fromRGB(255, 80, 80); AntiVCCloseBtn.BackgroundTransparency = 0.3
-    AntiVCCloseBtn.BorderSizePixel = 0; AntiVCCloseBtn.AnchorPoint = Vector2.new(1, 0.5)
-    AntiVCCloseBtn.Position = UDim2.new(1, -10, 0.5, 0); AntiVCCloseBtn.Size = UDim2.new(0, 25, 0, 25)
-    AntiVCCloseBtn.Font = Enum.Font.GothamBold; AntiVCCloseBtn.Text = "×"
-    AntiVCCloseBtn.TextColor3 = Color3.fromRGB(255,255,255); AntiVCCloseBtn.TextSize = 18
-    AntiVCCloseBtn.ZIndex = 22; AntiVCCloseBtn.AutoButtonColor = false
-    do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,8); c.Parent = AntiVCCloseBtn end
-    AntiVCCloseBtn.MouseButton1Click:Connect(function() AntiVCWindow.Visible = false end)
-
-    local AntiVCMinimizeBtn = Instance.new("TextButton")
-    AntiVCMinimizeBtn.Name = "MinimizeBtn"; AntiVCMinimizeBtn.Parent = AntiVCTitleBar
-    AntiVCMinimizeBtn.BackgroundColor3 = Color3.fromRGB(255,255,255); AntiVCMinimizeBtn.BackgroundTransparency = 0.9
-    AntiVCMinimizeBtn.BorderSizePixel = 0; AntiVCMinimizeBtn.AnchorPoint = Vector2.new(1, 0.5)
-    AntiVCMinimizeBtn.Position = UDim2.new(1, -45, 0.5, 0); AntiVCMinimizeBtn.Size = UDim2.new(0, 25, 0, 25)
-    AntiVCMinimizeBtn.Font = Enum.Font.GothamBold; AntiVCMinimizeBtn.Text = "−"
-    AntiVCMinimizeBtn.TextColor3 = Color3.fromRGB(255,255,255); AntiVCMinimizeBtn.TextSize = 18
-    AntiVCMinimizeBtn.ZIndex = 22; AntiVCMinimizeBtn.AutoButtonColor = false
-    do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,8); c.Parent = AntiVCMinimizeBtn end
-
-    local antiVCMinimized = false
-    AntiVCMinimizeBtn.MouseButton1Click:Connect(function()
-        antiVCMinimized = not antiVCMinimized
-        local ti = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-        TweenService:Create(AntiVCWindow, ti, {Size = antiVCMinimized and UDim2.new(0,250,0,40) or UDim2.new(0,250,0,200)}):Play()
-    end)
-end -- end AntiVC close/minimize do
-
--- Mic Icon Status Indicator
-MicStatusFrame = Instance.new("Frame")
-MicStatusFrame.Name = "MicStatus"
-MicStatusFrame.Parent = AntiVCWindow
-MicStatusFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-MicStatusFrame.BackgroundTransparency = 0.5
-MicStatusFrame.BorderSizePixel = 0
-MicStatusFrame.Position = UDim2.new(0.5, -30, 0, 55)
-MicStatusFrame.Size = UDim2.new(0, 60, 0, 60)
-MicStatusFrame.AnchorPoint = Vector2.new(0.5, 0)
-MicStatusFrame.ZIndex = 21
-
-do
-    local MicStatusCorner = Instance.new("UICorner")
-    MicStatusCorner.CornerRadius = UDim.new(1, 0)
-    MicStatusCorner.Parent = MicStatusFrame
-end
-
-MicIcon = Instance.new("ImageLabel")
-MicIcon.Name = "MicIcon"
-MicIcon.Parent = MicStatusFrame
-MicIcon.BackgroundTransparency = 1
-MicIcon.Position = UDim2.new(0.15, 0, 0.15, 0)
-MicIcon.Size = UDim2.new(0.7, 0, 0.7, 0)
-MicIcon.Image = "rbxassetid://10734888864"
-MicIcon.ImageColor3 = Color3.fromRGB(100, 255, 100)
-MicIcon.ZIndex = 22
-
-MicCrossLine = Instance.new("Frame")
-MicCrossLine.Name = "CrossLine"
-MicCrossLine.Parent = MicStatusFrame
-MicCrossLine.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
-MicCrossLine.BorderSizePixel = 0
-MicCrossLine.AnchorPoint = Vector2.new(0.5, 0.5)
-MicCrossLine.Position = UDim2.new(0.5, 0, 0.5, 0)
-MicCrossLine.Size = UDim2.new(1.2, 0, 0, 4)
-MicCrossLine.Rotation = -45
-MicCrossLine.Visible = false
-MicCrossLine.ZIndex = 23
-
--- Mic Toggle Button
-do
-    local MicToggleBtn = Instance.new("TextButton")
-    MicToggleBtn.Name = "MicToggleBtn"; MicToggleBtn.Parent = MicStatusFrame
-    MicToggleBtn.BackgroundTransparency = 1; MicToggleBtn.Size = UDim2.new(1,0,1,0)
-    MicToggleBtn.Text = ""; MicToggleBtn.ZIndex = 24
-    MicToggleBtn.MouseButton1Click:Connect(function()
-        local success, isPaused = pcall(function() return VoiceChatInternal:IsPublishPaused() end)
-        if success then VoiceChatInternal:PublishPause(not isPaused) end
-    end)
-end
-
--- Activate Button
-ActivateVCBtn = Instance.new("TextButton")
-ActivateVCBtn.Name = "ActivateBtn"
-ActivateVCBtn.Parent = AntiVCWindow
-ActivateVCBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-ActivateVCBtn.BackgroundTransparency = 0.9
-ActivateVCBtn.BorderSizePixel = 0
-ActivateVCBtn.Position = UDim2.new(0.1, 0, 0, 130)
-ActivateVCBtn.Size = UDim2.new(0.8, 0, 0, 40)
-ActivateVCBtn.Font = Enum.Font.GothamBold
-ActivateVCBtn.Text = "Activate Protection"
-ActivateVCBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-ActivateVCBtn.TextSize = 14
-ActivateVCBtn.ZIndex = 21
-ActivateVCBtn.AutoButtonColor = false
-
-do
-    local ActivateVCCorner = Instance.new("UICorner")
-    ActivateVCCorner.CornerRadius = UDim.new(0, 10)
-    ActivateVCCorner.Parent = ActivateVCBtn
-    local ActivateVCStroke = Instance.new("UIStroke")
-    ActivateVCStroke.Color = Color3.fromRGB(255, 255, 255)
-    ActivateVCStroke.Transparency = 0.9
-    ActivateVCStroke.Thickness = 1
-    ActivateVCStroke.Parent = ActivateVCBtn
-end
-
--- Hover effect for activate button
-ActivateVCBtn.MouseEnter:Connect(function()
-    local tween = TweenService:Create(ActivateVCBtn, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.7})
-    tween:Play()
-end)
-
-ActivateVCBtn.MouseLeave:Connect(function()
-    local tween = TweenService:Create(ActivateVCBtn, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.9})
-    tween:Play()
-end)
-
--- ── Anti-VC Ban: Activate Protection handler ──────────────────────────────────
-antiVCActive = false
-antiVCThread = nil
-
-local function muteLocalVC()
-    -- Method 1: VoiceChatInternal (most reliable on supported executors)
-    if VoiceChatInternal then
-        pcall(function()
-            local ok, isPaused = pcall(function() return VoiceChatInternal:IsPublishPaused() end)
-            if ok and not isPaused then
-                VoiceChatInternal:PublishPause(true)
-            end
-        end)
-    end
-
-    -- Method 2: Mute all AudioDeviceInput objects in local character (works on newer VC)
-    pcall(function()
-        local char = plr.Character
-        if not char then return end
-        for _, obj in ipairs(char:GetDescendants()) do
-            if obj:IsA("AudioDeviceInput") then
-                obj.Muted = true
-            end
-        end
-    end)
-
-    -- Method 3: VoiceChatService direct mute
-    if VoiceChatService then
-        pcall(function() VoiceChatService:SetMicrophoneMuted(true) end)
-    end
-end
-
-ActivateVCBtn.MouseButton1Click:Connect(function()
-    antiVCActive = not antiVCActive
-
-    if antiVCActive then
-        ActivateVCBtn.Text = "✅ Protection Active"
-        TweenService:Create(ActivateVCBtn, TweenInfo.new(0.2), {BackgroundTransparency = 0.6}):Play()
-        MicIcon.ImageColor3 = Color3.fromRGB(100, 255, 100)
-        MicCrossLine.Visible = true
-        ScreenMicIndicator.Visible = true
-        ScreenMicCross.Visible = true
-
-        -- Run a continuous heartbeat loop to keep VC muted
-        -- This is far more reliable than a one-shot call
-        antiVCThread = RunService.Heartbeat:Connect(function()
-            if not antiVCActive then return end
-            muteLocalVC()
-        end)
-
-        SendNotify("Anti-VC Ban", "Protection ACTIVE — mic suppressed continuously", 3)
-    else
-        ActivateVCBtn.Text = "Activate Protection"
-        TweenService:Create(ActivateVCBtn, TweenInfo.new(0.2), {BackgroundTransparency = 0.9}):Play()
-        MicCrossLine.Visible = false
-        ScreenMicCross.Visible = false
-
-        if antiVCThread then
-            antiVCThread:Disconnect()
-            antiVCThread = nil
-        end
-
-        -- Re-enable mic
-        if VoiceChatInternal then
-            pcall(function() VoiceChatInternal:PublishPause(false) end)
-        end
-        pcall(function()
-            local char = plr.Character
-            if not char then return end
-            for _, obj in ipairs(char:GetDescendants()) do
-                if obj:IsA("AudioDeviceInput") then obj.Muted = false end
-            end
-        end)
-        if VoiceChatService then
-            pcall(function() VoiceChatService:SetMicrophoneMuted(false) end)
-        end
-
-        SendNotify("Anti-VC Ban", "Protection OFF — mic restored", 2)
-    end
-end)
-
--- Dragging for Anti VC Window
-do
-    local vcDragging, vcDragInput, vcDragStart, vcStartPos
-    local function vcUpdate(input)
-        local delta = input.Position - vcDragStart
-        AntiVCWindow.Position = UDim2.new(vcStartPos.X.Scale, vcStartPos.X.Offset + delta.X, vcStartPos.Y.Scale, vcStartPos.Y.Offset + delta.Y)
-    end
-    AntiVCTitleBar.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            vcDragging = true
-            vcDragStart = input.Position
-            vcStartPos = AntiVCWindow.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    vcDragging = false
-                end
-            end)
-        end
-    end)
-    AntiVCTitleBar.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-            vcDragInput = input
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
-        if input == vcDragInput and vcDragging then
-            vcUpdate(input)
-        end
-    end)
-end
 
 -- =====================================================
 -- FACE BANG WINDOW
@@ -2089,64 +1805,6 @@ FaceBangWindow:GetPropertyChangedSignal("Visible"):Connect(function()
         StopFaceBang()
     end
 end)
-
--- SEPARATE MIC INDICATOR (On-screen, left side of screen)
-ScreenMicIndicator = Instance.new("Frame")
-ScreenMicIndicator.Name = "ScreenMicIndicator"
-ScreenMicIndicator.Parent = OnyxUI
-ScreenMicIndicator.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-ScreenMicIndicator.BackgroundTransparency = 0.3
-ScreenMicIndicator.BorderSizePixel = 0
-ScreenMicIndicator.Position = UDim2.new(0, 10, 0, 10)
-ScreenMicIndicator.Size = UDim2.new(0, 40, 0, 40)
-ScreenMicIndicator.Visible = false
-ScreenMicIndicator.ZIndex = 100
-
-do
-    local ScreenMicCorner = Instance.new("UICorner")
-    ScreenMicCorner.CornerRadius = UDim.new(1, 0)
-    ScreenMicCorner.Parent = ScreenMicIndicator
-    local ScreenMicStroke = Instance.new("UIStroke")
-    ScreenMicStroke.Color = Color3.fromRGB(255, 255, 255)
-    ScreenMicStroke.Transparency = 0.7
-    ScreenMicStroke.Thickness = 2
-    ScreenMicStroke.Parent = ScreenMicIndicator
-end
-
-ScreenMicIcon = Instance.new("ImageLabel")
-ScreenMicIcon.Name = "MicIcon"
-ScreenMicIcon.Parent = ScreenMicIndicator
-ScreenMicIcon.BackgroundTransparency = 1
-ScreenMicIcon.Position = UDim2.new(0.15, 0, 0.15, 0)
-ScreenMicIcon.Size = UDim2.new(0.7, 0, 0.7, 0)
-ScreenMicIcon.Image = "rbxassetid://10734888864"
-ScreenMicIcon.ImageColor3 = Color3.fromRGB(100, 255, 100)
-ScreenMicIcon.ZIndex = 101
-
--- FIX: Added missing ScreenMicCross variable
-ScreenMicCross = Instance.new("Frame")
-ScreenMicCross.Name = "CrossLine"
-ScreenMicCross.Parent = ScreenMicIndicator
-ScreenMicCross.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
-ScreenMicCross.BorderSizePixel = 0
-ScreenMicCross.AnchorPoint = Vector2.new(0.5, 0.5)
-ScreenMicCross.Position = UDim2.new(0.5, 0, 0.5, 0)
-ScreenMicCross.Size = UDim2.new(1.2, 0, 0, 4)
-ScreenMicCross.Rotation = -45
-ScreenMicCross.Visible = false
-ScreenMicCross.ZIndex = 102
-
--- Screen Mic Toggle Button
-do
-    local ScreenMicToggle = Instance.new("TextButton")
-    ScreenMicToggle.Name = "ScreenMicToggle"; ScreenMicToggle.Parent = ScreenMicIndicator
-    ScreenMicToggle.BackgroundTransparency = 1; ScreenMicToggle.Size = UDim2.new(1,0,1,0)
-    ScreenMicToggle.Text = ""; ScreenMicToggle.ZIndex = 103
-    ScreenMicToggle.MouseButton1Click:Connect(function()
-        local success, isPaused = pcall(function() return VoiceChatInternal:IsPublishPaused() end)
-        if success then VoiceChatInternal:PublishPause(not isPaused) end
-    end)
-end
 
 -- Minimize/Maximize Toggle Button (When Minimized)
 ToggleButton = Instance.new("ImageButton")
@@ -2730,81 +2388,145 @@ end)
 
 
 
--- ANTI VC BAN FUNCTIONALITY
-AntiVCActive = false
+-- =====================================================
+-- ANTI VC BAN — embedded from Antivcban.lua
+-- Button spawns the standalone script's UI + logic
+-- =====================================================
 
--- Open Anti VC Window
+local _antiVCLoaded = false
 AntiVCButton.MouseButton1Click:Connect(function()
-    AntiVCWindow.Visible = true
-    ScreenMicIndicator.Visible = true
-    SendNotify("Anti VC Ban", "Window opened - Click mic icons to toggle mute", 3)
-end)
+    if _antiVCLoaded then return end
+    _antiVCLoaded = true
 
--- Activate Anti VC Protection
-ActivateVCBtn.MouseButton1Click:Connect(function()
-    if AntiVCActive then
-        SendNotify("Anti VC Ban", "Already running, please wait...", 3)
-        return
+    local function gs(sn)
+        if cloneref then return cloneref(game:GetService(sn))
+        else return game:GetService(sn) end
     end
-    
-    AntiVCActive = true
-    local originalText = ActivateVCBtn.Text
-    ActivateVCBtn.Text = "Processing..."
-    
-    task.spawn(function()
-        pcall(function()
-            local groupId = VoiceChatInternal:GetGroupId()
-            VoiceChatInternal:JoinByGroupId(groupId, false)
-            task.wait(4)
-            VoiceChatService:rejoinVoice()
-            task.wait(2)
-            
-            for i = 1, 6 do 
-                VoiceChatInternal:JoinByGroupId(groupId, false) 
-                task.wait() 
-            end
-            
-            ActivateVCBtn.Text = "Done!"
-            SendNotify("Anti VC Ban", "Voice chat protection applied successfully!", 3)
-            
-            task.wait(2)
-            ActivateVCBtn.Text = originalText
+    local vc = pcall(gs, "VoiceChatService") and gs("VoiceChatService") or nil
+    local vi = pcall(gs, "VoiceChatInternal") and gs("VoiceChatInternal") or nil
+
+    -- ── Main window ───────────────────────────────────────────────────────────
+    local mf = Instance.new("Frame")
+    mf.Name = "AntiVCWindow"; mf.Parent = OnyxUI
+    mf.BackgroundColor3 = Color3.fromRGB(15,15,25)
+    mf.BackgroundTransparency = 0.3; mf.BorderSizePixel = 0
+    mf.Position = UDim2.new(0.5,-125,0.5,-90)
+    mf.Size = UDim2.new(0,250,0,160)
+    mf.Active = true; mf.Draggable = true
+    mf.ZIndex = 20; mf.ClipsDescendants = true
+    do
+        local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,16); c.Parent = mf
+        local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(255,255,255)
+        s.Transparency = 0.8; s.Thickness = 1; s.Parent = mf
+    end
+
+    -- Title bar
+    local tb = Instance.new("Frame"); tb.Parent = mf
+    tb.BackgroundColor3 = Color3.fromRGB(255,255,255)
+    tb.BackgroundTransparency = 0.95; tb.BorderSizePixel = 0
+    tb.Size = UDim2.new(1,0,0,40); tb.ZIndex = 21
+    do
+        local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,16); c.Parent = tb
+        local t = Instance.new("TextLabel"); t.Parent = tb
+        t.BackgroundTransparency = 1; t.Position = UDim2.new(0,15,0,0)
+        t.Size = UDim2.new(1,-80,1,0); t.Font = Enum.Font.GothamBold
+        t.Text = "🎤 Anti VC Ban"; t.TextColor3 = Color3.fromRGB(255,255,255)
+        t.TextSize = 16; t.TextXAlignment = Enum.TextXAlignment.Left; t.ZIndex = 22
+    end
+
+    -- Close + minimize
+    do
+        local cb = Instance.new("TextButton"); cb.Parent = tb
+        cb.BackgroundColor3 = Color3.fromRGB(255,80,80); cb.BackgroundTransparency = 0.3
+        cb.BorderSizePixel = 0; cb.AnchorPoint = Vector2.new(1,0.5)
+        cb.Position = UDim2.new(1,-10,0.5,0); cb.Size = UDim2.new(0,25,0,25)
+        cb.Font = Enum.Font.GothamBold; cb.Text = "×"
+        cb.TextColor3 = Color3.fromRGB(255,255,255); cb.TextSize = 18
+        cb.ZIndex = 22; cb.AutoButtonColor = false
+        do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,8); c.Parent = cb end
+        cb.MouseButton1Click:Connect(function()
+            mf:Destroy()
+            _antiVCLoaded = false
         end)
-        
-        AntiVCActive = false
+
+        local mn = Instance.new("TextButton"); mn.Parent = tb
+        mn.BackgroundColor3 = Color3.fromRGB(255,255,255); mn.BackgroundTransparency = 0.9
+        mn.BorderSizePixel = 0; mn.AnchorPoint = Vector2.new(1,0.5)
+        mn.Position = UDim2.new(1,-45,0.5,0); mn.Size = UDim2.new(0,25,0,25)
+        mn.Font = Enum.Font.GothamBold; mn.Text = "−"
+        mn.TextColor3 = Color3.fromRGB(255,255,255); mn.TextSize = 18
+        mn.ZIndex = 22; mn.AutoButtonColor = false
+        do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,8); c.Parent = mn end
+        local minimized = false
+        mn.MouseButton1Click:Connect(function()
+            minimized = not minimized
+            TweenService:Create(mf, TweenInfo.new(0.3,Enum.EasingStyle.Quad,Enum.EasingDirection.Out), {
+                Size = minimized and UDim2.new(0,250,0,40) or UDim2.new(0,250,0,160)
+            }):Play()
+            mn.Text = minimized and "+" or "−"
+        end)
+    end
+
+    -- Description
+    local desc = Instance.new("TextLabel"); desc.Parent = mf
+    desc.BackgroundTransparency = 1
+    desc.Position = UDim2.new(0,15,0,48); desc.Size = UDim2.new(1,-30,0,30)
+    desc.Font = Enum.Font.Gotham
+    desc.Text = "Rejoins VC to bypass ban — takes ~10s"
+    desc.TextColor3 = Color3.fromRGB(150,150,180); desc.TextSize = 11
+    desc.TextXAlignment = Enum.TextXAlignment.Left
+    desc.TextWrapped = true; desc.ZIndex = 21
+
+    -- Activate button
+    local activateBtn = Instance.new("TextButton"); activateBtn.Parent = mf
+    activateBtn.BackgroundColor3 = Color3.fromRGB(255,255,255)
+    activateBtn.BackgroundTransparency = 0.9; activateBtn.BorderSizePixel = 0
+    activateBtn.Position = UDim2.new(0.08,0,0,100); activateBtn.Size = UDim2.new(0.84,0,0,32)
+    activateBtn.Font = Enum.Font.GothamBold; activateBtn.Text = "Activate"
+    activateBtn.TextColor3 = Color3.fromRGB(255,255,255); activateBtn.TextSize = 14
+    activateBtn.ZIndex = 21; activateBtn.AutoButtonColor = false
+    do
+        local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,10); c.Parent = activateBtn
+        local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(255,255,255)
+        s.Transparency = 0.85; s.Thickness = 1; s.Parent = activateBtn
+    end
+    activateBtn.MouseEnter:Connect(function()
+        TweenService:Create(activateBtn, TweenInfo.new(0.2), {BackgroundTransparency=0.7}):Play()
     end)
-end)
+    activateBtn.MouseLeave:Connect(function()
+        TweenService:Create(activateBtn, TweenInfo.new(0.2), {BackgroundTransparency=0.9}):Play()
+    end)
 
--- Update mic icon status in real-time
-antiVCLast = 0
-RunService.Heartbeat:Connect(function()
-    local now = tick(); if now - antiVCLast < 0.1 then return end; antiVCLast = now
-    if not UserInputService.WindowFocused then return end
-    if (AntiVCWindow.Visible or ScreenMicIndicator.Visible) and VoiceChatInternal then
-        local success, isPaused = pcall(function() 
-            return VoiceChatInternal:IsPublishPaused() 
+    -- Activate logic (exact Antivcban.lua sequence, fully wrapped in pcall)
+    local fx = false
+    activateBtn.MouseButton1Click:Connect(function()
+        if fx or not vi or not vc then return end
+        fx = true
+        local ot = activateBtn.Text
+        activateBtn.Text = "Processing..."
+        TweenService:Create(activateBtn, TweenInfo.new(0.2), {BackgroundTransparency=0.7}):Play()
+        task.spawn(function()
+            pcall(function()
+                local gi = vi:GetGroupId()
+                vi:PublishPause(false)
+                task.wait(3)
+                vi:JoinByGroupId(gi, true)
+                vc:leaveVoice()
+                vi:JoinByGroupId(gi, true)
+                task.wait(6)
+                vi:JoinByGroupId(gi, true)
+                vc:joinVoice()
+                task.wait()
+            end)
+            if not mf.Parent then return end
+            activateBtn.Text = "Done!"
+            TweenService:Create(activateBtn, TweenInfo.new(0.2), {BackgroundTransparency=0.9}):Play()
+            SendNotify("🎤 Anti VC Ban", "Protection applied!", 3)
+            task.wait(2)
+            if mf.Parent then activateBtn.Text = ot end
+            fx = false
         end)
-
-        if success then
-            if isPaused then
-                MicCrossLine.Visible = true
-                MicIcon.ImageTransparency = 0.5
-                MicIcon.ImageColor3 = Color3.fromRGB(255, 100, 100)
-                
-                ScreenMicCross.Visible = true
-                ScreenMicIcon.ImageTransparency = 0.5
-                ScreenMicIcon.ImageColor3 = Color3.fromRGB(255, 100, 100)
-            else
-                MicCrossLine.Visible = false
-                MicIcon.ImageTransparency = 0
-                MicIcon.ImageColor3 = Color3.fromRGB(100, 255, 100)
-                
-                ScreenMicCross.Visible = false
-                ScreenMicIcon.ImageTransparency = 0
-                ScreenMicIcon.ImageColor3 = Color3.fromRGB(100, 255, 100)
-            end
-        end
-    end
+    end)
 end)
 
 -- =====================================================
@@ -7195,7 +6917,7 @@ end, "Combat")
 RegisterCommand({"emotes"}, function() ToggleEmoteMenu() end, "Animation")
 RegisterCommand({"shaders"}, function() ShadersButton.MouseButton1Click:Fire() end, "Visual")
 RegisterCommand({"antivcb"}, function()
-    AntiVCWindow.Visible = true; ScreenMicIndicator.Visible = true; SendNotify("Anti VC Ban", "Opened", 2)
+    AntiVCButton.MouseButton1Click:Fire()
 end, "Misc")
 
 RegisterCommand({"facebang"}, function() FaceBangWindow.Visible = not FaceBangWindow.Visible end, "Misc")
