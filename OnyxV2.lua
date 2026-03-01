@@ -3,6 +3,9 @@
     Main script — auth is handled by the loader.
 ]]
 
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  SERVICES & GLOBALS                                          ║
+-- ╚══════════════════════════════════════════════════════════════╝
 -- Services
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
@@ -12,11 +15,6 @@ local HttpService = game:GetService("HttpService")
 local plr = Players.LocalPlayer
 local mouse = plr:GetMouse()
 
--- ── HTTP request compatibility shim (Xeno, Synapse, Fluxus, etc.) ─────────────
--- Defined here so the nametag system and any other code in this file can use it
--- regardless of whether this script was loadstring'd from a loader or run directly.
--- Each candidate is wrapped in pcall so accessing undefined globals (e.g. syn, fluxus)
--- doesn't crash on Xeno, which throws errors on undefined global access.
 -- local httpRequest
 do
     local candidates = {
@@ -34,14 +32,12 @@ do
         end
     end
     if not httpRequest then
-        -- Safe no-op fallback — HttpService:RequestAsync is server-side only and crashes the client
         httpRequest = function(opts)
             return { Success = false, StatusCode = 0, Body = "" }
         end
     end
 end
 
--- Anti VC Ban Services
 local function GetService(sn)
     if cloneref then
         return cloneref(game:GetService(sn))
@@ -53,18 +49,14 @@ end
 local VoiceChatService = (function() local ok, s = pcall(GetService, 'VoiceChatService') return ok and s or nil end)()
 local VoiceChatInternal = (function() local ok, s = pcall(GetService, 'VoiceChatInternal') return ok and s or nil end)()
 	
--- Executor capability detection
--- CRITICAL FIX: Check Xeno FIRST before touching sethiddenproperty
 local canUsePhysicsRep = false
 do
-    -- Blacklist Xeno: its PhysicsRep implementation causes client crashes
     local execName = ""
     pcall(function() execName = string.lower(tostring(identifyexecutor and identifyexecutor() or "")) end)
     
     if execName:match("xeno") then
         canUsePhysicsRep = false
     elseif sethiddenproperty then
-        -- Only test if not Xeno
         local ok = pcall(function()
             local char = Players.LocalPlayer.Character
             if char then
@@ -78,14 +70,10 @@ do
     end
 end
 
--- Target Variables
 local TargetedPlayer = nil
 
--- Tracks userIds of players who currently have an active Onyx nametag.
--- Written by setupOnyxNametags so the click handler below can gate on it.
 local activeOnyxTagIds = {}
 
--- Utility Functions
 GetPlayer = function(UserDisplay)
     if UserDisplay ~= "" then
         for i,v in pairs(Players:GetPlayers()) do
@@ -116,13 +104,11 @@ notifCount = 0
 NotifContainer = nil -- defined after OnyxUI is created
 
 SendNotify = function(title, message, duration)
-    -- If container isn't built yet, fall back silently (early startup calls)
     if not NotifContainer then return end
     notifCount = notifCount + 1
     local order = notifCount
     duration = duration or 3
 
-    -- Wrapper clips the card so it can slide in by expanding width
     local wrapper = Instance.new("Frame")
     wrapper.Name = "NotifWrap_" .. order
     wrapper.Parent = NotifContainer
@@ -196,7 +182,6 @@ SendNotify = function(title, message, duration)
     do local pfc = Instance.new("UICorner"); pfc.CornerRadius = UDim.new(1,0); pfc.Parent = progressFill end
 
     task.spawn(function()
-        -- Slide in: expand wrapper width from 0 → full (card is right-anchored inside)
         wrapper.Size = UDim2.new(0, 0, 0, 64)
         TweenService:Create(wrapper, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
             Size = UDim2.new(1, 0, 0, 64)
@@ -209,7 +194,6 @@ SendNotify = function(title, message, duration)
 
         task.wait(duration)
 
-        -- Fade out + collapse height
         TweenService:Create(card, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
             BackgroundTransparency = 1
         }):Play()
@@ -232,7 +216,6 @@ local function TeleportTO(player)
     end)
 end
 
--- Create ScreenGui
 OnyxUI = Instance.new("ScreenGui")
 OnyxUI.Name = "OnyxUI"
 
@@ -297,7 +280,6 @@ OnyxUI.Parent = game.CoreGui
 OnyxUI.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 OnyxUI.ResetOnSpawn = false
 
--- ── Notification container (must be after OnyxUI) ────────────────────────────
 NotifContainer = Instance.new("Frame")
 NotifContainer.Name = "OnyxNotifContainer"
 NotifContainer.Parent = OnyxUI
@@ -315,6 +297,88 @@ do
     l.Padding = UDim.new(0, 6)
 end
 
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  GUI — VC MUTE PILL BUTTON (top-left, always visible)        ║
+-- ╚══════════════════════════════════════════════════════════════╝
+-- Sits above the native Roblox VC button (top-left area), always visible.
+do
+    local vcMuteGui = Instance.new("ScreenGui")
+    vcMuteGui.Name = "OnyxVCMuteBtn"
+    vcMuteGui.Parent = game.CoreGui
+    vcMuteGui.ResetOnSpawn = false
+    vcMuteGui.DisplayOrder = 999998
+    vcMuteGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+    -- Pill-shaped button
+    local pill = Instance.new("TextButton")
+    pill.Name = "MuteToggle"
+    pill.Parent = vcMuteGui
+    pill.AnchorPoint = Vector2.new(0, 0)
+    pill.Position = UDim2.new(0, 10, 0, 10)
+    pill.Size = UDim2.new(0, 110, 0, 36)
+    pill.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+    pill.BackgroundTransparency = 0.25
+    pill.BorderSizePixel = 0
+    pill.Font = Enum.Font.GothamBold
+    pill.Text = "🎤 Mute"
+    pill.TextColor3 = Color3.fromRGB(255, 255, 255)
+    pill.TextSize = 13
+    pill.AutoButtonColor = false
+    pill.ZIndex = 10
+    do
+        local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1, 0); c.Parent = pill
+        local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(255,255,255)
+        s.Transparency = 0.78; s.Thickness = 1.2; s.Parent = pill
+    end
+
+    -- Keep label/color in sync with real mic state
+    local function syncMuteBtn()
+        if not VoiceChatInternal then
+            pill.Text = "🎤 VC N/A"
+            pill.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+            return
+        end
+        local ok, paused = pcall(function() return VoiceChatInternal:IsPublishPaused() end)
+        if not ok then return end
+        if paused then
+            pill.Text = "🎤 Unmute"
+            pill.BackgroundColor3 = Color3.fromRGB(60, 15, 15)
+        else
+            pill.Text = "🔇 Mute"
+            pill.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+        end
+    end
+
+    pill.MouseButton1Click:Connect(function()
+        if not VoiceChatInternal then return end
+        local ok, paused = pcall(function() return VoiceChatInternal:IsPublishPaused() end)
+        if ok then pcall(function() VoiceChatInternal:PublishPause(not paused) end) end
+        task.wait(0.05)
+        syncMuteBtn()
+    end)
+
+    -- Hover glow
+    pill.MouseEnter:Connect(function()
+        TweenService:Create(pill, TweenInfo.new(0.15), {BackgroundTransparency = 0.05}):Play()
+    end)
+    pill.MouseLeave:Connect(function()
+        TweenService:Create(pill, TweenInfo.new(0.15), {BackgroundTransparency = 0.25}):Play()
+    end)
+
+    -- Poll every 0.3s to stay in sync with Roblox native VC button
+    task.spawn(function()
+        while pill and pill.Parent do
+            syncMuteBtn()
+            task.wait(0.3)
+        end
+    end)
+
+    syncMuteBtn()
+end
+
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  GUI — MAIN WINDOW                                           ║
+-- ╚══════════════════════════════════════════════════════════════╝
 -- Main Frame (Glass Effect — Orca dark style)
 MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
@@ -432,7 +496,6 @@ do
 end
 
 -- Close Button
-
 
 -- Content Container
 ContentContainer = Instance.new("Frame")
@@ -1011,6 +1074,9 @@ ESPButton = CreateActionButton(CombatActionsContainer, "ESPButton", UDim2.new(0,
 -- Aimlock Button
 AimlockButton = CreateActionButton(CombatActionsContainer, "AimlockButton", UDim2.new(0, 0, 0, 0), "🎯 Aimlock: OFF", 2)
 
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  GUI — MISC TAB BUTTONS                                      ║
+-- ╚══════════════════════════════════════════════════════════════╝
 -- MISC SECTION
 MiscSection = Instance.new("Frame")
 MiscSection.Name = "MiscSection"
@@ -1066,11 +1132,12 @@ TimeReverseButton = CreateActionButton(MiscActionsContainer, "TimeReverseButton"
 -- Trip Button (NEW)
 TripButton = CreateActionButton(MiscActionsContainer, "TripButton", UDim2.new(0, 0, 0, 0), "🤸 Trip (T): OFF", 6)
 
-SupermanFlyButton = CreateActionButton(MiscActionsContainer, "SupermanFlyButton", UDim2.new(0, 0, 0, 0), "🦸 Superman Fly (G): OFF", 7)
+SpeedButton = CreateActionButton(MiscActionsContainer, "SpeedButton", UDim2.new(0, 0, 0, 0), "🏃 Player Speed", 7)
+SupermanFlyButton = CreateActionButton(MiscActionsContainer, "SupermanFlyButton", UDim2.new(0, 0, 0, 0), "🦸 Superman Fly (G): OFF", 8)
 
-UnloadScriptButton = CreateActionButton(MiscActionsContainer, "UnloadScriptButton", UDim2.new(0, 0, 0, 0), "❌ Unload Script", 8)
+UnloadScriptButton = CreateActionButton(MiscActionsContainer, "UnloadScriptButton", UDim2.new(0, 0, 0, 0), "❌ Unload Script", 9)
 
-CommandsButton = CreateActionButton(MiscActionsContainer, "CommandsButton", UDim2.new(0, 0, 0, 0), "⌨️ Command List", 9)
+CommandsButton = CreateActionButton(MiscActionsContainer, "CommandsButton", UDim2.new(0, 0, 0, 0), "⌨️ Command List", 10)
 
 -- Minimize Keybind Changer
 minimizeKey = Enum.KeyCode.B -- default
@@ -1161,7 +1228,6 @@ end
 
 -- Shaders Button (with loadstring)
 ShadersButton = CreateActionButton(VisualActionsContainer, "ShadersButton", UDim2.new(0, 0, 0, 0), "🌟 Shaders", 1)
-
 
 -- Emotes Button (in Animation tab, above search)
 EmotesButton = Instance.new("TextButton")
@@ -1390,10 +1456,9 @@ AnimScrollLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(functio
     AnimScrollFrame.CanvasSize = UDim2.new(0, 0, 0, AnimScrollLayout.AbsoluteContentSize.Y + 10)
 end)
 
-
-
-
-
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  GUI — FACE BANG WINDOW                                      ║
+-- ╚══════════════════════════════════════════════════════════════╝
 -- =====================================================
 -- FACE BANG WINDOW
 -- =====================================================
@@ -1405,7 +1470,6 @@ end)
 -- local getFBSpeed, getFBDistance
 
 do
-    -- ── Window ────────────────────────────────────────────────────────────────
     FaceBangWindow = Instance.new("Frame")
     FaceBangWindow.Name = "FaceBangWindow"
     FaceBangWindow.Parent = OnyxUI
@@ -1424,7 +1488,6 @@ do
         s.Transparency = 0.8; s.Thickness = 1; s.Parent = FaceBangWindow
     end
 
-    -- ── Title bar (Anti-VC style) ─────────────────────────────────────────────
     FBTitleBar = Instance.new("Frame")
     FBTitleBar.Name = "TitleBar"
     FBTitleBar.Parent = FaceBangWindow
@@ -1477,7 +1540,6 @@ do
         end)
     end
 
-    -- ── Status label ──────────────────────────────────────────────────────────
     FBStatusLabel = Instance.new("TextLabel")
     FBStatusLabel.Parent = FaceBangWindow
     FBStatusLabel.BackgroundTransparency = 1
@@ -1491,7 +1553,6 @@ do
     FBStatusLabel.ZIndex = 21
     FBStatusLabel.TextTruncate = Enum.TextTruncate.AtEnd
 
-    -- ── Slider builder ────────────────────────────────────────────────────────
     local function BuildSlider(yPos, labelText, minVal, maxVal, defaultVal)
         local val = defaultVal
 
@@ -1560,7 +1621,6 @@ do
     getFBSpeed    = BuildSlider(72,  "🏃 Speed",    1, 80, 40)
     getFBDistance = BuildSlider(132, "📏 Distance",  1, 10, 3)
 
-    -- ── Toggle button ─────────────────────────────────────────────────────────
     FBToggleBtn = Instance.new("TextButton")
     FBToggleBtn.Parent = FaceBangWindow
     FBToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -1580,7 +1640,6 @@ do
     FBToggleBtn.MouseEnter:Connect(function() TweenService:Create(FBToggleBtn, TweenInfo.new(0.15), {BackgroundTransparency = 0.65}):Play() end)
     FBToggleBtn.MouseLeave:Connect(function() TweenService:Create(FBToggleBtn, TweenInfo.new(0.15), {BackgroundTransparency = 0.88}):Play() end)
 
-    -- ── Dragging (Anti-VC style) ───────────────────────────────────────────────
     do
         local fbDragging, fbDragInput, fbDragStart, fbStartPos
         local function fbUpdate(input)
@@ -1609,6 +1668,9 @@ do
     end)
 end -- end GUI do block
 
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  LOGIC — FACE BANG                                           ║
+-- ╚══════════════════════════════════════════════════════════════╝
 -- =====================================================
 -- FACE BANG LOGIC
 -- =====================================================
@@ -1989,8 +2051,9 @@ setupTabButton(HomeTab); setupTabButton(PlayerTab); setupTabButton(AnimationTab)
 setupTabButton(CombatTab); setupTabButton(VisualTab); setupTabButton(MiscTab)
 end -- end hover/tab do
 
-
-
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  LOGIC — ZERO-DELAY ATTACHMENT (HeadSit / Backpack)          ║
+-- ╚══════════════════════════════════════════════════════════════╝
 -- =====================================================
 -- ZERO DELAY ATTACHMENT SYSTEM (FIXED)
 -- =====================================================
@@ -2386,8 +2449,9 @@ Players.PlayerRemoving:Connect(function(player)
     end
 end)
 
-
-
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  LOGIC — ANTI VC BAN WINDOW                                  ║
+-- ╚══════════════════════════════════════════════════════════════╝
 -- =====================================================
 -- ANTI VC BAN — embedded from Antivcban.lua
 -- Button spawns the standalone script's UI + logic
@@ -2402,16 +2466,15 @@ AntiVCButton.MouseButton1Click:Connect(function()
         if cloneref then return cloneref(game:GetService(sn))
         else return game:GetService(sn) end
     end
-    local vc = pcall(gs, "VoiceChatService") and gs("VoiceChatService") or nil
-    local vi = pcall(gs, "VoiceChatInternal") and gs("VoiceChatInternal") or nil
+    local vc = (function() local ok,s = pcall(gs,"VoiceChatService") return ok and s or nil end)()
+    local vi = (function() local ok,s = pcall(gs,"VoiceChatInternal") return ok and s or nil end)()
 
-    -- ── Main window ───────────────────────────────────────────────────────────
     local mf = Instance.new("Frame")
     mf.Name = "AntiVCWindow"; mf.Parent = OnyxUI
     mf.BackgroundColor3 = Color3.fromRGB(15,15,25)
     mf.BackgroundTransparency = 0.3; mf.BorderSizePixel = 0
-    mf.Position = UDim2.new(0.5,-125,0.5,-90)
-    mf.Size = UDim2.new(0,250,0,160)
+    mf.Position = UDim2.new(0.5,-125,0.5,-120)
+    mf.Size = UDim2.new(0,250,0,240)
     mf.Active = true; mf.Draggable = true
     mf.ZIndex = 20; mf.ClipsDescendants = true
     do
@@ -2420,7 +2483,6 @@ AntiVCButton.MouseButton1Click:Connect(function()
         s.Transparency = 0.8; s.Thickness = 1; s.Parent = mf
     end
 
-    -- Title bar
     local tb = Instance.new("Frame"); tb.Parent = mf
     tb.BackgroundColor3 = Color3.fromRGB(255,255,255)
     tb.BackgroundTransparency = 0.95; tb.BorderSizePixel = 0
@@ -2433,8 +2495,6 @@ AntiVCButton.MouseButton1Click:Connect(function()
         t.Text = "🎤 Anti VC Ban"; t.TextColor3 = Color3.fromRGB(255,255,255)
         t.TextSize = 16; t.TextXAlignment = Enum.TextXAlignment.Left; t.ZIndex = 22
     end
-
-    -- Close + minimize
     do
         local cb = Instance.new("TextButton"); cb.Parent = tb
         cb.BackgroundColor3 = Color3.fromRGB(255,80,80); cb.BackgroundTransparency = 0.3
@@ -2444,10 +2504,7 @@ AntiVCButton.MouseButton1Click:Connect(function()
         cb.TextColor3 = Color3.fromRGB(255,255,255); cb.TextSize = 18
         cb.ZIndex = 22; cb.AutoButtonColor = false
         do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,8); c.Parent = cb end
-        cb.MouseButton1Click:Connect(function()
-            mf:Destroy()
-            _antiVCLoaded = false
-        end)
+        cb.MouseButton1Click:Connect(function() mf:Destroy(); _antiVCLoaded = false end)
 
         local mn = Instance.new("TextButton"); mn.Parent = tb
         mn.BackgroundColor3 = Color3.fromRGB(255,255,255); mn.BackgroundTransparency = 0.9
@@ -2461,74 +2518,343 @@ AntiVCButton.MouseButton1Click:Connect(function()
         mn.MouseButton1Click:Connect(function()
             minimized = not minimized
             TweenService:Create(mf, TweenInfo.new(0.3,Enum.EasingStyle.Quad,Enum.EasingDirection.Out), {
-                Size = minimized and UDim2.new(0,250,0,40) or UDim2.new(0,250,0,160)
+                Size = minimized and UDim2.new(0,250,0,40) or UDim2.new(0,250,0,240)
             }):Play()
             mn.Text = minimized and "+" or "−"
         end)
     end
 
-    -- Description
-    local desc = Instance.new("TextLabel"); desc.Parent = mf
-    desc.BackgroundTransparency = 1
-    desc.Position = UDim2.new(0,15,0,48); desc.Size = UDim2.new(1,-30,0,30)
-    desc.Font = Enum.Font.Gotham
-    desc.Text = "Rejoins VC to bypass ban — takes ~10s"
-    desc.TextColor3 = Color3.fromRGB(150,150,180); desc.TextSize = 11
-    desc.TextXAlignment = Enum.TextXAlignment.Left
-    desc.TextWrapped = true; desc.ZIndex = 21
+    local micFrame = Instance.new("Frame"); micFrame.Parent = mf
+    micFrame.BackgroundColor3 = Color3.fromRGB(0,0,0)
+    micFrame.BackgroundTransparency = 0.5
+    micFrame.AnchorPoint = Vector2.new(0.5,0)
+    micFrame.Position = UDim2.new(0.5,0,0,50)
+    micFrame.Size = UDim2.new(0,56,0,56); micFrame.ZIndex = 21
+    do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1,0); c.Parent = micFrame end
 
-    -- Activate button
-    local activateBtn = Instance.new("TextButton"); activateBtn.Parent = mf
-    activateBtn.BackgroundColor3 = Color3.fromRGB(255,255,255)
-    activateBtn.BackgroundTransparency = 0.9; activateBtn.BorderSizePixel = 0
-    activateBtn.Position = UDim2.new(0.08,0,0,100); activateBtn.Size = UDim2.new(0.84,0,0,32)
-    activateBtn.Font = Enum.Font.GothamBold; activateBtn.Text = "Activate"
-    activateBtn.TextColor3 = Color3.fromRGB(255,255,255); activateBtn.TextSize = 14
-    activateBtn.ZIndex = 21; activateBtn.AutoButtonColor = false
-    do
-        local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,10); c.Parent = activateBtn
-        local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(255,255,255)
-        s.Transparency = 0.85; s.Thickness = 1; s.Parent = activateBtn
+    local micIcon = Instance.new("ImageLabel"); micIcon.Parent = micFrame
+    micIcon.BackgroundTransparency = 1
+    micIcon.Position = UDim2.new(0.15,0,0.15,0); micIcon.Size = UDim2.new(0.7,0,0.7,0)
+    micIcon.Image = "rbxassetid://10734888864"
+    micIcon.ImageColor3 = Color3.fromRGB(100,255,100); micIcon.ZIndex = 22
+
+    local crossLine = Instance.new("Frame"); crossLine.Parent = micFrame
+    crossLine.BackgroundColor3 = Color3.fromRGB(255,60,60); crossLine.BorderSizePixel = 0
+    crossLine.AnchorPoint = Vector2.new(0.5,0.5)
+    crossLine.Position = UDim2.new(0.5,0,0.5,0); crossLine.Size = UDim2.new(1.2,0,0,4)
+    crossLine.Rotation = -45; crossLine.Visible = false; crossLine.ZIndex = 23
+
+    -- Status text
+    local statusLbl = Instance.new("TextLabel"); statusLbl.Parent = mf
+    statusLbl.BackgroundTransparency = 1
+    statusLbl.Position = UDim2.new(0,0,0,112); statusLbl.Size = UDim2.new(1,0,0,16)
+    statusLbl.Font = Enum.Font.GothamMedium; statusLbl.Text = "● Mic Active"
+    statusLbl.TextColor3 = Color3.fromRGB(100,255,100); statusLbl.TextSize = 12
+    statusLbl.ZIndex = 21
+
+    local function makeBtn(yPos, label, strokeColor)
+        local btn = Instance.new("TextButton"); btn.Parent = mf
+        btn.BackgroundColor3 = Color3.fromRGB(255,255,255)
+        btn.BackgroundTransparency = 0.9; btn.BorderSizePixel = 0
+        btn.Position = UDim2.new(0.08,0,0,yPos); btn.Size = UDim2.new(0.84,0,0,32)
+        btn.Font = Enum.Font.GothamBold; btn.Text = label
+        btn.TextColor3 = Color3.fromRGB(255,255,255); btn.TextSize = 13
+        btn.ZIndex = 21; btn.AutoButtonColor = false
+        do
+            local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,10); c.Parent = btn
+            local s = Instance.new("UIStroke"); s.Color = strokeColor or Color3.fromRGB(255,255,255)
+            s.Transparency = 0.82; s.Thickness = 1; s.Parent = btn
+        end
+        btn.MouseEnter:Connect(function() TweenService:Create(btn,TweenInfo.new(0.15),{BackgroundTransparency=0.7}):Play() end)
+        btn.MouseLeave:Connect(function() TweenService:Create(btn,TweenInfo.new(0.15),{BackgroundTransparency=0.9}):Play() end)
+        return btn
     end
-    activateBtn.MouseEnter:Connect(function()
-        TweenService:Create(activateBtn, TweenInfo.new(0.2), {BackgroundTransparency=0.7}):Play()
-    end)
-    activateBtn.MouseLeave:Connect(function()
-        TweenService:Create(activateBtn, TweenInfo.new(0.2), {BackgroundTransparency=0.9}):Play()
+
+       local muteBtn = makeBtn(136, "🔇 Mute", Color3.fromRGB(255,160,100))
+
+    local function refreshMicUI()
+        local isMuted = false
+        
+        -- Try multiple methods to check mute status
+        if vi then
+            local ok, paused = pcall(function() return vi:IsPublishPaused() end)
+            if ok then 
+                isMuted = paused
+            end
+        end
+        
+        -- Also try VoiceChatService
+        if vc and not isMuted then
+            local ok, vcMuted = pcall(function() return vc:IsMuted() end)
+            if ok then
+                isMuted = vcMuted
+            end
+        end
+        
+        -- Update UI based on mute state
+        if isMuted then
+            micIcon.ImageColor3  = Color3.fromRGB(180,180,180)
+            micIcon.ImageTransparency = 0.4
+            crossLine.Visible    = true
+            statusLbl.Text       = "● Mic Muted"
+            statusLbl.TextColor3 = Color3.fromRGB(255,100,100)
+            muteBtn.Text         = "🎤 Unmute"
+        else
+            micIcon.ImageColor3  = Color3.fromRGB(100,255,100)
+            micIcon.ImageTransparency = 0
+            crossLine.Visible    = false
+            statusLbl.Text       = "● Mic Active"
+            statusLbl.TextColor3 = Color3.fromRGB(100,255,100)
+            muteBtn.Text         = "🔇 Mute"
+        end
+    end
+
+    muteBtn.MouseButton1Click:Connect(function()
+        local currentlyMuted = false
+        local success = false
+        
+        -- Method 1: Try VoiceChatInternal first
+        if vi then
+            local ok, paused = pcall(function() return vi:IsPublishPaused() end)
+            if ok then
+                currentlyMuted = paused
+                -- Toggle mute
+                local toggleOk = pcall(function() 
+                    vi:PublishPause(not currentlyMuted)
+                end)
+                if toggleOk then
+                    success = true
+                    SendNotify("🎤 Mic", (not currentlyMuted) and "Muted" or "Unmuted", 1.5)
+                end
+            end
+        end
+        
+        -- Method 2: Try VoiceChatService as fallback
+        if not success and vc then
+            local ok, vcMuted = pcall(function() return vc:IsMuted() end)
+            if ok then
+                currentlyMuted = vcMuted
+                local toggleOk = pcall(function()
+                    vc:SetMicrophoneMuted(not currentlyMuted)
+                end)
+                if toggleOk then
+                    success = true
+                    SendNotify("🎤 Mic", (not currentlyMuted) and "Muted" or "Unmuted", 1.5)
+                end
+            end
+        end
+        
+        -- Method 3: Try direct mute/unmute if both failed
+        if not success then
+            if vi then
+                -- Just try to mute regardless of current state
+                pcall(function() vi:PublishPause(true) end)
+                task.wait(0.1)
+                -- Then check if we should unmute based on button text
+                if muteBtn.Text:match("Unmute") then
+                    pcall(function() vi:PublishPause(false) end)
+                end
+            elseif vc then
+                pcall(function() vc:ToggleMic() end)
+            end
+            SendNotify("🎤 Mic", "Toggle attempted", 1.5)
+        end
+        
+        -- Wait and refresh UI
+        task.wait(0.1)
+        refreshMicUI()
     end)
 
-    -- Activate logic (exact Antivcban.lua sequence, fully wrapped in pcall)
-    local fx = false
-    activateBtn.MouseButton1Click:Connect(function()
-        if fx or not vi or not vc then return end
-        fx = true
-        local ot = activateBtn.Text
-        activateBtn.Text = "Processing..."
-        TweenService:Create(activateBtn, TweenInfo.new(0.2), {BackgroundTransparency=0.7}):Play()
-        task.spawn(function()
-            pcall(function()
-                local gi = vi:GetGroupId()
-                vi:PublishPause(false)
-                task.wait(3)
-                vi:JoinByGroupId(gi, true)
-                vc:leaveVoice()
-                vi:JoinByGroupId(gi, true)
-                task.wait(6)
-                vi:JoinByGroupId(gi, true)
-                vc:joinVoice()
-                task.wait()
-            end)
-            if not mf.Parent then return end
-            activateBtn.Text = "Done!"
-            TweenService:Create(activateBtn, TweenInfo.new(0.2), {BackgroundTransparency=0.9}):Play()
-            SendNotify("🎤 Anti VC Ban", "Protection applied!", 3)
-            task.wait(2)
-            if mf.Parent then activateBtn.Text = ot end
-            fx = false
+    -- Poll mic state every 0.25s so the icon stays in sync
+    local pollConn
+    pollConn = RunService.Heartbeat:Connect(function()
+        if not mf.Parent then pollConn:Disconnect(); return end
+    end)
+    local lastPaused = nil
+    task.spawn(function()
+        while mf.Parent do
+            local currentState = false
+            
+            -- Check mute state
+            if vi then
+                local ok, paused = pcall(function() return vi:IsPublishPaused() end)
+                if ok then currentState = paused end
+            end
+            
+            if vc and not currentState then
+                local ok, vcMuted = pcall(function() return vc:IsMuted() end)
+                if ok then currentState = vcMuted end
+            end
+            
+            -- Only refresh UI if state changed
+            if currentState ~= lastPaused then
+                lastPaused = currentState
+                refreshMicUI()
+            end
+            
+            task.wait(0.25)
+        end
+    end)
+    refreshMicUI()
+
+    -- Poll mic state every 0.5s so the icon stays in sync
+    local pollConn
+    pollConn = RunService.Heartbeat:Connect(function()
+        if not mf.Parent then pollConn:Disconnect(); return end
+    end)
+    local lastPaused = nil
+    task.spawn(function()
+        while mf.Parent do
+            if vi then
+                local ok, paused = pcall(function() return vi:IsPublishPaused() end)
+                if ok and paused ~= lastPaused then
+                    lastPaused = paused
+                    refreshMicUI()
+                end
+            end
+            task.wait(0.25)
+        end
+    end)
+    refreshMicUI()
+
+    local activateBtn = makeBtn(178, "⚡ Activate Anti-Ban", Color3.fromRGB(140,130,255))
+
+    -- ── Anti-VC Ban logic ────────────────────────────────────────────────────
+    -- Method: continuous session reset via JoinByGroupId(groupId, FALSE).
+    --   false = join UNMUTED so your mic stays live for other players.
+    --   Each call resets your VC moderation session counter on Roblox's backend.
+    --   8-second interval keeps resets happening before any warning can register.
+    --   PublishPause(false) is called each cycle to auto-unmute your REAL mic.
+    --   The pill button / GUI mic indicator is NOT touched — only the audio stream.
+    -- ──────────────────────────────────────────────────────────────────────────
+    local vcRunning  = false
+    local vcTask     = nil
+    local isProcessing = false
+
+    local function doVCResetImproved()
+        if isProcessing then return end
+        isProcessing = true
+        
+        pcall(function()
+            if not vi then return end
+            
+            -- Step 1: Get group ID and ensure unmuted
+            local gi = vi:GetGroupId()
+            if not gi or gi == "" then 
+                isProcessing = false
+                return 
+            end
+            
+            vi:PublishPause(false)
+            task.wait(3)
+            
+            -- Step 2-3: Join muted, leave, join muted again
+            vi:JoinByGroupId(gi, true)
+            if vc then pcall(function() vc:leaveVoice() end) end
+            vi:JoinByGroupId(gi, true)
+            task.wait(6)
+            
+            -- Step 4-5: Final join and voice activation
+            vi:JoinByGroupId(gi, true)
+            if vc then pcall(function() vc:joinVoice() end) end
+            
+            -- Ensure we're unmuted after the cycle
+            task.wait(0.5)
+            vi:PublishPause(false)
         end)
+        
+        isProcessing = false
+    end
+
+    local function stopVCProtection()
+        vcRunning = false
+        if vcTask then 
+            task.cancel(vcTask)
+            vcTask = nil 
+        end
+        if mf.Parent then
+            activateBtn.Text = "⚡ Activate Anti-Ban"
+            activateBtn.BackgroundTransparency = 0.9
+            TweenService:Create(activateBtn, TweenInfo.new(0.2), {
+                BackgroundColor3 = Color3.fromRGB(255,255,255)
+            }):Play()
+            statusLbl.Text       = "● Mic Active"
+            statusLbl.TextColor3 = Color3.fromRGB(100,255,100)
+        end
+        SendNotify("🎤 Anti VC Ban", "Protection stopped", 2)
+    end
+
+    local function startVCProtection()
+        if not vi then
+            SendNotify("Anti VC Ban", "VoiceChatInternal unavailable on this executor", 3)
+            return
+        end
+        if not vc then
+            SendNotify("Anti VC Ban", "VoiceChatService unavailable", 3)
+            return
+        end
+        
+        vcRunning = true
+
+        activateBtn.Text = "⛔ Stop Protection (Active)"
+        TweenService:Create(activateBtn, TweenInfo.new(0.2), {
+            BackgroundColor3 = Color3.fromRGB(40, 180, 100)
+        }):Play()
+        activateBtn.BackgroundTransparency = 0
+        statusLbl.Text       = "⚡ Processing anti-ban..."
+        statusLbl.TextColor3 = Color3.fromRGB(140,130,255)
+
+        -- Run initial cycle
+        SendNotify("🎤 Anti VC Ban", "Running initial protection cycle...", 2)
+        
+        vcTask = task.spawn(function()
+            -- Do first cycle immediately
+            doVCResetImproved()
+            
+            if mf.Parent then
+                statusLbl.Text = "✓ Protection complete!"
+                statusLbl.TextColor3 = Color3.fromRGB(100,255,100)
+            end
+            
+            task.wait(2)
+            
+            -- Update status
+            if mf.Parent then
+                statusLbl.Text = "● Ready (Click to run again)"
+                statusLbl.TextColor3 = Color3.fromRGB(140,200,255)
+            end
+            
+            -- Reset button state after completion
+            vcRunning = false
+            if mf.Parent then
+                activateBtn.Text = "⚡ Activate Anti-Ban"
+                activateBtn.BackgroundTransparency = 0.9
+                TweenService:Create(activateBtn, TweenInfo.new(0.2), {
+                    BackgroundColor3 = Color3.fromRGB(255,255,255)
+                }):Play()
+            end
+            
+            SendNotify("🎤 Anti VC Ban", "Cycle complete - You're protected!", 3)
+        end)
+    end
+
+    activateBtn.MouseButton1Click:Connect(function()
+        if vcRunning or isProcessing then 
+            SendNotify("Anti VC Ban", "Protection cycle already running...", 2)
+            return 
+        end
+        startVCProtection()
+    end)
+
+    -- Stop protection if window is destroyed (close button)
+    mf:GetPropertyChangedSignal("Parent"):Connect(function()
+        if not mf.Parent then stopVCProtection() end
     end)
 end)
 
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  LOGIC — ANIMATION SYSTEM                                    ║
+-- ╚══════════════════════════════════════════════════════════════╝
 -- =====================================================
 -- ANIMATION SYSTEM (Integrated from Gazer)
 -- =====================================================
@@ -2998,7 +3324,6 @@ local function unfreeze()
     end
 end
 
--- ── Animation ID injection ────────────────────────────────────────────────────
 -- Roblox locks AnimationId on Animate's children in newer engine versions.
 -- Neither direct assignment nor sethiddenproperty can write it.
 -- Solution: DESTROY the locked Animation object and CREATE a new one with the
@@ -3277,8 +3602,6 @@ PopulateAnimations()
 -- Load animations after a short delay
 task.delay(1, loadLastAnimations)
 
-
-
 -- =====================================================
 -- EMOTE MENU SYSTEM (Full Database + Per-Emote Keybinds + Speed)
 -- =====================================================
@@ -3292,6 +3615,7 @@ local selectedEmoteName  = nil
 local emoteMenuVisible   = false
 local emoteListenTarget  = nil
 local emoteKeybinds      = {}
+local favoritedEmotes = {}
 local emoteButtons       = {}
 local allEmotes          = {}
 local emotesLoaded       = false
@@ -3319,13 +3643,42 @@ local function SaveKeybinds()
     pcall(function() writefile("OnyxEmoteBinds.json", HttpService:JSONEncode(toSave)) end)
 end
 
--- ── Build emote UI (locals are inside this function scope) ────────────────────
+-- Load saved favorites
+do
+    local ok, decoded = pcall(function()
+        if not isfile("OnyxEmoteFavorites.json") then return nil end
+        return HttpService:JSONDecode(readfile("OnyxEmoteFavorites.json"))
+    end)
+    if ok and type(decoded) == "table" then
+        favoritedEmotes = decoded
+    end
+end
+
+local function SaveFavorites()
+    pcall(function() 
+        writefile("OnyxEmoteFavorites.json", HttpService:JSONEncode(favoritedEmotes)) 
+    end)
+end
+
+local function ToggleFavorite(emoteId)
+    local id = tostring(emoteId)
+    if favoritedEmotes[id] then
+        favoritedEmotes[id] = nil
+    else
+        favoritedEmotes[id] = true
+    end
+    SaveFavorites()
+end
+
+local function IsFavorited(emoteId)
+    return favoritedEmotes[tostring(emoteId)] == true
+end
+
 -- local EmoteMenu, NowPlayingLabel, StopEmoteBtn, EmoteMenuClose
 -- local SpeedLabel, SpeedTrack, SpeedFill, SpeedHandle, SpeedValueBox
 -- local EmoteListFrame, EmoteCountLabel, LoadingLabel, EmoteSearch
 
 local function BuildEmoteUI()
-    -- ── Window (Anti-VC style) ─────────────────────────────────────────────────
     local menu = Instance.new("Frame")
     menu.Name               = "EmoteMenu"
     menu.Parent             = OnyxUI
@@ -3344,7 +3697,65 @@ local function BuildEmoteUI()
         s.Transparency = 0.8; s.Thickness = 1; s.Parent = menu
     end
 
-    -- ── Title bar (Anti-VC style) ──────────────────────────────────────────────
+    -- Add this code right after EmoteSearch is created:
+
+local favFilterBtn = Instance.new("TextButton")
+favFilterBtn.Name = "FavoritesFilter"
+favFilterBtn.Parent = menu
+favFilterBtn.BackgroundColor3 = Color3.fromRGB(255,255,255)
+favFilterBtn.BackgroundTransparency = 0.9
+favFilterBtn.BorderSizePixel = 0
+favFilterBtn.Position = UDim2.new(0, 15, 0, 170)
+favFilterBtn.Size = UDim2.new(0, 100, 0, 28)
+favFilterBtn.Font = Enum.Font.GothamBold
+favFilterBtn.Text = "⭐ Favorites"
+favFilterBtn.TextColor3 = Color3.fromRGB(200,200,220)
+favFilterBtn.TextSize = 11
+favFilterBtn.ZIndex = 31
+favFilterBtn.AutoButtonColor = false
+do
+    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = favFilterBtn
+    local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(255,220,100)
+    s.Transparency = 0.7; s.Thickness = 1; s.Parent = favFilterBtn
+end
+
+local showingFavorites = false
+
+favFilterBtn.MouseButton1Click:Connect(function()
+    showingFavorites = not showingFavorites
+    
+    if showingFavorites then
+        -- Show only favorites
+        favFilterBtn.BackgroundTransparency = 0.3
+        favFilterBtn.BackgroundColor3 = Color3.fromRGB(255,220,100)
+        favFilterBtn.TextColor3 = Color3.fromRGB(50,50,70)
+        
+        visibleEmotes = {}
+        for _, e in ipairs(allEmotes) do
+            if IsFavorited(e.id) then
+                table.insert(visibleEmotes, e)
+            end
+        end
+        
+        if #visibleEmotes == 0 then
+            SendNotify("⭐ Favorites", "No favorites yet! Click ☆ to add emotes", 3)
+        end
+    else
+        -- Show all emotes
+        favFilterBtn.BackgroundTransparency = 0.9
+        favFilterBtn.BackgroundColor3 = Color3.fromRGB(255,255,255)
+        favFilterBtn.TextColor3 = Color3.fromRGB(200,200,220)
+        
+        RebuildVisible(EmoteSearch.Text)
+        return
+    end
+    
+    local totalH = VPAD * 2 + #visibleEmotes * VROW_H
+    EmoteListFrame.CanvasSize = UDim2.new(0, 0, 0, totalH)
+    EmoteListFrame.CanvasPosition = Vector2.new(0, 0)
+    RefreshVirtualRows()
+end)
+
     local titleBar = Instance.new("Frame")
     titleBar.Name = "EmoteTitleBar"; titleBar.Parent = menu
     titleBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -3398,7 +3809,6 @@ local function BuildEmoteUI()
         minimizeBtn.Text = emoteMinimized and "+" or "−"
     end)
 
-    -- ── Drag (Anti-VC style) ───────────────────────────────────────────────────
     do
         local emDragging, emDragInput, emDragStart, emStartPos
         local function emUpdate(input)
@@ -3422,7 +3832,6 @@ local function BuildEmoteUI()
         end)
     end
 
-    -- ── Body ──────────────────────────────────────────────────────────────────
     local body = Instance.new("Frame"); body.Parent = menu
     body.BackgroundTransparency = 1; body.Position = UDim2.new(0, 0, 0, 40)
     body.Size = UDim2.new(1, 0, 1, -40); body.ZIndex = 31
@@ -3549,8 +3958,6 @@ local function BuildEmoteUI()
 end
 
 BuildEmoteUI()
-
--- ── Core emote functions ──────────────────────────────────────────────────────
 
 local RefreshVirtualRows  -- forward declaration, defined later in virtual scroll section
 
@@ -3738,8 +4145,6 @@ local function PlayEmoteById(emoteId, emoteName)
     SendNotify("Emotes","Playing: " .. emoteName, 2)
 end
 
--- ── Speed slider ─────────────────────────────────────────────────────────────
-
 local function ApplySpeed(fraction)
     fraction = math.clamp(fraction, 0, 1)
     local speed = math.floor((0.1 + fraction * 3.9) * 10 + 0.5) / 10
@@ -3772,8 +4177,6 @@ SpeedValueBox.FocusLost:Connect(function()
     if v then ApplySpeed((math.clamp(v,0.1,4.0)-0.1)/3.9)
     else SpeedValueBox.Text = string.format("%.1f", currentEmoteSpeed) end
 end)
-
--- ── Per-emote keybind system ──────────────────────────────────────────────────
 
 local function CancelListening()
     if listeningKeyBtn then
@@ -3818,9 +4221,7 @@ local function UnbindEmote(id, btn)
     SaveKeybinds()
 end
 
--- ══════════════════════════════════════════════════════════════════
 -- VIRTUAL SCROLL SYSTEM - renders only visible rows (no lag)
--- ══════════════════════════════════════════════════════════════════
 
 VROW_H     = 34   -- px per row including gap
 VPAD       = 5    -- top/bottom padding inside list
@@ -3926,7 +4327,11 @@ local function BindRowToEmote(widget, emote, yPos)
     widget.keyBtn.BackgroundColor3 = bound and Color3.fromRGB(50,80,140) or Color3.fromRGB(50,50,75)
     widget.keyBtn.TextColor3 = bound and Color3.fromRGB(200,220,255) or Color3.fromRGB(140,140,170)
 
-    -- update keybind btn reference
+    -- NEW: Update favorite button state
+    local isFav = IsFavorited(emote.id)
+    widget.favBtn.Text = isFav and "★" or "☆"
+    widget.favBtn.TextColor3 = isFav and Color3.fromRGB(255,220,100) or Color3.fromRGB(200,180,100)
+
     if bound then emoteKeybinds[tostring(emote.id)].btn = widget.keyBtn end
 end
 
@@ -3978,8 +4383,6 @@ EmoteSearch:GetPropertyChangedSignal("Text"):Connect(function()
     RebuildVisible(EmoteSearch.Text)
 end)
 
--- ── Load emote database ───────────────────────────────────────────────────────
-
 local function PopulateEmoteList(emoteList)
     pcall(function() LoadingLabel:Destroy() end)
     allEmotes = emoteList
@@ -3998,7 +4401,6 @@ local function PopulateEmoteList(emoteList)
     emoteKeybinds = restoredBinds
     -- Build the fixed pool of widgets (fast, only ~22 instances)
     BuildRowPool()
-    -- CRITICAL FIX: Load emotes in chunks to prevent lag
     task.spawn(function()
         local total = #allEmotes
         local chunkSize = 50
@@ -4070,7 +4472,6 @@ local function LoadEmoteDatabase()
     end)
 end
 
--- ── Wire up ───────────────────────────────────────────────────────────────────
 StopEmoteBtn.MouseButton1Click:Connect(function()
     StopCurrentEmote()
     RefreshVirtualRows()
@@ -4129,7 +4530,6 @@ end)
 
 end -- end emote scope block
 
-
 -- =====================================================
 -- CLICK TELEPORT SYSTEM
 -- =====================================================
@@ -4179,7 +4579,6 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         teleportEffect.Transparency = 0.5
         teleportEffect.Parent = workspace
         
-        -- Fade out effect
         task.spawn(function()
             for i = 1, 10 do
                 teleportEffect.Transparency = teleportEffect.Transparency + 0.05
@@ -4374,6 +4773,9 @@ ShadersButton.MouseButton1Click:Connect(function()
     end
 end)
 
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  LOGIC — ESP SYSTEM                                          ║
+-- ╚══════════════════════════════════════════════════════════════╝
 -- =====================================================
 -- ESP SYSTEM
 -- =====================================================
@@ -4406,33 +4808,371 @@ ESPButton.MouseButton1Click:Connect(function()
 end)
 
 -- =====================================================
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  LOGIC — UTILITY SYSTEMS (Anti-Void, Player Hide/Mute)       ║
+-- ╚══════════════════════════════════════════════════════════════╝
 -- UTILITY SYSTEMS (Anti-Void, Player Hiding)
 -- =====================================================
 
 AntiVoidEnabled = false
-HiddenPlayers = {} -- [UserId] = true
-PropertyCache = setmetatable({}, { __mode = "k" }) -- [Instance] = { Transparency = x, Volume = y }
 
--- Helper to store and restore properties safely
-local function cacheProperty(inst, prop, val)
-    if not PropertyCache[inst] then PropertyCache[inst] = {} end
-    if PropertyCache[inst][prop] == nil then
-        PropertyCache[inst][prop] = inst[prop]
+HiddenPlayers = {}
+
+-- ── Audio mute: Wire destruction method ────────────────────────────────────
+-- Roblox new audio pipeline: AudioDeviceInput → Wire → AudioEmitter
+-- Setting Volume/Muted on endpoints does NOTHING while a Wire actively feeds them.
+-- Destroying the Wire locally breaks the pipeline on our client. That's the fix.
+-- We store destroyed Wires' data so we can recreate them on unhide.
+
+-- [userId] = { wires = { {parent, name, src, tgt} }, sounds = { {sound, vol} } }
+local hiddenAudioData = {}
+
+local function mutePlayerAudio(userId)
+    local p = Players:GetPlayerByUserId(userId)
+    if not p then return end
+
+    -- Don't double-process
+    if hiddenAudioData[userId] then return end
+
+    local data = { wires = {}, sounds = {} }
+    hiddenAudioData[userId] = data
+
+    -- Method 1: FIXED - Only destroy wires connected to THIS player's character
+    local function nukeWiresIn(container)
+        if not container then return end
+        pcall(function()
+            for _, v in ipairs(container:GetDescendants()) do
+                if v:IsA("Wire") then
+                    local ok, src = pcall(function() return v.SourceInstance end)
+                    local ok2, tgt = pcall(function() return v.TargetInstance end)
+                    if ok and ok2 then
+                        -- FIX: Check if the wire belongs to this specific player
+                        local belongsToTarget = false
+                        
+                        -- Check if source or target is in the player's character
+                        if src then
+                            local srcAncestor = src:FindFirstAncestorOfClass("Model")
+                            if srcAncestor == p.Character then
+                                belongsToTarget = true
+                            end
+                        end
+                        
+                        if tgt and not belongsToTarget then
+                            local tgtAncestor = tgt:FindFirstAncestorOfClass("Model")
+                            if tgtAncestor == p.Character then
+                                belongsToTarget = true
+                            end
+                        end
+                        
+                        -- Only destroy if it belongs to THIS player
+                        if belongsToTarget then
+                            local srcIsAudio = src and (src:IsA("AudioDeviceInput") or src:IsA("AudioEmitter") or src:IsA("AudioPlayer") or src:IsA("AudioCompressor") or src:IsA("AudioEcho"))
+                            local tgtIsAudio = tgt and (tgt:IsA("AudioEmitter") or tgt:IsA("AudioDeviceInput") or tgt:IsA("AudioPlayer") or tgt:IsA("AudioCompressor"))
+                            
+                            if srcIsAudio or tgtIsAudio then
+                                -- Save wire info for restoration
+                                table.insert(data.wires, {
+                                    parent = v.Parent,
+                                    name   = v.Name,
+                                    src    = src,
+                                    tgt    = tgt,
+                                })
+                                pcall(function() v:Destroy() end)
+                            end
+                        end
+                    end
+                end
+            end
+        end)
     end
-    inst[prop] = val
-end
 
-local function restoreProperties(inst)
-    local cached = PropertyCache[inst]
-    if cached then
-        for prop, val in pairs(cached) do
-            pcall(function() inst[prop] = val end)
+    -- Only search in the player's character, not all of workspace
+    nukeWiresIn(p.Character)
+
+    -- Method 2: Zero all Sound objects in THIS player's character only
+    if p.Character then
+        for _, v in ipairs(p.Character:GetDescendants()) do
+            if v:IsA("Sound") then
+                local ok, vol = pcall(function() return v.Volume end)
+                if ok then
+                    table.insert(data.sounds, { sound = v, vol = vol })
+                    pcall(function() v.Volume = 0; v:Stop() end)
+                end
+            end
+            -- Also zero AudioEmitter volume
+            if v:IsA("AudioEmitter") then
+                pcall(function() v.Volume = 0 end)
+            end
         end
-        PropertyCache[inst] = nil
+    end
+
+    -- Method 3: VoiceChatInternal participant mute (ONLY this player)
+    if VoiceChatInternal then
+        pcall(function() VoiceChatInternal:MuteParticipant(tostring(userId), true) end)
+        pcall(function() VoiceChatInternal:MutePlayer(userId) end)
     end
 end
 
--- Anti-Void Loop
+local function unmutePlayerAudio(userId)
+    local data = hiddenAudioData[userId]
+    hiddenAudioData[userId] = nil
+
+    local p = Players:GetPlayerByUserId(userId)
+    if not p then return end
+
+    -- Restore Wires: recreate each destroyed wire with original endpoints
+    if data then
+        -- IMPROVED: Try multiple times to restore wires
+        for attempt = 1, 3 do
+            for _, w in ipairs(data.wires) do
+                pcall(function()
+                    if w.src and w.tgt and w.src.Parent and w.tgt.Parent then
+                        -- Check if wire already exists
+                        local wireExists = false
+                        if w.parent and w.parent.Parent then
+                            for _, existingWire in ipairs(w.parent:GetChildren()) do
+                                if existingWire:IsA("Wire") then
+                                    local ok1, eSrc = pcall(function() return existingWire.SourceInstance end)
+                                    local ok2, eTgt = pcall(function() return existingWire.TargetInstance end)
+                                    if ok1 and ok2 and eSrc == w.src and eTgt == w.tgt then
+                                        wireExists = true
+                                        break
+                                    end
+                                end
+                            end
+                        end
+                        
+                        -- Only create if it doesn't exist
+                        if not wireExists and w.parent and w.parent.Parent then
+                            local wire = Instance.new("Wire")
+                            wire.Name           = w.name
+                            wire.SourceInstance = w.src
+                            wire.TargetInstance = w.tgt
+                            wire.Parent         = w.parent
+                        end
+                    end
+                end)
+            end
+            
+            if attempt < 3 then
+                task.wait(0.1) -- Wait between attempts
+            end
+        end
+        
+        -- Restore Sound volumes
+        for _, s in ipairs(data.sounds) do
+            pcall(function()
+                if s.sound and s.sound.Parent then
+                    s.sound.Volume = s.vol
+                    s.sound:Play() -- Restart sounds
+                end
+            end)
+        end
+        
+        -- Restore AudioEmitter volumes from saved data
+        for _, e in ipairs(data.emitters) do
+            pcall(function()
+                if e.emitter and e.emitter.Parent then
+                    e.emitter.Volume = e.vol
+                end
+            end)
+        end
+    end
+
+    -- Restore AudioEmitter volumes (fallback to default 1)
+    if p.Character then
+        for _, v in ipairs(p.Character:GetDescendants()) do
+            if v:IsA("AudioEmitter") then
+                pcall(function()
+                    if v.Volume == 0 then
+                        v.Volume = 1
+                    end
+                end)
+            end
+        end
+    end
+
+    -- Un-mute VoiceChatInternal
+    if VoiceChatInternal then
+        pcall(function() VoiceChatInternal:MuteParticipant(tostring(userId), false) end)
+        pcall(function() VoiceChatInternal:UnmutePlayer(userId) end)
+    end
+    
+    -- EXTRA FIX: Force rejoin voice chat for this player to refresh audio
+    task.delay(0.5, function()
+        if VoiceChatInternal then
+            pcall(function()
+                -- This forces the player's audio to reinitialize
+                local groupId = VoiceChatInternal:GetGroupId()
+                if groupId then
+                    VoiceChatInternal:UnmutePlayer(userId)
+                end
+            end)
+        end
+    end)
+end
+
+local function applyHideToChar(char, userId)
+    if not char then return end
+
+    -- Visual suppression
+    for _, v in ipairs(char:GetDescendants()) do
+        if v:IsA("BasePart") then
+            pcall(function() v.LocalTransparencyModifier = 1 end)
+            pcall(function() v.Transparency = 1 end)
+        elseif v:IsA("Decal") or v:IsA("Texture") then
+            pcall(function() v.Transparency = 1 end)
+        elseif v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("Light") or v:IsA("SelectionBox") then
+            pcall(function() v.Enabled = false end)
+        elseif v:IsA("BillboardGui") or v:IsA("SurfaceGui") or v:IsA("ScreenGui") then
+            pcall(function() v.Enabled = false end)
+        elseif v:IsA("SpecialMesh") or v:IsA("BlockMesh") then
+            pcall(function() v.Scale = Vector3.zero end)
+        end
+    end
+
+    -- Audio suppression (dedicated function above)
+    mutePlayerAudio(userId)
+end
+
+local function applyUnhideToChar(char, userId)
+    if not char then return end
+
+    -- Visual restoration
+    for _, v in ipairs(char:GetDescendants()) do
+        if v:IsA("BasePart") then
+            pcall(function() v.LocalTransparencyModifier = 0 end)
+            if v.Name ~= "HumanoidRootPart" then
+                pcall(function() v.Transparency = 0 end)
+            end
+        elseif v:IsA("Decal") or v:IsA("Texture") then
+            pcall(function() v.Transparency = 0 end)
+        elseif v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("Light") then
+            pcall(function() v.Enabled = true end)
+        elseif v:IsA("BillboardGui") or v:IsA("SurfaceGui") then
+            pcall(function() v.Enabled = true end)
+        end
+    end
+
+    -- Audio restoration (dedicated function)
+    unmutePlayerAudio(userId)
+end
+
+local _chatFilterInstalled = false
+local function installChatFilter()
+    if _chatFilterInstalled then return end
+    _chatFilterInstalled = true
+    pcall(function()
+        local TCS = game:GetService("TextChatService")
+        local channels = TCS and TCS:FindFirstChild("TextChannels")
+        if not channels then return end
+        for _, ch in ipairs(channels:GetChildren()) do
+            if ch:IsA("TextChannel") then
+                pcall(function()
+                    ch.ShouldDeliverCallback = function(msgObj, txSource)
+                        if txSource and txSource.UserId == plr.UserId then return true end
+                        if txSource and HiddenPlayers[txSource.UserId] then return false end
+                        return true
+                    end
+                end)
+            end
+        end
+        channels.ChildAdded:Connect(function(ch)
+            if ch:IsA("TextChannel") then
+                task.wait(0.1)
+                pcall(function()
+                    ch.ShouldDeliverCallback = function(msgObj, txSource)
+                        if txSource and txSource.UserId == plr.UserId then return true end
+                        if txSource and HiddenPlayers[txSource.UserId] then return false end
+                        return true
+                    end
+                end)
+            end
+        end)
+    end)
+end
+
+local function removeChatFilter()
+    pcall(function()
+        local TCS = game:GetService("TextChatService")
+        local channels = TCS and TCS:FindFirstChild("TextChannels")
+        if not channels then return end
+        for _, ch in ipairs(channels:GetChildren()) do
+            if ch:IsA("TextChannel") then
+                pcall(function() ch.ShouldDeliverCallback = nil end)
+            end
+        end
+    end)
+    _chatFilterInstalled = false
+end
+
+local function hidePlayer(target)
+    if not target then return end
+    local uid = target.UserId
+    if HiddenPlayers[uid] then return end -- already hidden
+
+    installChatFilter()
+
+    local entry = { respawnConn = nil }
+    HiddenPlayers[uid] = entry
+
+    applyHideToChar(target.Character, uid)
+
+    entry.respawnConn = target.CharacterAdded:Connect(function(char)
+        if not HiddenPlayers[uid] then return end
+        task.wait(0.1) -- let the character fully load first
+        applyHideToChar(char, uid)
+    end)
+
+    SendNotify("👻 Hide", target.DisplayName .. " completely hidden", 2)
+end
+
+local function unhidePlayer(target)
+    if not target then return end
+    local uid = target.UserId
+    local entry = HiddenPlayers[uid]
+    if not entry then return end
+
+    HiddenPlayers[uid] = nil
+
+    if entry.respawnConn then
+        pcall(function() entry.respawnConn:Disconnect() end)
+    end
+
+    applyUnhideToChar(target.Character, uid)
+
+    local anyHidden = next(HiddenPlayers) ~= nil
+    if not anyHidden then
+        removeChatFilter()
+    end
+
+    SendNotify("👁️ Unhide", target.DisplayName .. " restored", 2)
+end
+
+-- Hide enforcement loop: tracks character instances per hidden player.
+-- Re-applies visuals + audio whenever a player respawns (new Character object).
+-- Audio wire destruction is NOT re-run every tick — only on fresh characters.
+local _hiddenCharCache = {}  -- [userId] = character instance last processed
+
+task.spawn(function()
+    while true do
+        task.wait(0.3)
+        for uid, _ in pairs(HiddenPlayers) do
+            local p = Players:GetPlayerByUserId(uid)
+            if p and p.Character then
+                local char = p.Character
+                -- Only re-apply if this is a different character than last time
+                -- (player respawned) — avoids destroying freshly re-created Wires
+                if _hiddenCharCache[uid] ~= char then
+                    _hiddenCharCache[uid] = char
+                    -- Clear old audio data so mutePlayerAudio runs fresh
+                    hiddenAudioData[uid] = nil
+                    applyHideToChar(char, uid)
+                end
+            end
+        end
+    end
+end)
 
 -- Anti-Void Loop
 task.spawn(function()
@@ -4444,53 +5184,6 @@ task.spawn(function()
                 hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
                 hrp.CFrame = hrp.CFrame * CFrame.new(0, 550, 0)
                 SendNotify("Anti-Void", "Saved from falling!", 2)
-            end
-        end
-        task.wait(0.5)
-    end
-end)
-
--- Player Hiding Loop (Visuals & Audio)
-task.spawn(function()
-    while true do
-        for userId, _ in pairs(HiddenPlayers) do
-            local p = Players:GetPlayerByUserId(userId)
-            local char = p and p.Character
-            if char then
-                for _, part in ipairs(char:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        if part.Name ~= "HumanoidRootPart" then
-                            cacheProperty(part, "Transparency", 1)
-                        end
-                    elseif part:IsA("Decal") then
-                        cacheProperty(part, "Transparency", 1)
-                    elseif part:IsA("Sound") then
-                        cacheProperty(part, "Volume", 0)
-                        pcall(function() part:Stop() end)
-                    elseif part:IsA("BillboardGui") or part:IsA("SurfaceGui") then
-                        pcall(function() part.Enabled = false end)
-                    end
-                end
-                -- Attempt to mute VC if DynamicHeads are present
-                local head = char:FindFirstChild("Head")
-                if head then
-                    for _, child in ipairs(head:GetChildren()) do
-                        if child:IsA("AudioDeviceInput") or child:IsA("AudioEmitter") or child:IsA("VoiceChatService") then
-                            pcall(function() child.Volume = 0 end)
-                        end
-                    end
-                end
-
-                -- Hide Nametags (parented to CoreGui or PlayerGui)
-                local coreGui = game:GetService("CoreGui")
-                local targetGui = coreGui:FindFirstChild("OnyxUI") or plr:FindFirstChild("PlayerGui"):FindFirstChild("OnyxUI")
-                if targetGui then
-                    for _, billboard in ipairs(targetGui:GetDescendants()) do
-                        if billboard:IsA("BillboardGui") and billboard.Name == "OnyxNametag" and billboard.Adornee and billboard.Adornee:IsDescendantOf(char) then
-                            billboard.Enabled = false
-                        end
-                    end
-                end
             end
         end
         task.wait(0.5)
@@ -4620,6 +5313,9 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  LOGIC — AIMLOCK SYSTEM                                      ║
+-- ╚══════════════════════════════════════════════════════════════╝
 -- =====================================================
 -- AIMLOCK SYSTEM
 -- =====================================================
@@ -4709,6 +5405,9 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  LOGIC — TIME REVERSE SYSTEM                                 ║
+-- ╚══════════════════════════════════════════════════════════════╝
 -- =====================================================
 -- TIME REVERSE SYSTEM
 -- =====================================================
@@ -4792,6 +5491,9 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  LOGIC — TRIP SYSTEM                                         ║
+-- ╚══════════════════════════════════════════════════════════════╝
 -- =====================================================
 -- TRIP SYSTEM
 -- =====================================================
@@ -4830,58 +5532,39 @@ local function doTrip()
     local origJumpPower  = humanoid.JumpPower
     local origAutoRotate = humanoid.AutoRotate
 
-    -- 1. Freeze controls
+    -- Freeze all movement
     humanoid.WalkSpeed     = 0
     humanoid.JumpPower     = 0
     humanoid.AutoRotate    = false
-    humanoid.PlatformStand = true   -- stops Humanoid from correcting pose
+    humanoid.PlatformStand = true
 
-    -- 2. Do NOT disable Motor6D joints — that causes death in games with joint-break detection.
-    --    PlatformStand alone is enough to suppress Humanoid corrections.
-
-    -- 3. Launch forward and upward
+    -- Tiny nudge forward so we tip over, no upward launch
     local lookDir = hrp.CFrame.LookVector
-    hrp.AssemblyLinearVelocity = Vector3.new(
-        lookDir.X * 55,
-        50,
-        lookDir.Z * 55
+    hrp.AssemblyLinearVelocity = Vector3.new(lookDir.X * 8, -2, lookDir.Z * 8)
+
+    -- Single forward-roll rotation to make it look like a faceplant
+    hrp.AssemblyAngularVelocity = Vector3.new(
+        hrp.CFrame.RightVector.X * 18,
+        hrp.CFrame.RightVector.Y * 18,
+        hrp.CFrame.RightVector.Z * 18
     )
+
     humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
+    SendNotify("Trip", "Flopped!", 1)
 
-    SendNotify("Trip", "Tripped!", 1)
-
-    -- 4. Tumble spin while airborne (won't kill because joints stay intact)
-    task.spawn(function()
-        for i = 1, 12 do
-            task.wait(0.06)
-            if hrp and hrp.Parent then
-                hrp.AssemblyAngularVelocity = Vector3.new(
-                    math.random(-14, 14),
-                    math.random(-8, 8),
-                    math.random(-14, 14)
-                )
-            end
-        end
-    end)
-
-    -- 5. Recover after 2 seconds
-    task.delay(2, function()
+    -- Get up after 1.5s
+    task.delay(1.5, function()
         if not char or not char.Parent then tripActive = false return end
         if not humanoid or not humanoid.Parent then tripActive = false return end
-
-        -- Restore humanoid state
         humanoid.PlatformStand = false
         humanoid.AutoRotate    = origAutoRotate
         humanoid.WalkSpeed     = origWalkSpeed
         humanoid.JumpPower     = origJumpPower
-        pcall(function() humanoid:ChangeState(Enum.HumanoidStateType.GettingUp) end)
-
-        -- Stop leftover spin
         pcall(function()
             hrp.AssemblyAngularVelocity = Vector3.zero
             hrp.AssemblyLinearVelocity  = Vector3.zero
+            humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
         end)
-
         tripActive = false
     end)
 end
@@ -4891,12 +5574,186 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if input.KeyCode == Enum.KeyCode.T and TripEnabled then
         doTrip()
     end
-    if input.KeyCode == Enum.KeyCode.G then
-        if SupermanFlyEnabled then stopSupermanFly(); SendNotify("Superman Fly", "Disabled", 2)
-        else startSupermanFly(); SendNotify("Superman Fly", "On — WASD·Space/Ctrl·Shift boost", 3) end
-    end
 end)
 
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  LOGIC — PLAYER SPEED WINDOW                                 ║
+-- ╚══════════════════════════════════════════════════════════════╝
+-- =====================================================
+-- PLAYER SPEED WINDOW
+-- =====================================================
+do
+    local SpeedWindow = Instance.new("Frame")
+    SpeedWindow.Name = "SpeedWindow"; SpeedWindow.Parent = OnyxUI
+    SpeedWindow.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+    SpeedWindow.BackgroundTransparency = 0.3; SpeedWindow.BorderSizePixel = 0
+    SpeedWindow.Position = UDim2.new(0.5, -130, 0.5, -90)
+    SpeedWindow.Size = UDim2.new(0, 260, 0, 200)
+    SpeedWindow.Visible = false; SpeedWindow.Active = true
+    SpeedWindow.ZIndex = 20; SpeedWindow.ClipsDescendants = true
+    do
+        local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 16); c.Parent = SpeedWindow
+        local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(255,255,255); s.Transparency = 0.8; s.Thickness = 1; s.Parent = SpeedWindow
+    end
+
+    -- Title bar
+    local swTB = Instance.new("Frame"); swTB.Parent = SpeedWindow
+    swTB.BackgroundColor3 = Color3.fromRGB(255,255,255); swTB.BackgroundTransparency = 0.95
+    swTB.BorderSizePixel = 0; swTB.Size = UDim2.new(1,0,0,40); swTB.ZIndex = 21
+    do
+        local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,16); c.Parent = swTB
+        local t = Instance.new("TextLabel"); t.Parent = swTB
+        t.BackgroundTransparency = 1; t.Position = UDim2.new(0,15,0,0)
+        t.Size = UDim2.new(1,-80,1,0); t.Font = Enum.Font.GothamBold
+        t.Text = "🏃 Player Speed"; t.TextColor3 = Color3.fromRGB(255,255,255)
+        t.TextSize = 16; t.TextXAlignment = Enum.TextXAlignment.Left; t.ZIndex = 22
+    end
+    do
+        local cb = Instance.new("TextButton"); cb.Parent = swTB
+        cb.BackgroundColor3 = Color3.fromRGB(255,80,80); cb.BackgroundTransparency = 0.3
+        cb.BorderSizePixel = 0; cb.AnchorPoint = Vector2.new(1,0.5)
+        cb.Position = UDim2.new(1,-10,0.5,0); cb.Size = UDim2.new(0,25,0,25)
+        cb.Font = Enum.Font.GothamBold; cb.Text = "×"
+        cb.TextColor3 = Color3.fromRGB(255,255,255); cb.TextSize = 18; cb.ZIndex = 22; cb.AutoButtonColor = false
+        do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,8); c.Parent = cb end
+        cb.MouseButton1Click:Connect(function() SpeedWindow.Visible = false end)
+
+        local mn = Instance.new("TextButton"); mn.Parent = swTB
+        mn.BackgroundColor3 = Color3.fromRGB(255,255,255); mn.BackgroundTransparency = 0.9
+        mn.BorderSizePixel = 0; mn.AnchorPoint = Vector2.new(1,0.5)
+        mn.Position = UDim2.new(1,-45,0.5,0); mn.Size = UDim2.new(0,25,0,25)
+        mn.Font = Enum.Font.GothamBold; mn.Text = "−"
+        mn.TextColor3 = Color3.fromRGB(255,255,255); mn.TextSize = 18; mn.ZIndex = 22; mn.AutoButtonColor = false
+        do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,8); c.Parent = mn end
+        local swMin = false
+        mn.MouseButton1Click:Connect(function()
+            swMin = not swMin
+            TweenService:Create(SpeedWindow, TweenInfo.new(0.3,Enum.EasingStyle.Quad,Enum.EasingDirection.Out), {
+                Size = swMin and UDim2.new(0,260,0,40) or UDim2.new(0,260,0,200)
+            }):Play()
+            mn.Text = swMin and "+" or "−"
+        end)
+    end
+
+    -- Dragging
+    do
+        local swDragging, swDragInput, swDragStart, swStartPos
+        swTB.InputBegan:Connect(function(inp)
+            if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+                swDragging = true; swDragStart = inp.Position; swStartPos = SpeedWindow.Position
+                inp.Changed:Connect(function() if inp.UserInputState == Enum.UserInputState.End then swDragging = false end end)
+            end
+        end)
+        swTB.InputChanged:Connect(function(inp)
+            if inp.UserInputType == Enum.UserInputType.MouseMovement then swDragInput = inp end
+        end)
+        UserInputService.InputChanged:Connect(function(inp)
+            if inp == swDragInput and swDragging then
+                local d = inp.Position - swDragStart
+                SpeedWindow.Position = UDim2.new(swStartPos.X.Scale, swStartPos.X.Offset + d.X, swStartPos.Y.Scale, swStartPos.Y.Offset + d.Y)
+            end
+        end)
+    end
+
+    -- Slider builder (reuse pattern from fly window)
+    local function BuildSpeedSlider(yPos, labelText, minVal, maxVal, defaultVal, applyFn)
+        local val = defaultVal
+        local row = Instance.new("Frame"); row.Parent = SpeedWindow
+        row.BackgroundTransparency = 1; row.Position = UDim2.new(0,15,0,yPos)
+        row.Size = UDim2.new(1,-30,0,52); row.ZIndex = 21
+
+        local lbl = Instance.new("TextLabel"); lbl.Parent = row; lbl.BackgroundTransparency = 1
+        lbl.Size = UDim2.new(0.65,0,0,18); lbl.Font = Enum.Font.GothamMedium
+        lbl.Text = labelText; lbl.TextColor3 = Color3.fromRGB(220,220,240)
+        lbl.TextSize = 12; lbl.TextXAlignment = Enum.TextXAlignment.Left; lbl.ZIndex = 22
+
+        local valLbl = Instance.new("TextLabel"); valLbl.Parent = row; valLbl.BackgroundTransparency = 1
+        valLbl.AnchorPoint = Vector2.new(1,0); valLbl.Position = UDim2.new(1,0,0,0)
+        valLbl.Size = UDim2.new(0.33,0,0,18); valLbl.Font = Enum.Font.GothamBold
+        valLbl.Text = tostring(defaultVal); valLbl.TextColor3 = Color3.fromRGB(100,220,255)
+        valLbl.TextSize = 12; valLbl.TextXAlignment = Enum.TextXAlignment.Right; valLbl.ZIndex = 22
+
+        local track = Instance.new("Frame"); track.Parent = row
+        track.BackgroundColor3 = Color3.fromRGB(255,255,255); track.BackgroundTransparency = 0.88
+        track.BorderSizePixel = 0; track.Position = UDim2.new(0,0,0,26); track.Size = UDim2.new(1,0,0,8); track.ZIndex = 22
+        do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1,0); c.Parent = track end
+
+        local pct0 = (defaultVal - minVal) / (maxVal - minVal)
+        local fill = Instance.new("Frame"); fill.Parent = track
+        fill.BackgroundColor3 = Color3.fromRGB(100,200,255); fill.BorderSizePixel = 0
+        fill.Size = UDim2.new(pct0,0,1,0); fill.ZIndex = 23
+        do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1,0); c.Parent = fill end
+
+        local knob = Instance.new("Frame"); knob.Parent = track
+        knob.BackgroundColor3 = Color3.fromRGB(180,240,255); knob.BorderSizePixel = 0
+        knob.AnchorPoint = Vector2.new(0.5,0.5); knob.Position = UDim2.new(pct0,0,0.5,0)
+        knob.Size = UDim2.new(0,16,0,16); knob.ZIndex = 24
+        do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1,0); c.Parent = knob end
+
+        local btn = Instance.new("TextButton"); btn.Parent = track
+        btn.BackgroundTransparency = 1; btn.Size = UDim2.new(1,0,1,0)
+        btn.Text = ""; btn.ZIndex = 25; btn.AutoButtonColor = false
+
+        local sliding = false
+        local function setFromX(x)
+            local p = math.clamp((x - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
+            val = math.round(minVal + (maxVal - minVal) * p)
+            fill.Size = UDim2.new(p,0,1,0); knob.Position = UDim2.new(p,0,0.5,0)
+            valLbl.Text = tostring(val)
+            applyFn(val)
+        end
+
+        btn.MouseButton1Down:Connect(function() sliding = true; setFromX(plr:GetMouse().X) end)
+        UserInputService.InputChanged:Connect(function(inp)
+            if sliding and inp.UserInputType == Enum.UserInputType.MouseMovement then setFromX(inp.Position.X) end
+        end)
+        UserInputService.InputEnded:Connect(function(inp)
+            if inp.UserInputType == Enum.UserInputType.MouseButton1 then sliding = false end
+        end)
+    end
+
+    -- WalkSpeed slider (16–200, default 16)
+    BuildSpeedSlider(48, "⚡ Walk Speed", 1, 200, 16, function(v)
+        local char = plr.Character
+        local hum  = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then hum.WalkSpeed = v end
+    end)
+
+    -- JumpPower slider (0–200, default 50)
+    BuildSpeedSlider(108, "🦘 Jump Power", 0, 200, 50, function(v)
+        local char = plr.Character
+        local hum  = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then hum.JumpPower = v end
+    end)
+
+    -- Reset button
+    local resetBtn = Instance.new("TextButton"); resetBtn.Parent = SpeedWindow
+    resetBtn.BackgroundColor3 = Color3.fromRGB(255,255,255); resetBtn.BackgroundTransparency = 0.9
+    resetBtn.BorderSizePixel = 0; resetBtn.Position = UDim2.new(0.08,0,0,166)
+    resetBtn.Size = UDim2.new(0.84,0,0,26); resetBtn.Font = Enum.Font.GothamBold
+    resetBtn.Text = "Reset to Default"; resetBtn.TextColor3 = Color3.fromRGB(200,200,220)
+    resetBtn.TextSize = 12; resetBtn.ZIndex = 21; resetBtn.AutoButtonColor = false
+    do
+        local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,8); c.Parent = resetBtn
+        local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(255,255,255); s.Transparency = 0.85; s.Thickness = 1; s.Parent = resetBtn
+    end
+    resetBtn.MouseEnter:Connect(function() TweenService:Create(resetBtn,TweenInfo.new(0.15),{BackgroundTransparency=0.7}):Play() end)
+    resetBtn.MouseLeave:Connect(function() TweenService:Create(resetBtn,TweenInfo.new(0.15),{BackgroundTransparency=0.9}):Play() end)
+    resetBtn.MouseButton1Click:Connect(function()
+        local char = plr.Character
+        local hum  = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then hum.WalkSpeed = 16; hum.JumpPower = 50 end
+        SendNotify("Speed", "Reset to defaults", 2)
+    end)
+
+    SpeedButton.MouseButton1Click:Connect(function()
+        SpeedWindow.Visible = not SpeedWindow.Visible
+    end)
+end
+
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  LOGIC — SUPERMAN FLY (UI + Logic)                           ║
+-- ╚══════════════════════════════════════════════════════════════╝
 -- =====================================================
 -- SUPERMAN FLY  (UI + Logic)
 -- G or window button to toggle. WASD = camera-relative.
@@ -4912,7 +5769,6 @@ superBodyGyro      = nil
 getFlySpeed      = function() return 80  end
 getFlyBoostSpeed = function() return 220 end
 
--- ── Fly Window (FaceBang style) ───────────────────────────────────────────
 -- local FlyWindow, FlyTitleBar, FlyStatusLabel, FlyToggleBtn
 do
     FlyWindow = Instance.new("Frame")
@@ -5098,44 +5954,42 @@ do
     end)
 end
 
--- ── Superman Fly Logic ────────────────────────────────────────────────────
+-- ── Superman Fly: LinearVelocity + AlignOrientation (modern Roblox constraints)
+-- LinearVelocity replaces deprecated BodyVelocity — no oscillation jitter.
+-- AlignOrientation replaces BodyGyro — instant snap, RigidityEnabled.
+-- Smooth momentum lerp makes it feel weighty. Falls back to BodyVelocity/BodyGyro
+-- on executors that don't support the new API.
+-- Controls: WASD camera-relative | Space = up | Ctrl = down | Shift = boost | G toggle
+
+local superFlyAtt0     = nil
+local superLinVel      = nil
+local superAlignOri    = nil
+local currentVelocity  = Vector3.zero
 
 local function stopSupermanFly()
     SupermanFlyEnabled = false
-    if superFlyConn then superFlyConn:Disconnect(); superFlyConn = nil end
+    currentVelocity    = Vector3.zero
+
+    if superFlyConn  then superFlyConn:Disconnect();  superFlyConn  = nil end
+    if superLinVel   then pcall(function() superLinVel:Destroy()   end); superLinVel   = nil end
+    if superAlignOri then pcall(function() superAlignOri:Destroy() end); superAlignOri = nil end
+    if superFlyAtt0  then pcall(function() superFlyAtt0:Destroy()  end); superFlyAtt0  = nil end
     if superBodyVel  then pcall(function() superBodyVel:Destroy()  end); superBodyVel  = nil end
     if superBodyGyro then pcall(function() superBodyGyro:Destroy() end); superBodyGyro = nil end
+
     local char = plr.Character
     local hum  = char and char:FindFirstChildOfClass("Humanoid")
     if hum then hum.PlatformStand = false; hum.AutoRotate = true end
+
+    pcall(function() SupermanFlyButton.Text = "🦸 Superman Fly (G): OFF"; SupermanFlyButton.BackgroundTransparency = 0.9 end)
     pcall(function()
-        SupermanFlyButton.Text = "ð¦¸ Superman Fly (G): OFF"
-        SupermanFlyButton.BackgroundTransparency = 0.9
-    end)
-    pcall(function()
-        FlyToggleBtn.Text = "â¶ Start Fly (G)"
+        FlyToggleBtn.Text = "▶ Start Fly (G)"
         TweenService:Create(FlyToggleBtn, TweenInfo.new(0.2), {
             BackgroundColor3 = Color3.fromRGB(255,255,255), BackgroundTransparency = 0.88
         }):Play()
         FlyStatusLabel.Text = "Status: Off  |  WASD  |  Space/Ctrl  |  Shift boost"
     end)
 end
-
--- Actively suppress hidden players (runs independently at top-level)
-task.spawn(function()
-    RunService.RenderStepped:Connect(function()
-        for userId, _ in pairs(HiddenPlayers) do
-            local p = Players:GetPlayerByUserId(userId)
-            if p and p.Character then
-                for _, v in ipairs(p.Character:GetDescendants()) do
-                    if v:IsA("Sound") then pcall(function() v.Volume = 0 end) end
-                    if v:IsA("BasePart") or v:IsA("Decal") or v:IsA("Texture") then pcall(function() v.Transparency = 1 end) end
-                    if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("Light") then pcall(function() v.Enabled = false end) end
-                end
-            end
-        end
-    end)
-end)
 
 local function startSupermanFly()
     local char = plr.Character
@@ -5144,84 +5998,139 @@ local function startSupermanFly()
     if not hrp or not hum then return end
 
     SupermanFlyEnabled = true
-    hum.PlatformStand = true
-    hum.AutoRotate    = false
+    currentVelocity    = Vector3.zero
+    hum.PlatformStand  = true
+    hum.AutoRotate     = false
 
-    superBodyVel = Instance.new("BodyVelocity")
-    superBodyVel.MaxForce = Vector3.new(1e6, 1e6, 1e6)
-    superBodyVel.Velocity  = Vector3.zero
-    superBodyVel.Parent    = hrp
-
-    superBodyGyro = Instance.new("BodyGyro")
-    superBodyGyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
-    superBodyGyro.D         = 120; superBodyGyro.P = 1e5
-    superBodyGyro.CFrame    = hrp.CFrame
-    superBodyGyro.Parent    = hrp
-
+    -- Try new-API: LinearVelocity + AlignOrientation
+    local useNewAPI = false
     pcall(function()
-        SupermanFlyButton.Text = "ð¦¸ Superman Fly (G): ON"
-        SupermanFlyButton.BackgroundTransparency = 0.7
+        superFlyAtt0          = Instance.new("Attachment")
+        superFlyAtt0.Position = Vector3.zero
+        superFlyAtt0.Parent   = hrp
+
+        superLinVel                  = Instance.new("LinearVelocity")
+        superLinVel.MaxForce         = math.huge
+        superLinVel.VectorVelocity   = Vector3.zero
+        superLinVel.RelativeTo       = Enum.ActuatorRelativeTo.World
+        superLinVel.Attachment0      = superFlyAtt0
+        superLinVel.Parent           = hrp
+
+        superAlignOri                       = Instance.new("AlignOrientation")
+        superAlignOri.MaxTorque             = math.huge
+        superAlignOri.MaxAngularVelocity    = math.huge
+        superAlignOri.Responsiveness        = 60
+        superAlignOri.RigidityEnabled       = true
+        superAlignOri.Mode                  = Enum.OrientationAlignmentMode.OneAttachment
+        superAlignOri.Attachment0           = superFlyAtt0
+        superAlignOri.Parent                = hrp
+
+        useNewAPI = true
     end)
+
+    -- Fallback: legacy BodyVelocity + BodyGyro
+    if not useNewAPI then
+        pcall(function() if superFlyAtt0 then superFlyAtt0:Destroy() end end); superFlyAtt0 = nil
+
+        superBodyVel          = Instance.new("BodyVelocity")
+        superBodyVel.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+        superBodyVel.Velocity = Vector3.zero
+        superBodyVel.Parent   = hrp
+
+        superBodyGyro           = Instance.new("BodyGyro")
+        superBodyGyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+        superBodyGyro.D         = 100
+        superBodyGyro.P         = 1e5
+        superBodyGyro.CFrame    = hrp.CFrame
+        superBodyGyro.Parent    = hrp
+    end
+
+    pcall(function() SupermanFlyButton.Text = "🦸 Superman Fly (G): ON"; SupermanFlyButton.BackgroundTransparency = 0.7 end)
     pcall(function()
-        FlyToggleBtn.Text = "â  Stop Fly (G)"
+        FlyToggleBtn.Text = "■ Stop Fly (G)"
         TweenService:Create(FlyToggleBtn, TweenInfo.new(0.2), {
             BackgroundColor3 = Color3.fromRGB(100,220,120), BackgroundTransparency = 0
         }):Play()
     end)
 
-    superFlyConn = RunService.RenderStepped:Connect(function()
+    superFlyConn = RunService.RenderStepped:Connect(function(dt)
         local c2   = plr.Character
         local hrp2 = c2 and c2:FindFirstChild("HumanoidRootPart")
-        if not hrp2 or not superBodyVel or not superBodyVel.Parent then
-            stopSupermanFly(); return
-        end
+        local alive = useNewAPI and (superLinVel and superLinVel.Parent) or (superBodyVel and superBodyVel.Parent)
+        if not hrp2 or not alive then stopSupermanFly(); return end
 
-        local cam   = workspace.CurrentCamera
-        local camCF = cam.CFrame
+        local UIS   = UserInputService
+        local camCF = workspace.CurrentCamera.CFrame
+
+        -- Camera-relative horizontal direction, Y stripped
+        local function flat(v) local f = Vector3.new(v.X,0,v.Z); return f.Magnitude > 0.001 and f.Unit or Vector3.zero end
         local moveDir = Vector3.zero
-        local UIS = UserInputService
-        if UIS:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + Vector3.new(camCF.LookVector.X,  0, camCF.LookVector.Z).Unit  end
-        if UIS:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - Vector3.new(camCF.LookVector.X,  0, camCF.LookVector.Z).Unit  end
-        if UIS:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - Vector3.new(camCF.RightVector.X, 0, camCF.RightVector.Z).Unit end
-        if UIS:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + Vector3.new(camCF.RightVector.X, 0, camCF.RightVector.Z).Unit end
+        if UIS:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + flat(camCF.LookVector)  end
+        if UIS:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - flat(camCF.LookVector)  end
+        if UIS:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - flat(camCF.RightVector) end
+        if UIS:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + flat(camCF.RightVector) end
+        if moveDir.Magnitude > 0 then moveDir = moveDir.Unit end
 
-        local vertical = 0
-        if UIS:IsKeyDown(Enum.KeyCode.Space) then vertical = 1 end
-        if UIS:IsKeyDown(Enum.KeyCode.LeftControl) or UIS:IsKeyDown(Enum.KeyCode.RightControl) then vertical = -1 end
+        local vertical   = 0
+        if UIS:IsKeyDown(Enum.KeyCode.Space)        then vertical =  1 end
+        if UIS:IsKeyDown(Enum.KeyCode.LeftControl)
+        or UIS:IsKeyDown(Enum.KeyCode.RightControl) then vertical = -1 end
 
         local isBoosting = UIS:IsKeyDown(Enum.KeyCode.LeftShift) or UIS:IsKeyDown(Enum.KeyCode.RightShift)
-        local speed = isBoosting and getFlyBoostSpeed() or getFlySpeed()
+        local speed      = isBoosting and getFlyBoostSpeed() or getFlySpeed()
 
-        pcall(function()
-            FlyStatusLabel.Text = (isBoosting and "ð Boosting" or "Flying") .. "  " .. speed .. " st/s  |  Shift = boost"
-        end)
+        -- Smooth momentum lerp — snappier when boosting
+        local targetVel = Vector3.new(moveDir.X * speed, vertical * speed * 0.65, moveDir.Z * speed)
+        local alpha     = math.clamp(dt * (isBoosting and 14 or 9), 0, 1)
+        currentVelocity = currentVelocity:Lerp(targetVel, alpha)
 
-        local horizontalVel = moveDir.Magnitude > 0 and (moveDir.Unit * speed) or Vector3.zero
-        superBodyVel.Velocity = Vector3.new(horizontalVel.X, vertical * speed * 0.6, horizontalVel.Z)
+        -- Apply
+        if useNewAPI then
+            superLinVel.VectorVelocity = currentVelocity
+        else
+            superBodyVel.Velocity = currentVelocity
+        end
 
-        local travelDir = Vector3.new(horizontalVel.X, 0, horizontalVel.Z)
-        local targetCF
-        if travelDir.Magnitude > 0.1 then
-            local pitchDown = vertical < 0 and 0.3 or 0.6
-            local tiltedLook = (travelDir.Unit + Vector3.new(0, -pitchDown, 0)).Unit
-            targetCF = CFrame.lookAt(hrp2.Position, hrp2.Position + tiltedLook)
-        elseif vertical ~= 0 then
-            local lookFlat = Vector3.new(camCF.LookVector.X, 0, camCF.LookVector.Z)
-            if lookFlat.Magnitude > 0.01 then
-                targetCF = CFrame.lookAt(hrp2.Position, hrp2.Position + (lookFlat.Unit + Vector3.new(0, vertical * 0.5, 0)).Unit)
-            else
-                targetCF = hrp2.CFrame
-            end
+        -- Orientation: tilt nose down when moving, face camera yaw when idle
+        local travelFlat = Vector3.new(currentVelocity.X, 0, currentVelocity.Z)
+        local orientCF
+        if travelFlat.Magnitude > 2 then
+            local tilt = math.clamp(travelFlat.Magnitude / speed, 0, 1) * (vertical < 0 and 0.15 or 0.55)
+            orientCF = CFrame.lookAt(hrp2.Position, hrp2.Position + (travelFlat.Unit + Vector3.new(0, -tilt, 0)).Unit)
         else
             local _, yaw, _ = camCF:ToEulerAnglesYXZ()
-            targetCF = CFrame.new(hrp2.Position) * CFrame.Angles(0, yaw, 0)
+            orientCF = CFrame.new(hrp2.Position) * CFrame.Angles(vertical * 0.3, yaw, 0)
         end
-        superBodyGyro.CFrame = targetCF
+
+        if useNewAPI then
+            pcall(function() superAlignOri.CFrame = orientCF end)
+        else
+            superBodyGyro.CFrame = orientCF
+        end
+
+        pcall(function()
+            FlyStatusLabel.Text = (isBoosting and "🚀 Boosting" or (travelFlat.Magnitude > 1 and "✈ Flying" or "● Hovering"))
+                .. "  " .. math.floor(currentVelocity.Magnitude) .. " st/s  |  Shift = boost"
+        end)
     end)
 end
 
 FlyToggleBtn.MouseButton1Click:Connect(function()
     if SupermanFlyEnabled then stopSupermanFly() else startSupermanFly() end
+end)
+
+-- G key toggle
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.G then
+        if SupermanFlyEnabled then
+            stopSupermanFly()
+            SendNotify("Superman Fly", "Disabled", 2)
+        else
+            startSupermanFly()
+            SendNotify("Superman Fly", "On — WASD · Space/Ctrl · Shift boost", 3)
+        end
+    end
 end)
 
 -- Respawn cleanup
@@ -5232,6 +6141,9 @@ plr.CharacterAdded:Connect(function()
     end
 end)
 
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  LOGIC — FE CHARACTER CLONER                                 ║
+-- ╚══════════════════════════════════════════════════════════════╝
 -- =====================================================
 -- FE CHARACTER CLONER
 -- .char <name> copies a player's HumanoidDescription
@@ -5351,6 +6263,9 @@ CharCloneButton.MouseButton1Click:Connect(function()
     end
 end)
 
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  LOGIC — UNLOAD SCRIPT                                       ║
+-- ╚══════════════════════════════════════════════════════════════╝
 -- =====================================================
 -- UNLOAD SCRIPT
 -- =====================================================
@@ -5432,7 +6347,6 @@ UnloadScriptButton.MouseButton1Click:Connect(function()
             workspace.CurrentCamera.CameraSubject = plr.Character.Humanoid
         end
         
-        -- Fade out and destroy GUI
         local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
         local fadeTween = TweenService:Create(MainFrame, tweenInfo, {BackgroundTransparency = 1})
         fadeTween:Play()
@@ -5456,6 +6370,9 @@ else
     SendNotify("Onyx", "Fallback mode active (CFrame tracking - PhysicsRepRootPart unsupported)", 4)
 end
 
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  SYSTEM — ONYX NAMETAG SYSTEM                                ║
+-- ╚══════════════════════════════════════════════════════════════╝
 -- =====================================================
 -- ONYX NAMETAG SYSTEM
 -- =====================================================
@@ -5522,10 +6439,8 @@ task.spawn(logExecution)
 nametagConfigs[plr.Name] = nil
 nametagConfigs[plr.Name:lower()] = nil
 
--- ── CUSTOMIZE DEFAULTS HERE ──────────────────────────
 DEFAULT_BG_IMAGE   = "" -- Set to "" for solid color only
 DEFAULT_ICON_IMAGE = "rbxassetid://138249935932599"
--- ───────────────────────────────────────────────────
 
 NAMETAG_FONT_MAP = {
     ["GothamBlack"]  = Enum.Font.GothamBlack,
@@ -5703,7 +6618,6 @@ local function enqueueFetch(username, callback)
         fetchQueueRunning = false
     end)
 end
-
 
 -- Particle animation loop for cool background effects
 local function startParticleAnimation(parentBg, particleColor)
@@ -6141,7 +7055,6 @@ local function buildNametag(targetPlayer, cfg)
 
     local data = {}
 
-    -- ── LOCAL PLAYER: Also use BillboardGui (no ScreenGui flash) ────────────────
     if targetPlayer == plr then
         local selfBillboard = Instance.new("BillboardGui")
         selfBillboard.Name            = "OnyxSelfTag"
@@ -6174,7 +7087,6 @@ local function buildNametag(targetPlayer, cfg)
         return data
     end
 
-    -- ── OTHER PLAYERS: standard BillboardGui ──────────────────────────────────
     local billboard = Instance.new("BillboardGui")
     billboard.Name            = "OnyxNametag_" .. targetPlayer.Name
     billboard.Adornee         = head
@@ -6227,7 +7139,6 @@ local function glitchText(original, intensity)
     return table.concat(chars)
 end
 
--- ── Glitch effect loop — runs on all active nametags ─────────────────────────
 task.spawn(function()
     local t = 0
     local GLITCH_INTERVAL = 0.08
@@ -6317,7 +7228,6 @@ local function applySelfNametag()
     applyNametag(plr)
 end
 
--- ── Process Active Users to apply or remove nametags ─────────────────────────────
 local function processActiveUsers(activeSet)
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= plr then
@@ -6345,19 +7255,16 @@ local function processActiveUsers(activeSet)
     end
 end
 
--- ── Bootstrap: self nametag ─────────────────────────────
 task.spawn(function()
     task.wait(1.5)
     applySelfNametag()
 end)
 
--- ── Clean up nametags when players leave ───────────────────────────────────────
 Players.PlayerRemoving:Connect(function(leavingPlayer)
     removeNametag(leavingPlayer.UserId)
     nametagConfigs[leavingPlayer.Name] = nil  -- clear cache so fresh data on rejoin
 end)
 
--- ── Re-apply after local respawn ──────────────────────────────────────────────────
 plr.CharacterAdded:Connect(function()
     task.wait(1.0)
     plr:SetAttribute("OnyxActive", true)
@@ -6371,7 +7278,6 @@ end)
 
 SendNotify("Onyx", "Nametag system active", 3)
 
--- ── Heartbeat System: Minimal heartbeat for self registration only ──
 task.spawn(function()
     while true do
         pcall(function()
@@ -6389,7 +7295,6 @@ task.spawn(function()
     end
 end)
 
--- ── Polling System: Individual Player Lookup ──
 pollPlayer = function(p)
     if not p or p == plr then return end
     local name = p.Name:lower()
@@ -6506,6 +7411,9 @@ Players.PlayerAdded:Connect(monitorAndPoll)
 end
 task.spawn(setupOnyxNametags)
 
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  SYSTEM — CLICK-TO-TELEPORT (Onyx users only)                ║
+-- ╚══════════════════════════════════════════════════════════════╝
 -- =====================================================
 -- CLICK-TO-TELEPORT: ONYX NAMETAG USERS ONLY
 -- Screen-space click detection — BillboardGui TextButton clicks are
@@ -6564,6 +7472,9 @@ do
 end
 -- =====================================================
 
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  SYSTEM — CHAT COMMAND SYSTEM                                ║
+-- ╚══════════════════════════════════════════════════════════════╝
 -- =====================================================
 -- CHAT COMMAND SYSTEM + COMMAND LIST UI
 -- =====================================================
@@ -6985,134 +7896,16 @@ RegisterCommand({"antivoid"}, function()
 end, "Misc")
 
 RegisterCommand({"hide"}, function(argLine)
-    local target = GetPlayer(argLine)
+    local target = argLine ~= "" and GetPlayer(argLine) or (TargetedPlayer and Players:FindFirstChild(TargetedPlayer))
     if target then
-        HiddenPlayers[target.UserId] = true
-        -- Mute chat messages from the player (TextChatService)
-        pcall(function()
-            local TCS = game:GetService("TextChatService")
-            if TCS then
-                local channels = TCS:FindFirstChild("TextChannels")
-                if channels then
-                    for _, ch in ipairs(channels:GetChildren()) do
-                        if ch:IsA("TextChannel") then
-                            pcall(function()
-                                ch:SetDirectChatRequester(target)
-                            end)
-                            -- Use ShouldDeliverCallback to block messages from this player
-                            pcall(function()
-                                local existing = ch.ShouldDeliverCallback
-                                ch.ShouldDeliverCallback = function(msgObj, txSource)
-                                    -- ALWAYS allow local player's own messages through (critical for command processing)
-                                    if txSource and txSource.UserId == plr.UserId then
-                                        if existing then return existing(msgObj, txSource) end
-                                        return true
-                                    end
-                                    -- Block hidden players
-                                    if txSource and HiddenPlayers[txSource.UserId] then
-                                        return false
-                                    end
-                                    if existing then return existing(msgObj, txSource) end
-                                    return true
-                                end
-                            end)
-                        end
-                    end
-                end
-            end
-        end)
-        -- Mute via VoiceChatService (primary VC mute)
-        pcall(function()
-            if VoiceChatService then
-                VoiceChatService:MutePlayer(target.UserId)
-            end
-        end)
-        -- Mute all AudioDeviceInput / AudioEmitter across the entire character (not just Head)
-        pcall(function()
-            if target.Character then
-                for _, obj in ipairs(target.Character:GetDescendants()) do
-                    if obj:IsA("AudioDeviceInput") or obj:IsA("AudioEmitter") then
-                        pcall(function() obj.Muted = true end)
-                        pcall(function() obj.Volume = 0 end)
-                    end
-                end
-            end
-        end)
-        -- Persist mute across respawns
-        pcall(function()
-            target.CharacterAdded:Connect(function(char)
-                if not HiddenPlayers[target.UserId] then return end
-                task.wait(0.5)
-                for _, obj in ipairs(char:GetDescendants()) do
-                    if obj:IsA("AudioDeviceInput") or obj:IsA("AudioEmitter") then
-                        pcall(function() obj.Muted = true end)
-                        pcall(function() obj.Volume = 0 end)
-                    end
-                end
-                pcall(function()
-                    if VoiceChatService then VoiceChatService:MutePlayer(target.UserId) end
-                end)
-            end)
-        end)
-        SendNotify("Hide", "Hidden & muted: " .. target.DisplayName, 2)
+        hidePlayer(target)
     else SendNotify("Command", "Player not found", 2) end
 end, "Misc")
 
 RegisterCommand({"unhide"}, function(argLine)
-    local target = GetPlayer(argLine)
+    local target = argLine ~= "" and GetPlayer(argLine) or (TargetedPlayer and Players:FindFirstChild(TargetedPlayer))
     if target then
-        HiddenPlayers[target.UserId] = nil
-        local char = target.Character
-        if char then
-            for _, part in ipairs(char:GetDescendants()) do
-                restoreProperties(part)
-                if part:IsA("BillboardGui") or part:IsA("SurfaceGui") then part.Enabled = true end
-                -- Restore audio
-                if part:IsA("AudioDeviceInput") or part:IsA("AudioEmitter") then
-                    pcall(function() part.Muted = false end)
-                    pcall(function() part.Volume = 1 end)
-                end
-            end
-            -- Also restore head audio
-            local head = char:FindFirstChild("Head")
-            if head then
-                for _, child in ipairs(head:GetChildren()) do
-                    if child:IsA("AudioDeviceInput") or child:IsA("AudioEmitter") then
-                        pcall(function() child.Muted = false end)
-                        pcall(function() child.Volume = 1 end)
-                    end
-                end
-            end
-            -- Restore BasePart and Decal visibility
-            for _, part in ipairs(char:GetDescendants()) do
-                if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-                    pcall(function() part.Transparency = 0 end)
-                elseif part:IsA("Decal") then
-                    pcall(function() part.Transparency = 0 end)
-                end
-            end
-        end
-        -- Restore ShouldDeliverCallback (remove mute filter) by resetting to nil
-        pcall(function()
-            local TCS = game:GetService("TextChatService")
-            if TCS then
-                local channels = TCS:FindFirstChild("TextChannels")
-                if channels then
-                    for _, ch in ipairs(channels:GetChildren()) do
-                        if ch:IsA("TextChannel") then
-                            pcall(function() ch.ShouldDeliverCallback = nil end)
-                        end
-                    end
-                end
-            end
-        end)
-        -- Unmute via VoiceChatService
-        pcall(function()
-            if VoiceChatService then
-                VoiceChatService:UnmutePlayer(target.UserId)
-            end
-        end)
-        SendNotify("Hide", "Unhidden player: " .. target.DisplayName, 2)
+        unhidePlayer(target)
     else SendNotify("Command", "Player not found", 2) end
 end, "Misc")
 
@@ -7202,6 +7995,9 @@ end)
 
 SendNotify("Onyx", "Chat commands hooked", 3)
 
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  SYSTEM — OWNER COMMANDS (USERNAME RESTRICTED)               ║
+-- ╚══════════════════════════════════════════════════════════════╝
 -- =====================================================
 -- ONYX OWNER COMMANDS (USERNAME RESTRICTED)
 -- =====================================================
@@ -7267,7 +8063,6 @@ end
 
 FrozenPlayers = {}
 
--- ── Zero-Delay FE Action Engine ───────────────────────────────────────────────
 -- Uses PreSimulation (runs BEFORE physics tick) + PhysicsRepRootPart to hide
 -- owner movement completely. No Stepped:Wait() yields — pure zero-frame lag.
 local function PerformFEAction(cmd, targetPlayer)
@@ -7283,7 +8078,6 @@ local function PerformFEAction(cmd, targetPlayer)
 
     local savedCF = hrp.CFrame
 
-    -- ── Helper: snap owner HRP to target, invisible to server/camera ─────────
     -- PhysicsRepRootPart tells the engine our physics anchor is at `head`,
     -- so the server never sees us teleport. PreSimulation fires before the
     -- engine processes our position, giving true zero-frame registration.
@@ -7327,7 +8121,6 @@ local function PerformFEAction(cmd, targetPlayer)
         return conn
     end
 
-    -- ── Kill / Fling ──────────────────────────────────────────────────────────
     if cmd == ".kill" or cmd == ".fling" then
         if cmd == ".kill" and not targetPlayer:GetAttribute("OnyxExecuted") then
             SendNotify("👑 Kill", "Skipped " .. targetPlayer.DisplayName .. " (not Onyx user)", 2)
@@ -7377,7 +8170,6 @@ local function PerformFEAction(cmd, targetPlayer)
         hum.AutoRotate    = false
         SendNotify("👑 " .. (cmd == ".kill" and "Kill" or "Fling"), targetPlayer.DisplayName, 2)
 
-    -- ── Bring ─────────────────────────────────────────────────────────────────
     elseif cmd == ".bring" then
         -- Snap owner to target offset for 3 frames so server sees proximity
         local frames = 0
@@ -7403,7 +8195,6 @@ local function PerformFEAction(cmd, targetPlayer)
         end)
         SendNotify("👑 Bring", targetPlayer.DisplayName, 2)
 
-    -- ── Freeze — loop via PreSimulation instead of blocking Heartbeat:Wait() ──
     elseif cmd == ".freeze" or cmd == ".lock" then
         if FrozenPlayers[targetPlayer.UserId] then return end -- already frozen
         local tHrp = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
@@ -7430,35 +8221,10 @@ local function PerformFEAction(cmd, targetPlayer)
         end)
         SendNotify("❄️ Freeze", "Freezing " .. targetPlayer.DisplayName, 3)
 
-    -- ── Unfreeze ──────────────────────────────────────────────────────────────
-
     elseif cmd == ".hide" then
-        HiddenPlayers[targetPlayer.UserId] = true
-        SendNotify("👻 Hide", "Hiding " .. targetPlayer.DisplayName, 2)
-        -- Immediately apply hide
-        if targetPlayer.Character then
-            for _, v in ipairs(targetPlayer.Character:GetDescendants()) do
-                if v:IsA("Sound") then pcall(function() v.Volume = 0 end) end
-                if v:IsA("BasePart") or v:IsA("Decal") or v:IsA("Texture") then
-                    pcall(function() v.Transparency = 1 end)
-                end
-                if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("Light") then
-                    pcall(function() v.Enabled = false end)
-                end
-            end
-        end
-
+        hidePlayer(targetPlayer)
     elseif cmd == ".unhide" then
-        HiddenPlayers[targetPlayer.UserId] = nil
-        SendNotify("👁️ Unhide", "Restoring " .. targetPlayer.DisplayName, 2)
-        if targetPlayer.Character then
-            for _, v in ipairs(targetPlayer.Character:GetDescendants()) do
-                if v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" then pcall(function() v.Transparency = 0 end) end
-                if v:IsA("Decal") or v:IsA("Texture") then pcall(function() v.Transparency = 0 end) end
-                if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") then pcall(function() v.Enabled = true end) end
-                if v:IsA("Sound") then pcall(function() v.Volume = 0.5 end) end
-            end
-        end
+        unhidePlayer(targetPlayer)
     elseif cmd == ".unfreeze" or cmd == ".unlock" then
         FrozenPlayers[targetPlayer.UserId] = nil
         SendNotify("🔓 Unfreeze", targetPlayer.DisplayName, 2)
@@ -7670,7 +8436,6 @@ local function handleOwnerCommand(chatterData, msg)
         end
     end)
 end
-
 
 -- Hook chat for owner commands (Legacy + TextChatService)
 for _, p in ipairs(Players:GetPlayers()) do
